@@ -1,0 +1,182 @@
+import { useState, useRef, useEffect } from 'react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Avatar } from './Avatar';
+import { MessageBubble } from './MessageBubble';
+import { useMessages } from '@/hooks/useMessages';
+import { useAuth } from '@/hooks/useAuth';
+import { ConversationWithDetails } from '@/types/chat';
+import { cn } from '@/lib/utils';
+
+interface ChatViewProps {
+  conversation: ConversationWithDetails;
+  onBack: () => void;
+}
+
+export function ChatView({ conversation, onBack }: ChatViewProps) {
+  const { user } = useAuth();
+  const { messages, loading, sendMessage, uploadFile } = useMessages(conversation.id);
+  const [messageText, setMessageText] = useState('');
+  const [sending, setSending] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const otherParticipant = conversation.participants.find(p => p.user_id !== user?.id);
+  const otherProfile = otherParticipant?.profile;
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!messageText.trim() || sending) return;
+    
+    setSending(true);
+    await sendMessage(messageText.trim());
+    setMessageText('');
+    setSending(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setSending(true);
+    const uploadedFile = await uploadFile(file);
+    if (uploadedFile) {
+      await sendMessage('', type, uploadedFile);
+    }
+    setSending(false);
+    e.target.value = '';
+  };
+
+  const displayName = otherProfile?.full_name || otherProfile?.username || 'Unknown';
+  const lastSeen = otherProfile?.is_online 
+    ? 'online' 
+    : otherProfile?.last_seen 
+      ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
+      : 'offline';
+
+  return (
+    <div className="flex flex-col h-full bg-chat-bg">
+      {/* Header */}
+      <div className="flex items-center gap-3 p-3 bg-card border-b border-border">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={onBack}
+          className="md:hidden shrink-0"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <Avatar
+          src={otherProfile?.avatar_url}
+          name={displayName}
+          size="sm"
+          isOnline={otherProfile?.is_online}
+        />
+        <div className="flex-1 min-w-0">
+          <h2 className="font-semibold truncate">{displayName}</h2>
+          <p className={cn(
+            'text-xs truncate',
+            otherProfile?.is_online ? 'text-online' : 'text-muted-foreground'
+          )}>
+            {lastSeen}
+          </p>
+        </div>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-5 w-5" />
+        </Button>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-pulse text-muted-foreground">Loading messages...</div>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <p>No messages yet</p>
+            <p className="text-sm">Send a message to start the conversation</p>
+          </div>
+        ) : (
+          <>
+            {messages.map((message, index) => {
+              const showAvatar = index === 0 || 
+                messages[index - 1].sender_id !== message.sender_id;
+              return (
+                <MessageBubble 
+                  key={message.id} 
+                  message={message}
+                  showAvatar={showAvatar}
+                />
+              );
+            })}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
+
+      {/* Input */}
+      <div className="p-3 bg-card border-t border-border">
+        <div className="flex items-center gap-2">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e, 'image')}
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={(e) => handleFileUpload(e, 'file')}
+          />
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={sending}
+          >
+            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={sending}
+          >
+            <Paperclip className="h-5 w-5 text-muted-foreground" />
+          </Button>
+          <Input
+            placeholder="Message"
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={sending}
+            className="flex-1 bg-secondary border-0"
+          />
+          <Button 
+            size="icon"
+            onClick={handleSend}
+            disabled={!messageText.trim() || sending}
+            className="shrink-0"
+          >
+            <Send className="h-5 w-5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
