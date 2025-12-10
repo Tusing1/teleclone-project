@@ -57,6 +57,18 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Telegram specific
+        chat: {
+          bg: "hsl(var(--chat-bg))",
+        },
+        message: {
+          out: "hsl(var(--message-out))",
+          "out-foreground": "hsl(var(--message-out-foreground))",
+          in: "hsl(var(--message-in))",
+          "in-foreground": "hsl(var(--message-in-foreground))",
+        },
+        online: "hsl(var(--online))",
+        typing: "hsl(var(--typing))",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -65,25 +77,32 @@ export default {
       },
       keyframes: {
         "accordion-down": {
-          from: {
-            height: "0",
-          },
-          to: {
-            height: "var(--radix-accordion-content-height)",
-          },
+          from: { height: "0" },
+          to: { height: "var(--radix-accordion-content-height)" },
         },
         "accordion-up": {
-          from: {
-            height: "var(--radix-accordion-content-height)",
-          },
-          to: {
-            height: "0",
-          },
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: "0" },
+        },
+        "typing-dot": {
+          "0%, 60%, 100%": { opacity: "0.3" },
+          "30%": { opacity: "1" },
+        },
+        "slide-in": {
+          from: { transform: "translateX(-100%)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
+        },
+        "fade-in": {
+          from: { opacity: "0" },
+          to: { opacity: "1" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "typing-dot": "typing-dot 1.4s infinite ease-in-out",
+        "slide-in": "slide-in 0.2s ease-out",
+        "fade-in": "fade-in 0.15s ease-out",
       },
     },
   },
