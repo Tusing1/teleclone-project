@@ -8,11 +8,18 @@ import { EmptyState } from '@/components/chat/EmptyState';
 import { NewChatDialog } from '@/components/chat/NewChatDialog';
 import { Sidebar } from '@/components/chat/Sidebar';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
-  const { conversations, loading: convLoading, createConversation } = useConversations();
+  const { 
+    conversations, 
+    loading: convLoading, 
+    createConversation,
+    getOrCreateSavedMessages,
+    forwardToSavedMessages
+  } = useConversations();
   
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
@@ -36,6 +43,22 @@ export default function Index() {
     const conversationId = await createConversation(userId);
     if (conversationId) {
       setSelectedConversationId(conversationId);
+    }
+  };
+
+  const handleOpenSavedMessages = async () => {
+    const savedId = await getOrCreateSavedMessages();
+    if (savedId) {
+      setSelectedConversationId(savedId);
+    }
+  };
+
+  const handleForwardMessage = async (message: any) => {
+    const success = await forwardToSavedMessages(message);
+    if (success) {
+      toast.success('Message forwarded to Saved Messages');
+    } else {
+      toast.error('Failed to forward message');
     }
   };
 
@@ -74,6 +97,7 @@ export default function Index() {
           onSelect={setSelectedConversationId}
           onNewChat={() => setShowNewChat(true)}
           onMenuClick={() => setShowSidebar(true)}
+          onOpenSavedMessages={handleOpenSavedMessages}
         />
       </div>
 
@@ -88,6 +112,7 @@ export default function Index() {
           <ChatView 
             conversation={selectedConversation}
             onBack={() => setSelectedConversationId(null)}
+            onForwardMessage={handleForwardMessage}
           />
         ) : (
           <EmptyState />

@@ -1,20 +1,21 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
 import { MessageBubble } from './MessageBubble';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
-import { ConversationWithDetails } from '@/types/chat';
+import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 
 interface ChatViewProps {
   conversation: ConversationWithDetails;
   onBack: () => void;
+  onForwardMessage?: (message: MessageWithSender) => void;
 }
 
-export function ChatView({ conversation, onBack }: ChatViewProps) {
+export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewProps) {
   const { user } = useAuth();
   const { messages, loading, sendMessage, uploadFile } = useMessages(conversation.id);
   const [messageText, setMessageText] = useState('');
@@ -23,6 +24,7 @@ export function ChatView({ conversation, onBack }: ChatViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
+  const isSavedMessages = conversation.isSavedMessages;
   const otherParticipant = conversation.participants.find(p => p.user_id !== user?.id);
   const otherProfile = otherParticipant?.profile;
 
@@ -59,12 +61,18 @@ export function ChatView({ conversation, onBack }: ChatViewProps) {
     e.target.value = '';
   };
 
-  const displayName = otherProfile?.full_name || otherProfile?.username || 'Unknown';
-  const lastSeen = otherProfile?.is_online 
-    ? 'online' 
-    : otherProfile?.last_seen 
-      ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
-      : 'offline';
+  // Display name and status for header
+  const displayName = isSavedMessages 
+    ? 'Saved Messages' 
+    : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
+  
+  const statusText = isSavedMessages
+    ? 'Forward messages here for safekeeping'
+    : (otherProfile?.is_online 
+        ? 'online' 
+        : otherProfile?.last_seen 
+          ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
+          : 'offline');
 
   return (
     <div className="flex flex-col h-full bg-chat-bg">
@@ -78,19 +86,27 @@ export function ChatView({ conversation, onBack }: ChatViewProps) {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar
-          src={otherProfile?.avatar_url}
-          name={displayName}
-          size="sm"
-          isOnline={otherProfile?.is_online}
-        />
+        
+        {isSavedMessages ? (
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+            <Bookmark className="w-5 h-5 text-primary-foreground" />
+          </div>
+        ) : (
+          <Avatar
+            src={otherProfile?.avatar_url}
+            name={displayName}
+            size="sm"
+            isOnline={otherProfile?.is_online}
+          />
+        )}
+        
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold truncate">{displayName}</h2>
           <p className={cn(
             'text-xs truncate',
-            otherProfile?.is_online ? 'text-online' : 'text-muted-foreground'
+            !isSavedMessages && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground'
           )}>
-            {lastSeen}
+            {statusText}
           </p>
         </div>
         <Button variant="ghost" size="icon">
@@ -106,8 +122,20 @@ export function ChatView({ conversation, onBack }: ChatViewProps) {
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <p>No messages yet</p>
-            <p className="text-sm">Send a message to start the conversation</p>
+            {isSavedMessages ? (
+              <>
+                <Bookmark className="w-16 h-16 mb-4 text-primary/30" />
+                <p className="font-medium">Saved Messages</p>
+                <p className="text-sm text-center max-w-xs mt-1">
+                  Forward messages here to save them. Recorded calls will also appear here.
+                </p>
+              </>
+            ) : (
+              <>
+                <p>No messages yet</p>
+                <p className="text-sm">Send a message to start the conversation</p>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -119,6 +147,7 @@ export function ChatView({ conversation, onBack }: ChatViewProps) {
                   key={message.id} 
                   message={message}
                   showAvatar={showAvatar}
+                  onForward={!isSavedMessages ? onForwardMessage : undefined}
                 />
               );
             })}
@@ -160,7 +189,7 @@ export function ChatView({ conversation, onBack }: ChatViewProps) {
             <Paperclip className="h-5 w-5 text-muted-foreground" />
           </Button>
           <Input
-            placeholder="Message"
+            placeholder={isSavedMessages ? "Write a note..." : "Message"}
             value={messageText}
             onChange={(e) => setMessageText(e.target.value)}
             onKeyDown={handleKeyDown}

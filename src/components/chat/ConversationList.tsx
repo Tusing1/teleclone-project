@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { Search, Edit, Menu } from 'lucide-react';
+import { Search, Edit, Menu, Bookmark } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { ConversationWithDetails } from '@/types/chat';
 import { cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
 
 interface ConversationListProps {
   conversations: ConversationWithDetails[];
@@ -14,6 +13,7 @@ interface ConversationListProps {
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onMenuClick: () => void;
+  onOpenSavedMessages: () => void;
 }
 
 export function ConversationList({ 
@@ -21,12 +21,18 @@ export function ConversationList({
   selectedId, 
   onSelect, 
   onNewChat,
-  onMenuClick 
+  onMenuClick,
+  onOpenSavedMessages
 }: ConversationListProps) {
   const { user, profile } = useAuth();
   const [search, setSearch] = useState('');
 
   const filteredConversations = conversations.filter(conv => {
+    // Always show Saved Messages if search matches
+    if (conv.isSavedMessages) {
+      return 'saved messages'.includes(search.toLowerCase());
+    }
+    
     const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
     if (!otherParticipant?.profile) return false;
     
@@ -46,6 +52,89 @@ export function ConversationList({
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
+
+  const renderConversationItem = (conv: ConversationWithDetails) => {
+    // Saved Messages special rendering
+    if (conv.isSavedMessages) {
+      const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
+      const lastMessageText = conv.lastMessage?.content || 'No messages yet';
+
+      return (
+        <div
+          key={conv.id}
+          onClick={() => onSelect(conv.id)}
+          className={cn(
+            'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50',
+            selectedId === conv.id && 'bg-primary/10'
+          )}
+        >
+          <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+            <Bookmark className="w-6 h-6 text-primary-foreground" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="font-medium truncate">Saved Messages</span>
+              {conv.lastMessage && (
+                <span className="text-xs text-muted-foreground">
+                  {formatTime(lastMessageTime)}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground truncate">
+              {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
+               conv.lastMessage?.message_type === 'file' ? '📎 File' :
+               lastMessageText}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Regular conversation rendering
+    const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
+    if (!otherParticipant?.profile) return null;
+
+    const { profile: otherProfile } = otherParticipant;
+    const displayName = otherProfile.full_name || otherProfile.username;
+    const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
+    const lastMessageText = conv.lastMessage?.content || 'No messages yet';
+
+    return (
+      <div
+        key={conv.id}
+        onClick={() => onSelect(conv.id)}
+        className={cn(
+          'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50',
+          selectedId === conv.id && 'bg-primary/10'
+        )}
+      >
+        <Avatar
+          src={otherProfile.avatar_url}
+          name={displayName}
+          isOnline={otherProfile.is_online}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between">
+            <span className="font-medium truncate">{displayName}</span>
+            <span className="text-xs text-muted-foreground">
+              {formatTime(lastMessageTime)}
+            </span>
+          </div>
+          <p className="text-sm text-muted-foreground truncate">
+            {conv.lastMessage?.sender_id === user?.id && (
+              <span className="text-primary">You: </span>
+            )}
+            {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
+             conv.lastMessage?.message_type === 'file' ? '📎 File' :
+             lastMessageText}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // Check if Saved Messages exists in conversations
+  const hasSavedMessages = conversations.some(c => c.isSavedMessages);
 
   return (
     <div className="flex flex-col h-full bg-card">
@@ -74,7 +163,23 @@ export function ConversationList({
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
-        {filteredConversations.length === 0 ? (
+        {/* Saved Messages shortcut if it doesn't exist yet */}
+        {!hasSavedMessages && !search && (
+          <div
+            onClick={onOpenSavedMessages}
+            className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 border-b border-border/50"
+          >
+            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+              <Bookmark className="w-6 h-6 text-primary-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="font-medium">Saved Messages</span>
+              <p className="text-sm text-muted-foreground">Save messages here</p>
+            </div>
+          </div>
+        )}
+
+        {filteredConversations.length === 0 && hasSavedMessages ? (
           <div className="p-4 text-center text-muted-foreground">
             <p>No conversations yet</p>
             <Button 
@@ -86,48 +191,7 @@ export function ConversationList({
             </Button>
           </div>
         ) : (
-          filteredConversations.map(conv => {
-            const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
-            if (!otherParticipant?.profile) return null;
-
-            const { profile: otherProfile } = otherParticipant;
-            const displayName = otherProfile.full_name || otherProfile.username;
-            const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
-            const lastMessageText = conv.lastMessage?.content || 'No messages yet';
-
-            return (
-              <div
-                key={conv.id}
-                onClick={() => onSelect(conv.id)}
-                className={cn(
-                  'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50',
-                  selectedId === conv.id && 'bg-primary/10'
-                )}
-              >
-                <Avatar
-                  src={otherProfile.avatar_url}
-                  name={displayName}
-                  isOnline={otherProfile.is_online}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium truncate">{displayName}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatTime(lastMessageTime)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground truncate">
-                    {conv.lastMessage?.sender_id === user?.id && (
-                      <span className="text-primary">You: </span>
-                    )}
-                    {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
-                     conv.lastMessage?.message_type === 'file' ? '📎 File' :
-                     lastMessageText}
-                  </p>
-                </div>
-              </div>
-            );
-          })
+          filteredConversations.map(renderConversationItem)
         )}
       </div>
 

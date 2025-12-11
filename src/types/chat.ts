@@ -42,6 +42,7 @@ export interface ConversationWithDetails extends Conversation {
   participants: (ConversationParticipant & { profile: Profile })[];
   lastMessage?: Message;
   unreadCount?: number;
+  isSavedMessages?: boolean;
 }
 
 export interface MessageWithSender extends Message {
