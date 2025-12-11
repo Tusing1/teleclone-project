@@ -7,6 +7,11 @@ import { ChatView } from '@/components/chat/ChatView';
 import { EmptyState } from '@/components/chat/EmptyState';
 import { NewChatDialog } from '@/components/chat/NewChatDialog';
 import { Sidebar } from '@/components/chat/Sidebar';
+import { ArchivedChatsDialog } from '@/components/chat/ArchivedChatsDialog';
+import { ContactsDialog } from '@/components/chat/ContactsDialog';
+import { InviteFriendsDialog } from '@/components/chat/InviteFriendsDialog';
+import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
+import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -15,8 +20,11 @@ export default function Index() {
   const navigate = useNavigate();
   const { 
     conversations, 
+    archivedConversations,
     loading: convLoading, 
     createConversation,
+    archiveConversation,
+    unarchiveConversation,
     getOrCreateSavedMessages,
     forwardToSavedMessages
   } = useConversations();
@@ -24,6 +32,11 @@ export default function Index() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [showContacts, setShowContacts] = useState(false);
+  const [showInviteFriends, setShowInviteFriends] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
+  const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -62,7 +75,29 @@ export default function Index() {
     }
   };
 
-  const selectedConversation = conversations.find(c => c.id === selectedConversationId);
+  const handleArchiveConversation = async (conversationId: string) => {
+    const success = await archiveConversation(conversationId);
+    if (success) {
+      toast.success('Chat archived');
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null);
+      }
+    } else {
+      toast.error('Failed to archive chat');
+    }
+  };
+
+  const handleUnarchiveConversation = async (conversationId: string) => {
+    const success = await unarchiveConversation(conversationId);
+    if (success) {
+      toast.success('Chat unarchived');
+    }
+    return success;
+  };
+
+  const selectedConversation = [...conversations, ...archivedConversations].find(
+    c => c.id === selectedConversationId
+  );
 
   if (authLoading) {
     return (
@@ -82,7 +117,16 @@ export default function Index() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Sidebar menu */}
-      <Sidebar open={showSidebar} onClose={() => setShowSidebar(false)} />
+      <Sidebar 
+        open={showSidebar} 
+        onClose={() => setShowSidebar(false)}
+        onOpenSavedMessages={handleOpenSavedMessages}
+        onOpenArchived={() => setShowArchived(true)}
+        onOpenContacts={() => setShowContacts(true)}
+        onOpenCreateGroup={() => setShowCreateGroup(true)}
+        onOpenCreateChannel={() => setShowCreateChannel(true)}
+        onOpenInviteFriends={() => setShowInviteFriends(true)}
+      />
 
       {/* Conversation list */}
       <div 
@@ -98,6 +142,7 @@ export default function Index() {
           onNewChat={() => setShowNewChat(true)}
           onMenuClick={() => setShowSidebar(true)}
           onOpenSavedMessages={handleOpenSavedMessages}
+          onArchiveConversation={handleArchiveConversation}
         />
       </div>
 
@@ -119,11 +164,40 @@ export default function Index() {
         )}
       </div>
 
-      {/* New chat dialog */}
+      {/* Dialogs */}
       <NewChatDialog
         open={showNewChat}
         onClose={() => setShowNewChat(false)}
         onSelectUser={handleSelectUser}
+      />
+      
+      <ArchivedChatsDialog
+        open={showArchived}
+        onClose={() => setShowArchived(false)}
+        archivedConversations={archivedConversations}
+        onUnarchive={handleUnarchiveConversation}
+        onSelectConversation={setSelectedConversationId}
+      />
+      
+      <ContactsDialog
+        open={showContacts}
+        onClose={() => setShowContacts(false)}
+        onSelectUser={handleSelectUser}
+      />
+      
+      <InviteFriendsDialog
+        open={showInviteFriends}
+        onClose={() => setShowInviteFriends(false)}
+      />
+      
+      <CreateGroupDialog
+        open={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+      />
+      
+      <CreateChannelDialog
+        open={showCreateChannel}
+        onClose={() => setShowCreateChannel(false)}
       />
     </div>
   );

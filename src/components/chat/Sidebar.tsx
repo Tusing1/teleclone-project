@@ -1,6 +1,10 @@
-import { LogOut, Settings, User, Moon, Sun } from 'lucide-react';
+import { 
+  LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
+  Users, UserPlus, Radio, Contact 
+} from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
@@ -8,9 +12,24 @@ import { useState, useEffect } from 'react';
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
+  onOpenSavedMessages: () => void;
+  onOpenArchived: () => void;
+  onOpenContacts: () => void;
+  onOpenCreateGroup: () => void;
+  onOpenCreateChannel: () => void;
+  onOpenInviteFriends: () => void;
 }
 
-export function Sidebar({ open, onClose }: SidebarProps) {
+export function Sidebar({ 
+  open, 
+  onClose,
+  onOpenSavedMessages,
+  onOpenArchived,
+  onOpenContacts,
+  onOpenCreateGroup,
+  onOpenCreateChannel,
+  onOpenInviteFriends
+}: SidebarProps) {
   const { profile, signOut } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
 
@@ -27,6 +46,11 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const handleSignOut = async () => {
     await signOut();
+    onClose();
+  };
+
+  const handleMenuClick = (action: () => void) => {
+    action();
     onClose();
   };
 
@@ -51,11 +75,64 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           </div>
 
           {/* Menu items */}
-          <div className="flex-1 py-2">
+          <div className="flex-1 py-2 overflow-y-auto">
+            <button 
+              onClick={() => handleMenuClick(onOpenSavedMessages)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Bookmark className="h-5 w-5 text-muted-foreground" />
+              <span>Saved Messages</span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenArchived)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Archive className="h-5 w-5 text-muted-foreground" />
+              <span>Archived Chats</span>
+            </button>
+
+            <Separator className="my-2" />
+
+            <button 
+              onClick={() => handleMenuClick(onOpenContacts)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Contact className="h-5 w-5 text-muted-foreground" />
+              <span>Contacts</span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenCreateGroup)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <span>New Group</span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenCreateChannel)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Radio className="h-5 w-5 text-muted-foreground" />
+              <span>New Channel</span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenInviteFriends)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <UserPlus className="h-5 w-5 text-muted-foreground" />
+              <span>Invite Friends</span>
+            </button>
+
+            <Separator className="my-2" />
+
             <button className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors">
               <User className="h-5 w-5 text-muted-foreground" />
               <span>My Profile</span>
             </button>
+
             <button 
               onClick={toggleDarkMode}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
@@ -67,6 +144,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               )}
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
+
             <button className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors">
               <Settings className="h-5 w-5 text-muted-foreground" />
               <span>Settings</span>

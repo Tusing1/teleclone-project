@@ -15,6 +15,7 @@ export interface Conversation {
   id: string;
   created_at: string;
   updated_at: string;
+  is_archived?: boolean;
 }
 
 export interface ConversationParticipant {
@@ -43,6 +44,7 @@ export interface ConversationWithDetails extends Conversation {
   lastMessage?: Message;
   unreadCount?: number;
   isSavedMessages?: boolean;
+  is_archived?: boolean;
 }
 
 export interface MessageWithSender extends Message {
