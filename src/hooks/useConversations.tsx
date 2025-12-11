@@ -6,6 +6,7 @@ import { ConversationWithDetails, Profile, Message } from '@/types/chat';
 export function useConversations() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
+  const [archivedConversations, setArchivedConversations] = useState<ConversationWithDetails[]>([]);
   const [savedMessagesId, setSavedMessagesId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -20,6 +21,7 @@ export function useConversations() {
 
     if (participantError || !participantData?.length) {
       setConversations([]);
+      setArchivedConversations([]);
       setLoading(false);
       return;
     }
@@ -77,6 +79,7 @@ export function useConversations() {
         participants: participantsWithProfiles,
         lastMessage,
         isSavedMessages,
+        is_archived: conv.is_archived || false,
       };
     });
 
@@ -86,16 +89,24 @@ export function useConversations() {
       setSavedMessagesId(savedConv.id);
     }
 
+    // Separate archived and active conversations
+    const active = conversationsWithDetails.filter(c => !c.is_archived);
+    const archived = conversationsWithDetails.filter(c => c.is_archived);
+
     // Sort: Saved Messages first, then by last message time
-    conversationsWithDetails.sort((a, b) => {
+    const sortFn = (a: ConversationWithDetails, b: ConversationWithDetails) => {
       if (a.isSavedMessages) return -1;
       if (b.isSavedMessages) return 1;
       const aTime = a.lastMessage?.created_at || a.updated_at;
       const bTime = b.lastMessage?.created_at || b.updated_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
-    });
+    };
 
-    setConversations(conversationsWithDetails);
+    active.sort(sortFn);
+    archived.sort(sortFn);
+
+    setConversations(active);
+    setArchivedConversations(archived);
     setLoading(false);
   }, [user]);
 
@@ -167,6 +178,28 @@ export function useConversations() {
 
     await fetchConversations();
     return newConv.id;
+  };
+
+  const archiveConversation = async (conversationId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('conversations')
+      .update({ is_archived: true })
+      .eq('id', conversationId);
+
+    if (error) return false;
+    await fetchConversations();
+    return true;
+  };
+
+  const unarchiveConversation = async (conversationId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('conversations')
+      .update({ is_archived: false })
+      .eq('id', conversationId);
+
+    if (error) return false;
+    await fetchConversations();
+    return true;
   };
 
   const getOrCreateSavedMessages = async (): Promise<string | null> => {
@@ -255,8 +288,11 @@ export function useConversations() {
 
   return { 
     conversations, 
+    archivedConversations,
     loading, 
-    createConversation, 
+    createConversation,
+    archiveConversation,
+    unarchiveConversation,
     refetch: fetchConversations,
     savedMessagesId,
     getOrCreateSavedMessages,

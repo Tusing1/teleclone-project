@@ -1,11 +1,17 @@
 import { useState } from 'react';
-import { Search, Edit, Menu, Bookmark } from 'lucide-react';
+import { Search, Edit, Menu, Bookmark, Archive, MoreVertical } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { ConversationWithDetails } from '@/types/chat';
 import { cn } from '@/lib/utils';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ConversationListProps {
   conversations: ConversationWithDetails[];
@@ -14,6 +20,7 @@ interface ConversationListProps {
   onNewChat: () => void;
   onMenuClick: () => void;
   onOpenSavedMessages: () => void;
+  onArchiveConversation?: (conversationId: string) => void;
 }
 
 export function ConversationList({ 
@@ -22,7 +29,8 @@ export function ConversationList({
   onSelect, 
   onNewChat,
   onMenuClick,
-  onOpenSavedMessages
+  onOpenSavedMessages,
+  onArchiveConversation
 }: ConversationListProps) {
   const { user, profile } = useAuth();
   const [search, setSearch] = useState('');
@@ -51,6 +59,11 @@ export function ConversationList({
       return date.toLocaleDateString([], { weekday: 'short' });
     }
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const handleArchive = (e: React.MouseEvent, conversationId: string) => {
+    e.stopPropagation();
+    onArchiveConversation?.(conversationId);
   };
 
   const renderConversationItem = (conv: ConversationWithDetails) => {
@@ -104,7 +117,7 @@ export function ConversationList({
         key={conv.id}
         onClick={() => onSelect(conv.id)}
         className={cn(
-          'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50',
+          'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 group',
           selectedId === conv.id && 'bg-primary/10'
         )}
       >
@@ -116,9 +129,28 @@ export function ConversationList({
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
             <span className="font-medium truncate">{displayName}</span>
-            <span className="text-xs text-muted-foreground">
-              {formatTime(lastMessageTime)}
-            </span>
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">
+                {formatTime(lastMessageTime)}
+              </span>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={(e) => handleArchive(e, conv.id)}>
+                    <Archive className="h-4 w-4 mr-2" />
+                    Archive
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
           <p className="text-sm text-muted-foreground truncate">
             {conv.lastMessage?.sender_id === user?.id && (
