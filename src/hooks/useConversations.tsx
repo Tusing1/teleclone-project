@@ -6,6 +6,7 @@ import { ConversationWithDetails, Profile, Message } from '@/types/chat';
 export function useConversations() {
   const { user } = useAuth();
   const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
+  const [savedMessagesId, setSavedMessagesId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchConversations = useCallback(async () => {
@@ -68,15 +69,27 @@ export function useConversations() {
       const convMessages = lastMessages?.filter(m => m.conversation_id === conv.id) || [];
       const lastMessage = convMessages[0] as Message | undefined;
 
+      // Check if this is a Saved Messages conversation (only one participant and it's the current user)
+      const isSavedMessages = convParticipants.length === 1 && convParticipants[0].user_id === user.id;
+
       return {
         ...conv,
         participants: participantsWithProfiles,
         lastMessage,
+        isSavedMessages,
       };
     });
 
-    // Sort by last message time or conversation update time
+    // Find and store saved messages ID
+    const savedConv = conversationsWithDetails.find(c => c.isSavedMessages);
+    if (savedConv) {
+      setSavedMessagesId(savedConv.id);
+    }
+
+    // Sort: Saved Messages first, then by last message time
     conversationsWithDetails.sort((a, b) => {
+      if (a.isSavedMessages) return -1;
+      if (b.isSavedMessages) return 1;
       const aTime = a.lastMessage?.created_at || a.updated_at;
       const bTime = b.lastMessage?.created_at || b.updated_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();
@@ -156,5 +169,97 @@ export function useConversations() {
     return newConv.id;
   };
 
-  return { conversations, loading, createConversation, refetch: fetchConversations };
+  const getOrCreateSavedMessages = async (): Promise<string | null> => {
+    if (!user) return null;
+
+    // Return existing saved messages conversation
+    if (savedMessagesId) return savedMessagesId;
+
+    // Check if it exists but wasn't loaded yet
+    const { data: participantData } = await supabase
+      .from('conversation_participants')
+      .select('conversation_id')
+      .eq('user_id', user.id);
+
+    if (participantData) {
+      for (const p of participantData) {
+        const { data: participants } = await supabase
+          .from('conversation_participants')
+          .select('*')
+          .eq('conversation_id', p.conversation_id);
+
+        // Saved Messages = conversation with only the current user
+        if (participants?.length === 1 && participants[0].user_id === user.id) {
+          setSavedMessagesId(p.conversation_id);
+          return p.conversation_id;
+        }
+      }
+    }
+
+    // Create new Saved Messages conversation
+    const { data: newConv, error: convError } = await supabase
+      .from('conversations')
+      .insert({})
+      .select()
+      .single();
+
+    if (convError || !newConv) return null;
+
+    // Add only the current user as participant
+    await supabase
+      .from('conversation_participants')
+      .insert({ conversation_id: newConv.id, user_id: user.id });
+
+    setSavedMessagesId(newConv.id);
+    await fetchConversations();
+    return newConv.id;
+  };
+
+  const forwardToSavedMessages = async (message: Message): Promise<boolean> => {
+    if (!user) return false;
+
+    const savedId = await getOrCreateSavedMessages();
+    if (!savedId) return false;
+
+    const forwardedContent = message.content 
+      ? `📤 Forwarded:\n${message.content}`
+      : '📤 Forwarded message';
+
+    const messageData: any = {
+      conversation_id: savedId,
+      sender_id: user.id,
+      content: forwardedContent,
+      message_type: message.message_type,
+    };
+
+    if (message.file_url) {
+      messageData.file_url = message.file_url;
+      messageData.file_name = message.file_name;
+      messageData.file_size = message.file_size;
+    }
+
+    const { error } = await supabase
+      .from('messages')
+      .insert(messageData);
+
+    if (error) return false;
+
+    // Update conversation timestamp
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', savedId);
+
+    return true;
+  };
+
+  return { 
+    conversations, 
+    loading, 
+    createConversation, 
+    refetch: fetchConversations,
+    savedMessagesId,
+    getOrCreateSavedMessages,
+    forwardToSavedMessages
+  };
 }

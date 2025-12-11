@@ -1,16 +1,26 @@
+import { useState } from 'react';
 import { MessageWithSender } from '@/types/chat';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Download, FileIcon } from 'lucide-react';
+import { Check, CheckCheck, Download, FileIcon, Forward, MoreVertical } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Button } from '@/components/ui/button';
 
 interface MessageBubbleProps {
   message: MessageWithSender;
   showAvatar?: boolean;
+  onForward?: (message: MessageWithSender) => void;
 }
 
-export function MessageBubble({ message, showAvatar }: MessageBubbleProps) {
+export function MessageBubble({ message, showAvatar, onForward }: MessageBubbleProps) {
   const { user } = useAuth();
   const isOwn = message.sender_id === user?.id;
+  const [showMenu, setShowMenu] = useState(false);
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { 
@@ -28,13 +38,36 @@ export function MessageBubble({ message, showAvatar }: MessageBubbleProps) {
   return (
     <div
       className={cn(
-        'flex gap-2 px-4 py-0.5 animate-fade-in',
+        'flex gap-2 px-4 py-0.5 animate-fade-in group',
         isOwn ? 'justify-end' : 'justify-start'
       )}
+      onMouseEnter={() => setShowMenu(true)}
+      onMouseLeave={() => setShowMenu(false)}
     >
+      {/* Action menu for forwarding */}
+      {!isOwn && showMenu && onForward && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity self-center"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => onForward(message)}>
+              <Forward className="h-4 w-4 mr-2" />
+              Forward to Saved Messages
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+
       <div
         className={cn(
-          'max-w-[70%] rounded-2xl px-3 py-2 shadow-sm',
+          'max-w-[70%] rounded-2xl px-3 py-2 shadow-sm relative',
           isOwn 
             ? 'bg-message-out text-message-out-foreground rounded-tr-sm' 
             : 'bg-message-in text-message-in-foreground rounded-tl-sm'
@@ -104,6 +137,27 @@ export function MessageBubble({ message, showAvatar }: MessageBubbleProps) {
           )}
         </div>
       </div>
+
+      {/* Action menu for own messages */}
+      {isOwn && showMenu && onForward && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity self-center"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem onClick={() => onForward(message)}>
+              <Forward className="h-4 w-4 mr-2" />
+              Forward to Saved Messages
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   );
 }
