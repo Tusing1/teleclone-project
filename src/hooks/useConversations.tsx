@@ -184,40 +184,17 @@ export function useConversations() {
     if (!user) return null;
 
     try {
-      // Create group conversation
-      const { data: newConv, error: convError } = await supabase
-        .from('conversations')
-        .insert({ 
-          type: 'group',
-          name,
-          description,
-          created_by: user.id
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.functions.invoke('create-conversation', {
+        body: { type: 'group', name, description, memberIds }
+      });
 
-      if (convError) {
-        console.error('Group creation error:', convError);
+      if (error) {
+        console.error('Group creation error:', error);
         return null;
-      }
-      if (!newConv) return null;
-
-      // Add creator as owner
-      const participants = [
-        { conversation_id: newConv.id, user_id: user.id, role: 'owner' },
-        ...memberIds.map(id => ({ conversation_id: newConv.id, user_id: id, role: 'member' }))
-      ];
-
-      const { error: participantError } = await supabase
-        .from('conversation_participants')
-        .insert(participants);
-
-      if (participantError) {
-        console.error('Participants add error:', participantError);
       }
 
       await fetchConversations();
-      return newConv.id;
+      return data?.id || null;
     } catch (err) {
       console.error('Group creation failed:', err);
       return null;
@@ -228,35 +205,17 @@ export function useConversations() {
     if (!user) return null;
 
     try {
-      // Create channel conversation
-      const { data: newConv, error: convError } = await supabase
-        .from('conversations')
-        .insert({ 
-          type: 'channel',
-          name,
-          description,
-          created_by: user.id
-        })
-        .select()
-        .single();
+      const { data, error } = await supabase.functions.invoke('create-conversation', {
+        body: { type: 'channel', name, description, memberIds: [] }
+      });
 
-      if (convError) {
-        console.error('Channel creation error:', convError);
+      if (error) {
+        console.error('Channel creation error:', error);
         return null;
-      }
-      if (!newConv) return null;
-
-      // Add creator as owner
-      const { error: participantError } = await supabase
-        .from('conversation_participants')
-        .insert({ conversation_id: newConv.id, user_id: user.id, role: 'owner' });
-
-      if (participantError) {
-        console.error('Participant add error:', participantError);
       }
 
       await fetchConversations();
-      return newConv.id;
+      return data?.id || null;
     } catch (err) {
       console.error('Channel creation failed:', err);
       return null;
