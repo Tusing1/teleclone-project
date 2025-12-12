@@ -23,6 +23,8 @@ export default function Index() {
     archivedConversations,
     loading: convLoading, 
     createConversation,
+    createGroup,
+    createChannel,
     archiveConversation,
     unarchiveConversation,
     getOrCreateSavedMessages,
@@ -73,6 +75,28 @@ export default function Index() {
     } else {
       toast.error('Failed to forward message');
     }
+  };
+
+  const handleCreateGroup = async (name: string, description: string, memberIds: string[]) => {
+    const conversationId = await createGroup(name, description, memberIds);
+    if (conversationId) {
+      setSelectedConversationId(conversationId);
+      toast.success('Group created');
+    } else {
+      toast.error('Failed to create group');
+    }
+    return conversationId;
+  };
+
+  const handleCreateChannel = async (name: string, description: string) => {
+    const conversationId = await createChannel(name, description);
+    if (conversationId) {
+      setSelectedConversationId(conversationId);
+      toast.success('Channel created');
+    } else {
+      toast.error('Failed to create channel');
+    }
+    return conversationId;
   };
 
   const handleArchiveConversation = async (conversationId: string) => {
@@ -193,11 +217,13 @@ export default function Index() {
       <CreateGroupDialog
         open={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
+        onCreateGroup={handleCreateGroup}
       />
       
       <CreateChannelDialog
         open={showCreateChannel}
         onClose={() => setShowCreateChannel(false)}
+        onCreateChannel={handleCreateChannel}
       />
     </div>
   );

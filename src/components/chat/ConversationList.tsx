@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Edit, Menu, Bookmark, Archive, MoreVertical } from 'lucide-react';
+import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -41,6 +41,12 @@ export function ConversationList({
       return 'saved messages'.includes(search.toLowerCase());
     }
     
+    // Groups and channels use their name
+    if (conv.type === 'group' || conv.type === 'channel') {
+      return conv.name?.toLowerCase().includes(search.toLowerCase()) ?? false;
+    }
+    
+    // Direct messages use other participant's name
     const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
     if (!otherParticipant?.profile) return false;
     
@@ -103,7 +109,115 @@ export function ConversationList({
       );
     }
 
-    // Regular conversation rendering
+    // Group conversation rendering
+    if (conv.type === 'group') {
+      const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
+      const lastMessageText = conv.lastMessage?.content || 'No messages yet';
+      const memberCount = conv.participants.length;
+
+      return (
+        <div
+          key={conv.id}
+          onClick={() => onSelect(conv.id)}
+          className={cn(
+            'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 group',
+            selectedId === conv.id && 'bg-primary/10'
+          )}
+        >
+          <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center">
+            <Users className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="font-medium truncate">{conv.name}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">
+                  {formatTime(lastMessageTime)}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={(e) => handleArchive(e, conv.id)}>
+                      <Archive className="h-4 w-4 mr-2" />
+                      Archive
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground truncate">
+              {memberCount} members • {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
+               conv.lastMessage?.message_type === 'file' ? '📎 File' :
+               lastMessageText}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Channel conversation rendering
+    if (conv.type === 'channel') {
+      const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
+      const lastMessageText = conv.lastMessage?.content || 'No messages yet';
+      const subscriberCount = conv.participants.length;
+
+      return (
+        <div
+          key={conv.id}
+          onClick={() => onSelect(conv.id)}
+          className={cn(
+            'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 group',
+            selectedId === conv.id && 'bg-primary/10'
+          )}
+        >
+          <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center">
+            <Radio className="w-6 h-6 text-white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between">
+              <span className="font-medium truncate">{conv.name}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">
+                  {formatTime(lastMessageTime)}
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={(e) => handleArchive(e, conv.id)}>
+                      <Archive className="h-4 w-4 mr-2" />
+                      Archive
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+            <p className="text-sm text-muted-foreground truncate">
+              {subscriberCount} subscribers • {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
+               conv.lastMessage?.message_type === 'file' ? '📎 File' :
+               lastMessageText}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // Regular direct conversation rendering
     const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
     if (!otherParticipant?.profile) return null;
 

@@ -13,9 +13,22 @@ export interface Profile {
 
 export interface Conversation {
   id: string;
+  type: string;
+  name: string | null;
+  description: string | null;
+  avatar_url: string | null;
+  created_by: string | null;
   created_at: string;
   updated_at: string;
   is_archived?: boolean;
+}
+
+export interface ConversationParticipant {
+  id: string;
+  conversation_id: string;
+  user_id: string;
+  role: string;
+  joined_at: string;
 }
 
 export interface ConversationParticipant {

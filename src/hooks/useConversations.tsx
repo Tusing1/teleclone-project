@@ -162,7 +162,7 @@ export function useConversations() {
     // Create new conversation
     const { data: newConv, error: convError } = await supabase
       .from('conversations')
-      .insert({})
+      .insert({ type: 'direct' })
       .select()
       .single();
 
@@ -172,9 +172,66 @@ export function useConversations() {
     await supabase
       .from('conversation_participants')
       .insert([
-        { conversation_id: newConv.id, user_id: user.id },
-        { conversation_id: newConv.id, user_id: otherUserId }
+        { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+        { conversation_id: newConv.id, user_id: otherUserId, role: 'member' }
       ]);
+
+    await fetchConversations();
+    return newConv.id;
+  };
+
+  const createGroup = async (name: string, description: string, memberIds: string[]): Promise<string | null> => {
+    if (!user) return null;
+
+    // Create group conversation
+    const { data: newConv, error: convError } = await supabase
+      .from('conversations')
+      .insert({ 
+        type: 'group',
+        name,
+        description,
+        created_by: user.id
+      })
+      .select()
+      .single();
+
+    if (convError || !newConv) return null;
+
+    // Add creator as owner
+    const participants = [
+      { conversation_id: newConv.id, user_id: user.id, role: 'owner' },
+      ...memberIds.map(id => ({ conversation_id: newConv.id, user_id: id, role: 'member' }))
+    ];
+
+    await supabase
+      .from('conversation_participants')
+      .insert(participants);
+
+    await fetchConversations();
+    return newConv.id;
+  };
+
+  const createChannel = async (name: string, description: string): Promise<string | null> => {
+    if (!user) return null;
+
+    // Create channel conversation
+    const { data: newConv, error: convError } = await supabase
+      .from('conversations')
+      .insert({ 
+        type: 'channel',
+        name,
+        description,
+        created_by: user.id
+      })
+      .select()
+      .single();
+
+    if (convError || !newConv) return null;
+
+    // Add creator as owner
+    await supabase
+      .from('conversation_participants')
+      .insert({ conversation_id: newConv.id, user_id: user.id, role: 'owner' });
 
     await fetchConversations();
     return newConv.id;
@@ -232,7 +289,7 @@ export function useConversations() {
     // Create new Saved Messages conversation
     const { data: newConv, error: convError } = await supabase
       .from('conversations')
-      .insert({})
+      .insert({ type: 'direct' })
       .select()
       .single();
 
@@ -241,7 +298,7 @@ export function useConversations() {
     // Add only the current user as participant
     await supabase
       .from('conversation_participants')
-      .insert({ conversation_id: newConv.id, user_id: user.id });
+      .insert({ conversation_id: newConv.id, user_id: user.id, role: 'owner' });
 
     setSavedMessagesId(newConv.id);
     await fetchConversations();
@@ -291,6 +348,8 @@ export function useConversations() {
     archivedConversations,
     loading, 
     createConversation,
+    createGroup,
+    createChannel,
     archiveConversation,
     unarchiveConversation,
     refetch: fetchConversations,

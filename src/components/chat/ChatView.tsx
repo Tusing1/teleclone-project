@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark, Users, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
@@ -25,8 +25,14 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const isSavedMessages = conversation.isSavedMessages;
+  const isGroup = conversation.type === 'group';
+  const isChannel = conversation.type === 'channel';
   const otherParticipant = conversation.participants.find(p => p.user_id !== user?.id);
   const otherProfile = otherParticipant?.profile;
+  
+  // Check if current user can send messages (owner/admin for channels, anyone for groups/direct)
+  const currentUserParticipant = conversation.participants.find(p => p.user_id === user?.id);
+  const canSendMessages = !isChannel || currentUserParticipant?.role === 'owner' || currentUserParticipant?.role === 'admin';
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -64,15 +70,21 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
   // Display name and status for header
   const displayName = isSavedMessages 
     ? 'Saved Messages' 
-    : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
+    : isGroup || isChannel
+      ? conversation.name || 'Unnamed'
+      : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
   
   const statusText = isSavedMessages
     ? 'Forward messages here for safekeeping'
-    : (otherProfile?.is_online 
-        ? 'online' 
-        : otherProfile?.last_seen 
-          ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
-          : 'offline');
+    : isGroup
+      ? `${conversation.participants.length} members`
+      : isChannel
+        ? `${conversation.participants.length} subscribers`
+        : (otherProfile?.is_online 
+            ? 'online' 
+            : otherProfile?.last_seen 
+              ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
+              : 'offline');
 
   return (
     <div className="flex flex-col h-full bg-chat-bg">
@@ -91,6 +103,14 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
           <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
             <Bookmark className="w-5 h-5 text-primary-foreground" />
           </div>
+        ) : isGroup ? (
+          <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+            <Users className="w-5 h-5 text-white" />
+          </div>
+        ) : isChannel ? (
+          <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center">
+            <Radio className="w-5 h-5 text-white" />
+          </div>
         ) : (
           <Avatar
             src={otherProfile?.avatar_url}
@@ -104,7 +124,7 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
           <h2 className="font-semibold truncate">{displayName}</h2>
           <p className={cn(
             'text-xs truncate',
-            !isSavedMessages && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground'
+            !isSavedMessages && !isGroup && !isChannel && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground'
           )}>
             {statusText}
           </p>
