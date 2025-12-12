@@ -19,18 +19,21 @@ export type Database = {
           conversation_id: string
           id: string
           joined_at: string
+          role: string
           user_id: string
         }
         Insert: {
           conversation_id: string
           id?: string
           joined_at?: string
+          role?: string
           user_id: string
         }
         Update: {
           conversation_id?: string
           id?: string
           joined_at?: string
+          role?: string
           user_id?: string
         }
         Relationships: [
@@ -45,21 +48,36 @@ export type Database = {
       }
       conversations: {
         Row: {
+          avatar_url: string | null
           created_at: string
+          created_by: string | null
+          description: string | null
           id: string
           is_archived: boolean | null
+          name: string | null
+          type: string
           updated_at: string
         }
         Insert: {
+          avatar_url?: string | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
           id?: string
           is_archived?: boolean | null
+          name?: string | null
+          type?: string
           updated_at?: string
         }
         Update: {
+          avatar_url?: string | null
           created_at?: string
+          created_by?: string | null
+          description?: string | null
           id?: string
           is_archived?: boolean | null
+          name?: string | null
+          type?: string
           updated_at?: string
         }
         Relationships: []
