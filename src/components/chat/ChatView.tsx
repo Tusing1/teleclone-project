@@ -4,10 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
 import { MessageBubble } from './MessageBubble';
+import { CallButton } from './CallButton';
+import { CallView } from './CallView';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
+import { useCalls } from '@/hooks/useCalls';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
+import { toast } from '@/hooks/use-toast';
 
 interface ChatViewProps {
   conversation: ConversationWithDetails;
@@ -33,6 +37,40 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
   // Check if current user can send messages (owner/admin for channels, anyone for groups/direct)
   const currentUserParticipant = conversation.participants.find(p => p.user_id === user?.id);
   const canSendMessages = !isChannel || currentUserParticipant?.role === 'owner' || currentUserParticipant?.role === 'admin';
+  const isAdminOrOwner = currentUserParticipant?.role === 'owner' || currentUserParticipant?.role === 'admin';
+
+  // Calls
+  const {
+    activeCall,
+    participants: callParticipants,
+    isInCall,
+    localStream,
+    startCall,
+    joinCall,
+    leaveCall,
+    endCall,
+    toggleMute,
+    toggleVideo
+  } = useCalls(conversation.id);
+
+  const handleStartCall = async (type: 'voice' | 'video') => {
+    const callId = await startCall(type);
+    if (callId) {
+      toast({ title: `${type === 'video' ? 'Video' : 'Voice'} call started` });
+    } else {
+      toast({ title: 'Failed to start call', variant: 'destructive' });
+    }
+  };
+
+  const handleJoinCall = async () => {
+    if (activeCall) {
+      await joinCall(activeCall.id, activeCall.call_type);
+    }
+  };
+
+  const currentParticipant = callParticipants.find(p => p.user_id === user?.id);
+  const isMuted = currentParticipant?.is_muted ?? false;
+  const isVideoOff = currentParticipant?.is_video_off ?? false;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -86,6 +124,24 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
               ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
               : 'offline');
 
+  // Show call UI if in call
+  if (isInCall && activeCall) {
+    return (
+      <CallView
+        callType={activeCall.call_type}
+        participants={callParticipants}
+        localStream={localStream}
+        isCallStarter={activeCall.started_by === user?.id}
+        onLeave={leaveCall}
+        onEnd={endCall}
+        onToggleMute={toggleMute}
+        onToggleVideo={toggleVideo}
+        isMuted={isMuted}
+        isVideoOff={isVideoOff}
+      />
+    );
+  }
+
   return (
     <div className="flex flex-col h-full bg-chat-bg">
       {/* Header */}
@@ -129,6 +185,17 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
             {statusText}
           </p>
         </div>
+        
+        {/* Call button for groups and channels */}
+        {(isGroup || isChannel) && !isSavedMessages && (
+          <CallButton
+            onStartCall={handleStartCall}
+            canStartCall={isAdminOrOwner}
+            hasActiveCall={!!activeCall && !isInCall}
+            onJoinCall={handleJoinCall}
+          />
+        )}
+        
         <Button variant="ghost" size="icon">
           <MoreVertical className="h-5 w-5" />
         </Button>

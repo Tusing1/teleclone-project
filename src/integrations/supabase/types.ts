@@ -14,6 +14,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      call_participants: {
+        Row: {
+          call_id: string
+          id: string
+          is_muted: boolean
+          is_video_off: boolean
+          joined_at: string
+          left_at: string | null
+          user_id: string
+        }
+        Insert: {
+          call_id: string
+          id?: string
+          is_muted?: boolean
+          is_video_off?: boolean
+          joined_at?: string
+          left_at?: string | null
+          user_id: string
+        }
+        Update: {
+          call_id?: string
+          id?: string
+          is_muted?: boolean
+          is_video_off?: boolean
+          joined_at?: string
+          left_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_participants_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calls: {
+        Row: {
+          call_type: string
+          conversation_id: string
+          ended_at: string | null
+          id: string
+          is_active: boolean
+          started_at: string
+          started_by: string
+        }
+        Insert: {
+          call_type?: string
+          conversation_id: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          started_at?: string
+          started_by: string
+        }
+        Update: {
+          call_type?: string
+          conversation_id?: string
+          ended_at?: string | null
+          id?: string
+          is_active?: boolean
+          started_at?: string
+          started_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
