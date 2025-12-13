@@ -7,6 +7,7 @@ import { MessageBubble } from './MessageBubble';
 import { CallButton } from './CallButton';
 import { CallView } from './CallView';
 import { ChannelSettingsDialog } from './ChannelSettingsDialog';
+import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
@@ -34,6 +35,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -226,6 +228,12 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {isGroup && isAdminOrOwner && (
+              <DropdownMenuItem onClick={() => setShowGroupSettings(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Group Settings
+              </DropdownMenuItem>
+            )}
             {isChannel && isAdminOrOwner && (
               <DropdownMenuItem onClick={() => setShowChannelSettings(true)}>
                 <Settings className="h-4 w-4 mr-2" />
@@ -241,6 +249,18 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Group Settings Dialog */}
+      {isGroup && (
+        <GroupSettingsDialog
+          open={showGroupSettings}
+          onClose={() => setShowGroupSettings(false)}
+          group={conversation}
+          isOwner={currentUserParticipant?.role === 'owner'}
+          isAdmin={currentUserParticipant?.role === 'admin'}
+          onRefresh={onRefreshConversations || (() => {})}
+        />
+      )}
 
       {/* Channel Settings Dialog */}
       {isChannel && (
