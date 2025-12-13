@@ -201,12 +201,12 @@ export function useConversations() {
     }
   };
 
-  const createChannel = async (name: string, description: string): Promise<string | null> => {
+  const createChannel = async (name: string, description: string, enableDiscussion: boolean = true): Promise<string | null> => {
     if (!user) return null;
 
     try {
       const { data, error } = await supabase.functions.invoke('create-conversation', {
-        body: { type: 'channel', name, description, memberIds: [] }
+        body: { type: 'channel', name, description, memberIds: [], enableDiscussion }
       });
 
       if (error) {

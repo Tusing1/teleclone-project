@@ -21,6 +21,8 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   is_archived?: boolean;
+  linked_discussion_id?: string | null;
+  subscriber_count?: number;
 }
 
 export interface ConversationParticipant {

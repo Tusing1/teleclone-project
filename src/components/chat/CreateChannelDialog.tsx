@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Radio } from 'lucide-react';
+import { Radio, MessageCircle } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,23 +11,25 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 
 interface CreateChannelDialogProps {
   open: boolean;
   onClose: () => void;
-  onCreateChannel: (name: string, description: string) => Promise<string | null>;
+  onCreateChannel: (name: string, description: string, enableDiscussion: boolean) => Promise<string | null>;
 }
 
 export function CreateChannelDialog({ open, onClose, onCreateChannel }: CreateChannelDialogProps) {
   const [channelName, setChannelName] = useState('');
   const [description, setDescription] = useState('');
+  const [enableDiscussion, setEnableDiscussion] = useState(true);
   const [creating, setCreating] = useState(false);
 
   const handleCreate = async () => {
     if (!channelName.trim()) return;
     
     setCreating(true);
-    const result = await onCreateChannel(channelName.trim(), description.trim());
+    const result = await onCreateChannel(channelName.trim(), description.trim(), enableDiscussion);
     setCreating(false);
     
     if (result) {
@@ -39,6 +41,7 @@ export function CreateChannelDialog({ open, onClose, onCreateChannel }: CreateCh
   const handleReset = () => {
     setChannelName('');
     setDescription('');
+    setEnableDiscussion(true);
   };
 
   const handleClose = () => {
@@ -82,8 +85,26 @@ export function CreateChannelDialog({ open, onClose, onCreateChannel }: CreateCh
             />
           </div>
           
+          {/* Discussion Toggle */}
+          <div className="flex items-center justify-between p-4 rounded-lg bg-secondary/30 border border-border">
+            <div className="flex items-center gap-3">
+              <MessageCircle className="h-5 w-5 text-primary" />
+              <div>
+                <p className="font-medium text-sm">Discussion Group</p>
+                <p className="text-xs text-muted-foreground">
+                  Allow subscribers to discuss channel posts
+                </p>
+              </div>
+            </div>
+            <Switch
+              checked={enableDiscussion}
+              onCheckedChange={setEnableDiscussion}
+            />
+          </div>
+
           <p className="text-sm text-muted-foreground">
             Only you (the owner) and admins can post to channels. Others can subscribe to receive updates.
+            {enableDiscussion && ' Subscribers can chat in the linked discussion group.'}
           </p>
 
           <div className="flex gap-2 pt-4">

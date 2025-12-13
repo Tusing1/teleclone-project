@@ -41,17 +41,46 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { type, name, description, memberIds } = await req.json()
-    console.log('Creating conversation:', { type, name, userId: user.id })
+    const { type, name, description, memberIds, enableDiscussion } = await req.json()
+    console.log('Creating conversation:', { type, name, userId: user.id, enableDiscussion })
 
-    // Create the conversation
+    let discussionId = null
+
+    // For channels with discussion enabled, create discussion group first
+    if (type === 'channel' && enableDiscussion) {
+      const { data: discussion, error: discError } = await supabaseAdmin
+        .from('conversations')
+        .insert({
+          type: 'group',
+          name: `${name} Discussion`,
+          description: `Discussion group for ${name} channel`,
+          created_by: user.id
+        })
+        .select()
+        .single()
+
+      if (discError) {
+        console.error('Discussion creation error:', discError)
+      } else {
+        discussionId = discussion.id
+        console.log('Discussion group created:', discussionId)
+
+        // Add owner to discussion
+        await supabaseAdmin
+          .from('conversation_participants')
+          .insert({ conversation_id: discussionId, user_id: user.id, role: 'owner' })
+      }
+    }
+
+    // Create the main conversation (channel or group)
     const { data: conversation, error: convError } = await supabaseAdmin
       .from('conversations')
       .insert({
         type,
         name: name || null,
         description: description || null,
-        created_by: user.id
+        created_by: user.id,
+        linked_discussion_id: discussionId
       })
       .select()
       .single()
@@ -87,7 +116,10 @@ Deno.serve(async (req) => {
 
     console.log('Participants added successfully')
 
-    return new Response(JSON.stringify({ id: conversation.id }), {
+    return new Response(JSON.stringify({ 
+      id: conversation.id,
+      discussionId 
+    }), {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })

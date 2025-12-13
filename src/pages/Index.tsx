@@ -28,7 +28,8 @@ export default function Index() {
     archiveConversation,
     unarchiveConversation,
     getOrCreateSavedMessages,
-    forwardToSavedMessages
+    forwardToSavedMessages,
+    refetch: refetchConversations
   } = useConversations();
   
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -88,8 +89,8 @@ export default function Index() {
     return conversationId;
   };
 
-  const handleCreateChannel = async (name: string, description: string) => {
-    const conversationId = await createChannel(name, description);
+  const handleCreateChannel = async (name: string, description: string, enableDiscussion: boolean) => {
+    const conversationId = await createChannel(name, description, enableDiscussion);
     if (conversationId) {
       setSelectedConversationId(conversationId);
       toast.success('Channel created');
@@ -117,6 +118,10 @@ export default function Index() {
       toast.success('Chat unarchived');
     }
     return success;
+  };
+
+  const handleNavigateToDiscussion = (discussionId: string) => {
+    setSelectedConversationId(discussionId);
   };
 
   const selectedConversation = [...conversations, ...archivedConversations].find(
@@ -182,6 +187,8 @@ export default function Index() {
             conversation={selectedConversation}
             onBack={() => setSelectedConversationId(null)}
             onForwardMessage={handleForwardMessage}
+            onNavigateToDiscussion={handleNavigateToDiscussion}
+            onRefreshConversations={refetchConversations}
           />
         ) : (
           <EmptyState />
