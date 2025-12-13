@@ -130,7 +130,9 @@ export type Database = {
           description: string | null
           id: string
           is_archived: boolean | null
+          linked_discussion_id: string | null
           name: string | null
+          subscriber_count: number | null
           type: string
           updated_at: string
         }
@@ -141,7 +143,9 @@ export type Database = {
           description?: string | null
           id?: string
           is_archived?: boolean | null
+          linked_discussion_id?: string | null
           name?: string | null
+          subscriber_count?: number | null
           type?: string
           updated_at?: string
         }
@@ -152,11 +156,21 @@ export type Database = {
           description?: string | null
           id?: string
           is_archived?: boolean | null
+          linked_discussion_id?: string | null
           name?: string | null
+          subscriber_count?: number | null
           type?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "conversations_linked_discussion_id_fkey"
+            columns: ["linked_discussion_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       messages: {
         Row: {

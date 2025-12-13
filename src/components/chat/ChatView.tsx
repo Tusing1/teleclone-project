@@ -1,29 +1,39 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark, Users, Radio } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark, Users, Radio, Settings, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
 import { MessageBubble } from './MessageBubble';
 import { CallButton } from './CallButton';
 import { CallView } from './CallView';
+import { ChannelSettingsDialog } from './ChannelSettingsDialog';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface ChatViewProps {
   conversation: ConversationWithDetails;
   onBack: () => void;
   onForwardMessage?: (message: MessageWithSender) => void;
+  onNavigateToDiscussion?: (discussionId: string) => void;
+  onRefreshConversations?: () => void;
 }
 
-export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewProps) {
+export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToDiscussion, onRefreshConversations }: ChatViewProps) {
   const { user } = useAuth();
   const { messages, loading, sendMessage, uploadFile } = useMessages(conversation.id);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
+  const [showChannelSettings, setShowChannelSettings] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -195,11 +205,53 @@ export function ChatView({ conversation, onBack, onForwardMessage }: ChatViewPro
             onJoinCall={handleJoinCall}
           />
         )}
+
+        {/* Discussion button for channels with linked discussion */}
+        {isChannel && conversation.linked_discussion_id && onNavigateToDiscussion && (
+          <Button 
+            variant="ghost" 
+            size="icon"
+            onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}
+            title="Go to discussion"
+          >
+            <MessageCircle className="h-5 w-5" />
+          </Button>
+        )}
         
-        <Button variant="ghost" size="icon">
-          <MoreVertical className="h-5 w-5" />
-        </Button>
+        {/* Menu button */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon">
+              <MoreVertical className="h-5 w-5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isChannel && isAdminOrOwner && (
+              <DropdownMenuItem onClick={() => setShowChannelSettings(true)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Channel Settings
+              </DropdownMenuItem>
+            )}
+            {isChannel && conversation.linked_discussion_id && onNavigateToDiscussion && (
+              <DropdownMenuItem onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}>
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Open Discussion
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      {/* Channel Settings Dialog */}
+      {isChannel && (
+        <ChannelSettingsDialog
+          open={showChannelSettings}
+          onClose={() => setShowChannelSettings(false)}
+          channel={conversation}
+          isOwner={currentUserParticipant?.role === 'owner'}
+          onRefresh={onRefreshConversations || (() => {})}
+        />
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
