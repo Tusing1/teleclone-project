@@ -71,8 +71,8 @@ export function useConversations() {
       const convMessages = lastMessages?.filter(m => m.conversation_id === conv.id) || [];
       const lastMessage = convMessages[0] as Message | undefined;
 
-      // Check if this is a Saved Messages conversation (only one participant and it's the current user)
-      const isSavedMessages = convParticipants.length === 1 && convParticipants[0].user_id === user.id;
+      // Check if this is a Saved Messages conversation (only one participant, it's the current user, and it's a direct type)
+      const isSavedMessages = conv.type === 'direct' && convParticipants.length === 1 && convParticipants[0].user_id === user.id;
 
       return {
         ...conv,
