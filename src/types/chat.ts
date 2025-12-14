@@ -52,6 +52,12 @@ export interface Message {
   is_read: boolean;
   created_at: string;
   updated_at: string;
+  reply_to_channel_message_id?: string | null;
+}
+
+export interface MessageWithSender extends Message {
+  sender: Profile;
+  commentCount?: number;
 }
 
 export interface ConversationWithDetails extends Conversation {
@@ -60,8 +66,4 @@ export interface ConversationWithDetails extends Conversation {
   unreadCount?: number;
   isSavedMessages?: boolean;
   is_archived?: boolean;
-}
-
-export interface MessageWithSender extends Message {
-  sender: Profile;
 }

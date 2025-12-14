@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { MessageWithSender } from '@/types/chat';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Download, FileIcon, Forward, MoreVertical } from 'lucide-react';
+import { Check, CheckCheck, Download, FileIcon, Forward, MoreVertical, MessageCircle } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,9 +15,11 @@ interface MessageBubbleProps {
   message: MessageWithSender;
   showAvatar?: boolean;
   onForward?: (message: MessageWithSender) => void;
+  isChannelMessage?: boolean;
+  onOpenComments?: (messageId: string) => void;
 }
 
-export function MessageBubble({ message, showAvatar, onForward }: MessageBubbleProps) {
+export function MessageBubble({ message, showAvatar, onForward, isChannelMessage, onOpenComments }: MessageBubbleProps) {
   const { user } = useAuth();
   const isOwn = message.sender_id === user?.id;
   const [showMenu, setShowMenu] = useState(false);
@@ -136,6 +138,22 @@ export function MessageBubble({ message, showAvatar, onForward }: MessageBubbleP
             )
           )}
         </div>
+
+        {/* Comments section for channel messages */}
+        {isChannelMessage && onOpenComments && (
+          <button
+            onClick={() => onOpenComments(message.id)}
+            className={cn(
+              'flex items-center gap-1.5 mt-2 pt-2 border-t w-full text-left',
+              isOwn ? 'border-primary-foreground/20' : 'border-border'
+            )}
+          >
+            <MessageCircle className="w-4 h-4 text-primary" />
+            <span className="text-xs text-primary font-medium">
+              {message.commentCount ? `${message.commentCount} comment${message.commentCount !== 1 ? 's' : ''}` : 'Leave a comment'}
+            </span>
+          </button>
+        )}
       </div>
 
       {/* Action menu for own messages */}
