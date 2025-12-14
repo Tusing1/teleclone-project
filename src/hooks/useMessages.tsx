@@ -3,10 +3,28 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { MessageWithSender, Profile } from '@/types/chat';
 
-export function useMessages(conversationId: string | null) {
+export function useMessages(conversationId: string | null, linkedDiscussionId?: string | null) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const fetchCommentCounts = useCallback(async (messageIds: string[]) => {
+    if (!linkedDiscussionId || messageIds.length === 0) return {};
+
+    const { data } = await supabase
+      .from('messages')
+      .select('reply_to_channel_message_id')
+      .eq('conversation_id', linkedDiscussionId)
+      .in('reply_to_channel_message_id', messageIds);
+
+    const counts: Record<string, number> = {};
+    data?.forEach(msg => {
+      if (msg.reply_to_channel_message_id) {
+        counts[msg.reply_to_channel_message_id] = (counts[msg.reply_to_channel_message_id] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [linkedDiscussionId]);
 
   const fetchMessages = useCallback(async () => {
     if (!conversationId) {
@@ -33,15 +51,20 @@ export function useMessages(conversationId: string | null) {
       .select('*')
       .in('user_id', senderIds);
 
+    // Fetch comment counts if this is a channel with discussion
+    const messageIds = messagesData.map(m => m.id);
+    const commentCounts = await fetchCommentCounts(messageIds);
+
     const messagesWithSenders: MessageWithSender[] = messagesData.map(msg => ({
       ...msg,
       message_type: msg.message_type as 'text' | 'image' | 'file',
-      sender: profiles?.find(p => p.user_id === msg.sender_id) as Profile
+      sender: profiles?.find(p => p.user_id === msg.sender_id) as Profile,
+      commentCount: commentCounts[msg.id] || 0
     }));
 
     setMessages(messagesWithSenders);
     setLoading(false);
-  }, [conversationId]);
+  }, [conversationId, fetchCommentCounts]);
 
   useEffect(() => {
     fetchMessages();
@@ -74,7 +97,8 @@ export function useMessages(conversationId: string | null) {
           const messageWithSender: MessageWithSender = {
             ...newMessage,
             message_type: newMessage.message_type as 'text' | 'image' | 'file',
-            sender: profile as Profile
+            sender: profile as Profile,
+            commentCount: 0
           };
 
           setMessages(prev => [...prev, messageWithSender]);
@@ -87,7 +111,12 @@ export function useMessages(conversationId: string | null) {
     };
   }, [conversationId]);
 
-  const sendMessage = async (content: string, type: 'text' | 'image' | 'file' = 'text', fileData?: { url: string; name: string; size: number }) => {
+  const sendMessage = async (
+    content: string, 
+    type: 'text' | 'image' | 'file' = 'text', 
+    fileData?: { url: string; name: string; size: number },
+    replyToChannelMessageId?: string
+  ) => {
     if (!user || !conversationId) return null;
 
     const messageData: any = {
@@ -101,6 +130,10 @@ export function useMessages(conversationId: string | null) {
       messageData.file_url = fileData.url;
       messageData.file_name = fileData.name;
       messageData.file_size = fileData.size;
+    }
+
+    if (replyToChannelMessageId) {
+      messageData.reply_to_channel_message_id = replyToChannelMessageId;
     }
 
     const { data, error } = await supabase
@@ -143,5 +176,5 @@ export function useMessages(conversationId: string | null) {
     };
   };
 
-  return { messages, loading, sendMessage, uploadFile };
+  return { messages, loading, sendMessage, uploadFile, refetch: fetchMessages };
 }

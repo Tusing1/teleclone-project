@@ -31,7 +31,10 @@ interface ChatViewProps {
 
 export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToDiscussion, onRefreshConversations }: ChatViewProps) {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, uploadFile } = useMessages(conversation.id);
+  const { messages, loading, sendMessage, uploadFile } = useMessages(
+    conversation.id, 
+    conversation.linked_discussion_id
+  );
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
@@ -307,6 +310,10 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   message={message}
                   showAvatar={showAvatar}
                   onForward={!isSavedMessages ? onForwardMessage : undefined}
+                  isChannelMessage={isChannel && !!conversation.linked_discussion_id}
+                  onOpenComments={isChannel && conversation.linked_discussion_id ? () => {
+                    onNavigateToDiscussion?.(conversation.linked_discussion_id!);
+                  } : undefined}
                 />
               );
             })}
@@ -316,55 +323,72 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       </div>
 
       {/* Input */}
-      <div className="p-3 bg-card border-t border-border">
-        <div className="flex items-center gap-2">
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => handleFileUpload(e, 'image')}
-          />
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            onChange={(e) => handleFileUpload(e, 'file')}
-          />
+      {canSendMessages ? (
+        <div className="p-3 bg-card border-t border-border">
+          <div className="flex items-center gap-2">
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => handleFileUpload(e, 'image')}
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => handleFileUpload(e, 'file')}
+            />
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => imageInputRef.current?.click()}
+              disabled={sending}
+            >
+              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+            </Button>
+            <Button 
+              variant="ghost" 
+              size="icon"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={sending}
+            >
+              <Paperclip className="h-5 w-5 text-muted-foreground" />
+            </Button>
+            <Input
+              placeholder={isSavedMessages ? "Write a note..." : "Message"}
+              value={messageText}
+              onChange={(e) => setMessageText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={sending}
+              className="flex-1 bg-secondary border-0"
+            />
+            <Button 
+              size="icon"
+              onClick={handleSend}
+              disabled={!messageText.trim() || sending}
+              className="shrink-0"
+            >
+              <Send className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
+      ) : isChannel && conversation.linked_discussion_id ? (
+        <div className="p-3 bg-card border-t border-border">
           <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => imageInputRef.current?.click()}
-            disabled={sending}
+            variant="secondary" 
+            className="w-full"
+            onClick={() => onNavigateToDiscussion?.(conversation.linked_discussion_id!)}
           >
-            <ImageIcon className="h-5 w-5 text-muted-foreground" />
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="icon"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={sending}
-          >
-            <Paperclip className="h-5 w-5 text-muted-foreground" />
-          </Button>
-          <Input
-            placeholder={isSavedMessages ? "Write a note..." : "Message"}
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={sending}
-            className="flex-1 bg-secondary border-0"
-          />
-          <Button 
-            size="icon"
-            onClick={handleSend}
-            disabled={!messageText.trim() || sending}
-            className="shrink-0"
-          >
-            <Send className="h-5 w-5" />
+            <MessageCircle className="h-4 w-4 mr-2" />
+            Open Discussion to Comment
           </Button>
         </div>
-      </div>
+      ) : isChannel ? (
+        <div className="p-3 bg-card border-t border-border text-center text-sm text-muted-foreground">
+          Only admins can post to this channel
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -183,6 +183,7 @@ export type Database = {
           id: string
           is_read: boolean | null
           message_type: string
+          reply_to_channel_message_id: string | null
           sender_id: string
           updated_at: string
         }
@@ -196,6 +197,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           message_type?: string
+          reply_to_channel_message_id?: string | null
           sender_id: string
           updated_at?: string
         }
@@ -209,6 +211,7 @@ export type Database = {
           id?: string
           is_read?: boolean | null
           message_type?: string
+          reply_to_channel_message_id?: string | null
           sender_id?: string
           updated_at?: string
         }
@@ -218,6 +221,13 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_reply_to_channel_message_id_fkey"
+            columns: ["reply_to_channel_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
             referencedColumns: ["id"]
           },
         ]
