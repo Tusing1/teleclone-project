@@ -1,8 +1,17 @@
-import React, { useEffect, useRef } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Circle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 interface CallViewProps {
   callType: 'voice' | 'video';
@@ -15,6 +24,9 @@ interface CallViewProps {
   onToggleVideo: () => void;
   isMuted: boolean;
   isVideoOff: boolean;
+  isRecording: boolean;
+  onStartRecording: (title: string) => void;
+  onStopRecording: () => void;
 }
 
 export const CallView: React.FC<CallViewProps> = ({
@@ -27,15 +39,26 @@ export const CallView: React.FC<CallViewProps> = ({
   onToggleMute,
   onToggleVideo,
   isMuted,
-  isVideoOff
+  isVideoOff,
+  isRecording,
+  onStartRecording,
+  onStopRecording
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const [showRecordDialog, setShowRecordDialog] = useState(false);
+  const [recordingTitle, setRecordingTitle] = useState('');
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
+
+  const handleStartRecording = () => {
+    onStartRecording(recordingTitle);
+    setShowRecordDialog(false);
+    setRecordingTitle('');
+  };
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex flex-col">
@@ -45,9 +68,17 @@ export const CallView: React.FC<CallViewProps> = ({
           <Users className="h-5 w-5" />
           <span className="font-medium">{participants.length} participant(s)</span>
         </div>
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-          {callType === 'video' ? 'Video Call' : 'Voice Call'}
+        <div className="flex items-center gap-3">
+          {isRecording && (
+            <div className="flex items-center gap-1 text-red-500">
+              <Circle className="h-3 w-3 fill-red-500 animate-pulse" />
+              <span className="text-sm font-medium">Recording</span>
+            </div>
+          )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            {callType === 'video' ? 'Video Call' : 'Voice Call'}
+          </div>
         </div>
       </div>
 
@@ -135,6 +166,18 @@ export const CallView: React.FC<CallViewProps> = ({
           </Button>
         )}
 
+        {/* Recording button - only for call starter */}
+        {isCallStarter && (
+          <Button
+            variant={isRecording ? 'destructive' : 'secondary'}
+            size="lg"
+            className="rounded-full w-14 h-14"
+            onClick={isRecording ? onStopRecording : () => setShowRecordDialog(true)}
+          >
+            <Circle className={`h-6 w-6 ${isRecording ? 'fill-white' : ''}`} />
+          </Button>
+        )}
+
         <Button
           variant="destructive"
           size="lg"
@@ -144,6 +187,32 @@ export const CallView: React.FC<CallViewProps> = ({
           <PhoneOff className="h-6 w-6" />
         </Button>
       </div>
+
+      {/* Start Recording Dialog */}
+      <Dialog open={showRecordDialog} onOpenChange={setShowRecordDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start recording</DialogTitle>
+            <DialogDescription>
+              Do you want to start recording this chat and save the result into an audio file?
+              Other members will see the chat is being recorded.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Recording Title"
+            value={recordingTitle}
+            onChange={(e) => setRecordingTitle(e.target.value)}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setShowRecordDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleStartRecording}>
+              Start
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
