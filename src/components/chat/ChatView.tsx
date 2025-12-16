@@ -60,12 +60,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     participants: callParticipants,
     isInCall,
     localStream,
+    isRecording,
     startCall,
     joinCall,
     leaveCall,
     endCall,
     toggleMute,
-    toggleVideo
+    toggleVideo,
+    startRecording,
+    stopRecording
   } = useCalls(conversation.id);
 
   const handleStartCall = async (type: 'voice' | 'video') => {
@@ -153,6 +156,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         onToggleVideo={toggleVideo}
         isMuted={isMuted}
         isVideoOff={isVideoOff}
+        isRecording={isRecording}
+        onStartRecording={startRecording}
+        onStopRecording={stopRecording}
       />
     );
   }

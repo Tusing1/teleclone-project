@@ -59,6 +59,10 @@ export type Database = {
           ended_at: string | null
           id: string
           is_active: boolean
+          is_recording: boolean
+          recorded_by: string | null
+          recording_title: string | null
+          recording_url: string | null
           started_at: string
           started_by: string
         }
@@ -68,6 +72,10 @@ export type Database = {
           ended_at?: string | null
           id?: string
           is_active?: boolean
+          is_recording?: boolean
+          recorded_by?: string | null
+          recording_title?: string | null
+          recording_url?: string | null
           started_at?: string
           started_by: string
         }
@@ -77,6 +85,10 @@ export type Database = {
           ended_at?: string | null
           id?: string
           is_active?: boolean
+          is_recording?: boolean
+          recorded_by?: string | null
+          recording_title?: string | null
+          recording_url?: string | null
           started_at?: string
           started_by?: string
         }

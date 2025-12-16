@@ -10,6 +10,10 @@ export interface Call {
   ended_at: string | null;
   call_type: 'voice' | 'video';
   is_active: boolean;
+  is_recording: boolean;
+  recording_title: string | null;
+  recording_url: string | null;
+  recorded_by: string | null;
 }
 
 export interface CallParticipant {
@@ -34,7 +38,10 @@ export function useCalls(conversationId: string | null) {
   const [isInCall, setIsInCall] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [isRecording, setIsRecording] = useState(false);
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const recordedChunks = useRef<Blob[]>([]);
 
   // Fetch active call for conversation
   const fetchActiveCall = useCallback(async () => {
@@ -49,10 +56,12 @@ export function useCalls(conversationId: string | null) {
 
     if (!error && data) {
       setActiveCall(data as Call);
+      setIsRecording(data.is_recording);
       await fetchParticipants(data.id);
     } else {
       setActiveCall(null);
       setParticipants([]);
+      setIsRecording(false);
     }
   }, [conversationId]);
 
@@ -141,6 +150,11 @@ export function useCalls(conversationId: string | null) {
   const leaveCall = async () => {
     if (!user || !activeCall) return;
 
+    // Stop recording if active
+    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
+      mediaRecorder.current.stop();
+    }
+
     // Stop local stream
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
@@ -167,6 +181,11 @@ export function useCalls(conversationId: string | null) {
   const endCall = async () => {
     if (!activeCall) return;
 
+    // Stop recording and save if active
+    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
+      mediaRecorder.current.stop();
+    }
+
     await supabase
       .from('calls')
       .update({ 
@@ -176,6 +195,139 @@ export function useCalls(conversationId: string | null) {
       .eq('id', activeCall.id);
 
     await leaveCall();
+  };
+
+  // Start recording
+  const startRecording = async (title: string) => {
+    if (!user || !activeCall || !localStream) return;
+
+    try {
+      recordedChunks.current = [];
+      
+      const options = { mimeType: 'audio/webm;codecs=opus' };
+      mediaRecorder.current = new MediaRecorder(localStream, options);
+
+      mediaRecorder.current.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunks.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.current.onstop = async () => {
+        const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        await saveRecording(blob, title);
+      };
+
+      mediaRecorder.current.start(1000); // Collect data every second
+
+      // Update database
+      await supabase
+        .from('calls')
+        .update({ 
+          is_recording: true, 
+          recording_title: title,
+          recorded_by: user.id
+        })
+        .eq('id', activeCall.id);
+
+      setIsRecording(true);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+    }
+  };
+
+  // Stop recording
+  const stopRecording = async () => {
+    if (!activeCall || !mediaRecorder.current) return;
+
+    if (mediaRecorder.current.state !== 'inactive') {
+      mediaRecorder.current.stop();
+    }
+
+    await supabase
+      .from('calls')
+      .update({ is_recording: false })
+      .eq('id', activeCall.id);
+
+    setIsRecording(false);
+  };
+
+  // Save recording to storage and create message in Saved Messages
+  const saveRecording = async (blob: Blob, title: string) => {
+    if (!user) return;
+
+    try {
+      const fileName = `recording_${Date.now()}.webm`;
+      const filePath = `${user.id}/${fileName}`;
+
+      // Upload to storage
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(filePath, blob);
+
+      if (uploadError) {
+        console.error('Error uploading recording:', uploadError);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(filePath);
+
+      // Find or create Saved Messages conversation
+      const { data: savedMessages } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('type', 'saved')
+        .eq('created_by', user.id)
+        .maybeSingle();
+
+      let savedConversationId = savedMessages?.id;
+
+      if (!savedConversationId) {
+        // Create Saved Messages conversation
+        const { data: newConversation } = await supabase
+          .from('conversations')
+          .insert({
+            type: 'saved',
+            name: 'Saved Messages',
+            created_by: user.id
+          })
+          .select()
+          .single();
+
+        if (newConversation) {
+          savedConversationId = newConversation.id;
+          
+          // Add user as participant
+          await supabase
+            .from('conversation_participants')
+            .insert({
+              conversation_id: savedConversationId,
+              user_id: user.id,
+              role: 'owner'
+            });
+        }
+      }
+
+      if (savedConversationId) {
+        // Create message with recording
+        await supabase
+          .from('messages')
+          .insert({
+            conversation_id: savedConversationId,
+            sender_id: user.id,
+            content: `📹 Recording: ${title || 'Call Recording'}`,
+            message_type: 'file',
+            file_url: publicUrl,
+            file_name: `${title || 'Call Recording'}.webm`,
+            file_size: blob.size
+          });
+      }
+    } catch (error) {
+      console.error('Error saving recording:', error);
+    }
   };
 
   // Toggle mute
@@ -246,6 +398,9 @@ export function useCalls(conversationId: string | null) {
         localStream.getTracks().forEach(track => track.stop());
       }
       peerConnections.current.forEach(pc => pc.close());
+      if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
+        mediaRecorder.current.stop();
+      }
     };
   }, []);
 
@@ -255,11 +410,14 @@ export function useCalls(conversationId: string | null) {
     isInCall,
     localStream,
     remoteStreams,
+    isRecording,
     startCall,
     joinCall,
     leaveCall,
     endCall,
     toggleMute,
-    toggleVideo
+    toggleVideo,
+    startRecording,
+    stopRecording
   };
 }
