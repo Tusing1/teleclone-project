@@ -275,32 +275,40 @@ export function useCalls(conversationId: string | null) {
         .from('chat-media')
         .getPublicUrl(filePath);
 
-      // Find or create Saved Messages conversation
-      const { data: savedMessages } = await supabase
-        .from('conversations')
-        .select('id')
-        .eq('type', 'saved')
-        .eq('created_by', user.id)
-        .maybeSingle();
+      // Find Saved Messages conversation (direct conversation with only current user)
+      const { data: participantData } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
 
-      let savedConversationId = savedMessages?.id;
+      let savedConversationId: string | null = null;
 
+      if (participantData) {
+        for (const p of participantData) {
+          const { data: participants } = await supabase
+            .from('conversation_participants')
+            .select('*')
+            .eq('conversation_id', p.conversation_id);
+
+          // Saved Messages = direct conversation with only the current user
+          if (participants?.length === 1 && participants[0].user_id === user.id) {
+            savedConversationId = p.conversation_id;
+            break;
+          }
+        }
+      }
+
+      // Create Saved Messages if it doesn't exist
       if (!savedConversationId) {
-        // Create Saved Messages conversation
         const { data: newConversation } = await supabase
           .from('conversations')
-          .insert({
-            type: 'saved',
-            name: 'Saved Messages',
-            created_by: user.id
-          })
+          .insert({ type: 'direct' })
           .select()
           .single();
 
         if (newConversation) {
           savedConversationId = newConversation.id;
           
-          // Add user as participant
           await supabase
             .from('conversation_participants')
             .insert({
@@ -318,12 +326,18 @@ export function useCalls(conversationId: string | null) {
           .insert({
             conversation_id: savedConversationId,
             sender_id: user.id,
-            content: `📹 Recording: ${title || 'Call Recording'}`,
+            content: `🎙️ Recording: ${title || 'Call Recording'}`,
             message_type: 'file',
             file_url: publicUrl,
             file_name: `${title || 'Call Recording'}.webm`,
             file_size: blob.size
           });
+
+        // Update conversation timestamp
+        await supabase
+          .from('conversations')
+          .update({ updated_at: new Date().toISOString() })
+          .eq('id', savedConversationId);
       }
     } catch (error) {
       console.error('Error saving recording:', error);
