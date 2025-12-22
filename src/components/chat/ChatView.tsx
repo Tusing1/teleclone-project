@@ -7,12 +7,16 @@ import { MessageBubble } from './MessageBubble';
 import { ChannelMessageBubble } from './ChannelMessageBubble';
 import { CallButton } from './CallButton';
 import { CallView } from './CallView';
+import { LiveStreamPreview } from './LiveStreamPreview';
+import { LiveStreamView } from './LiveStreamView';
 import { ChannelSettingsDialog } from './ChannelSettingsDialog';
 import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { VoiceRecorder } from './VoiceRecorder';
+import { ScheduleCallDialog } from './ScheduleCallDialog';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
+import { useLiveStream } from '@/hooks/useLiveStream';
 import { useReactions } from '@/hooks/useReactions';
 import { useVoiceMessage } from '@/hooks/useVoiceMessage';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
@@ -68,6 +72,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [messageToEdit, setMessageToEdit] = useState<MessageWithSender | null>(null);
   const [editText, setEditText] = useState('');
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
+  const [showLiveStreamPreview, setShowLiveStreamPreview] = useState(false);
+  const [showScheduleCall, setShowScheduleCall] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -96,7 +102,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const canSendMessages = !isChannel || currentUserParticipant?.role === 'owner' || currentUserParticipant?.role === 'admin';
   const isAdminOrOwner = currentUserParticipant?.role === 'owner' || currentUserParticipant?.role === 'admin';
 
-  // Calls
+  // Calls for groups
   const {
     activeCall,
     participants: callParticipants,
@@ -111,19 +117,60 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     toggleVideo,
     startRecording,
     stopRecording
-  } = useCalls(conversation.id);
+  } = useCalls(isChannel ? null : conversation.id); // Don't use for channels
+
+  // Live stream for channels
+  const {
+    activeStream,
+    participants: streamParticipants,
+    isInStream,
+    isRecording: isStreamRecording,
+    handRaised,
+    noiseSuppression,
+    isMuted: isStreamMuted,
+    startStream,
+    joinStream,
+    leaveStream,
+    endStream,
+    raiseHand,
+    lowerHand,
+    toggleMute: toggleStreamMute,
+    unmuteParticipant,
+    muteParticipant,
+    toggleNoiseSuppression,
+    updateStreamTitle,
+    startRecording: startStreamRecording,
+    stopRecording: stopStreamRecording
+  } = useLiveStream(isChannel ? conversation.id : null);
 
   const handleStartCall = async (type: 'voice' | 'video') => {
-    const callId = await startCall(type);
-    if (callId) {
-      toast.success(`${type === 'video' ? 'Video' : 'Voice'} call started`);
+    if (isChannel) {
+      // For channels, show the live stream preview
+      setShowLiveStreamPreview(true);
     } else {
-      toast.error('Failed to start call');
+      const callId = await startCall(type);
+      if (callId) {
+        toast.success(`${type === 'video' ? 'Video' : 'Voice'} call started`);
+      } else {
+        toast.error('Failed to start call');
+      }
+    }
+  };
+
+  const handleStartLiveStream = async (title: string) => {
+    const streamId = await startStream(title);
+    if (streamId) {
+      setShowLiveStreamPreview(false);
+      toast.success('Live stream started');
+    } else {
+      toast.error('Failed to start live stream');
     }
   };
 
   const handleJoinCall = async () => {
-    if (activeCall) {
+    if (isChannel && activeStream) {
+      await joinStream(activeStream.id, !isAdminOrOwner); // Non-admins start muted
+    } else if (activeCall) {
       await joinCall(activeCall.id, activeCall.call_type);
     }
   };
@@ -261,8 +308,54 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
               ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
               : 'offline');
 
-  // Show call UI if in call
-  if (isInCall && activeCall) {
+  // Show live stream preview for channels
+  if (showLiveStreamPreview && isChannel) {
+    return (
+      <LiveStreamPreview
+        channelName={conversation.name || 'Channel'}
+        channelAvatar={conversation.avatar_url || undefined}
+        subscriberCount={conversation.participants.length}
+        onStart={handleStartLiveStream}
+        onSchedule={() => {
+          setShowLiveStreamPreview(false);
+          setShowScheduleCall(true);
+        }}
+        onClose={() => setShowLiveStreamPreview(false)}
+      />
+    );
+  }
+
+  // Show live stream view for channels
+  if (isInStream && activeStream && isChannel) {
+    return (
+      <LiveStreamView
+        channelName={conversation.name || 'Channel'}
+        channelAvatar={conversation.avatar_url || undefined}
+        participants={streamParticipants}
+        isAdmin={isAdminOrOwner}
+        isMuted={isStreamMuted}
+        isRecording={isStreamRecording}
+        streamTitle={activeStream.livestream_title || 'Live Stream'}
+        currentUserId={user?.id || ''}
+        onToggleMute={toggleStreamMute}
+        onLeave={leaveStream}
+        onEnd={endStream}
+        onStartRecording={startStreamRecording}
+        onStopRecording={stopStreamRecording}
+        onRaiseHand={raiseHand}
+        onLowerHand={lowerHand}
+        onUnmuteParticipant={unmuteParticipant}
+        onMuteParticipant={muteParticipant}
+        onUpdateTitle={updateStreamTitle}
+        handRaised={handRaised}
+        noiseSuppression={noiseSuppression}
+        onToggleNoiseSuppression={toggleNoiseSuppression}
+      />
+    );
+  }
+
+  // Show call UI if in call (for groups)
+  if (isInCall && activeCall && !isChannel) {
     return (
       <CallView
         callType={activeCall.call_type}
@@ -350,7 +443,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           <CallButton
             onStartCall={handleStartCall}
             canStartCall={isAdminOrOwner}
-            hasActiveCall={!!activeCall && !isInCall}
+            hasActiveCall={isChannel ? (!!activeStream && !isInStream) : (!!activeCall && !isInCall)}
             onJoinCall={handleJoinCall}
           />
         )}
@@ -639,6 +732,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Schedule Call Dialog */}
+      {isChannel && (
+        <ScheduleCallDialog
+          open={showScheduleCall}
+          onClose={() => setShowScheduleCall(false)}
+          conversationId={conversation.id}
+        />
+      )}
     </div>
   );
 }
