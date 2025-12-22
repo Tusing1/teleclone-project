@@ -74,6 +74,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [showLiveStreamPreview, setShowLiveStreamPreview] = useState(false);
   const [showScheduleCall, setShowScheduleCall] = useState(false);
+  const [isStartingStream, setIsStartingStream] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -158,9 +159,13 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   };
 
   const handleStartLiveStream = async (title: string) => {
+    console.log('handleStartLiveStream called with title:', title);
+    setShowLiveStreamPreview(false); // Close preview immediately
+    setIsStartingStream(true);
     const streamId = await startStream(title);
+    setIsStartingStream(false);
+    console.log('startStream returned:', streamId);
     if (streamId) {
-      setShowLiveStreamPreview(false);
       toast.success('Live stream started');
     } else {
       toast.error('Failed to start live stream');
@@ -307,6 +312,19 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             : otherProfile?.last_seen 
               ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
               : 'offline');
+
+  // Show connecting screen while starting stream
+  if (isStartingStream && isChannel) {
+    return (
+      <div className="fixed inset-0 bg-[#1a1a2e] z-50 flex flex-col items-center justify-center">
+        <div className="animate-pulse mb-4">
+          <Radio className="h-16 w-16 text-primary" />
+        </div>
+        <h2 className="text-xl font-semibold text-white mb-2">Starting Live Stream...</h2>
+        <p className="text-gray-400">Please allow microphone access when prompted</p>
+      </div>
+    );
+  }
 
   // Show live stream preview for channels
   if (showLiveStreamPreview && isChannel) {

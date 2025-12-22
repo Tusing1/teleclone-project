@@ -89,7 +89,12 @@ export function useLiveStream(conversationId: string | null) {
 
   // Start a new live stream
   const startStream = async (title: string = 'Live Stream'): Promise<string | null> => {
-    if (!user || !conversationId) return null;
+    if (!user || !conversationId) {
+      console.log('Cannot start stream: missing user or conversationId');
+      return null;
+    }
+
+    console.log('Starting live stream...', { conversationId, title });
 
     const { data, error } = await supabase
       .from('calls')
@@ -107,15 +112,24 @@ export function useLiveStream(conversationId: string | null) {
       return null;
     }
 
+    console.log('Stream created:', data);
+
+    // Join the stream immediately
     await joinStream(data.id, false); // Admin starts unmuted
     return data.id;
   };
 
   // Join stream
   const joinStream = async (callId: string, startMuted: boolean = true) => {
-    if (!user) return;
+    if (!user) {
+      console.log('Cannot join stream: no user');
+      return;
+    }
+
+    console.log('Joining stream...', { callId, startMuted });
 
     try {
+      // Request audio permission
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
@@ -123,6 +137,8 @@ export function useLiveStream(conversationId: string | null) {
           autoGainControl: true
         }
       });
+
+      console.log('Got audio stream');
 
       // Mute by default for non-admins
       stream.getAudioTracks().forEach(track => {
@@ -132,19 +148,27 @@ export function useLiveStream(conversationId: string | null) {
       setLocalStream(stream);
       setIsMuted(startMuted);
 
-      await supabase
+      // Add participant to database
+      const { error: participantError } = await supabase
         .from('call_participants')
         .insert({
           call_id: callId,
           user_id: user.id,
           is_muted: startMuted,
-          is_video_off: true,
-          hand_raised: false,
-          noise_suppression: noiseSuppression
+          is_video_off: true
         });
 
+      if (participantError) {
+        console.error('Error adding participant:', participantError);
+        return;
+      }
+
+      console.log('Participant added, setting isInStream to true');
       setIsInStream(true);
+      
+      // Fetch the active stream to update state
       await fetchActiveStream();
+      console.log('Stream joined successfully');
     } catch (error) {
       console.error('Error joining stream:', error);
     }
