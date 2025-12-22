@@ -9,10 +9,12 @@ import { CallButton } from './CallButton';
 import { CallView } from './CallView';
 import { ChannelSettingsDialog } from './ChannelSettingsDialog';
 import { GroupSettingsDialog } from './GroupSettingsDialog';
+import { VoiceRecorder } from './VoiceRecorder';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
 import { useReactions } from '@/hooks/useReactions';
+import { useVoiceMessage } from '@/hooks/useVoiceMessage';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -65,9 +67,23 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [messageToEdit, setMessageToEdit] = useState<MessageWithSender | null>(null);
   const [editText, setEditText] = useState('');
+  const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+
+  // Voice message hook
+  const { sendVoiceMessage, isUploading: isUploadingVoice } = useVoiceMessage({
+    conversationId: conversation.id,
+    onSuccess: () => {
+      setIsRecordingVoice(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(error.message);
+      setIsRecordingVoice(false);
+    },
+  });
 
   const isSavedMessages = conversation.isSavedMessages;
   const isGroup = conversation.type === 'group';
@@ -487,58 +503,84 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           "p-3 border-t",
           isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border"
         )}>
-          <div className="flex items-center gap-2">
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => handleFileUpload(e, 'image')}
+          {isRecordingVoice ? (
+            <VoiceRecorder
+              onRecordingComplete={sendVoiceMessage}
+              onCancel={() => setIsRecordingVoice(false)}
             />
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              onChange={(e) => handleFileUpload(e, 'file')}
-            />
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={sending}
-              className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
-            >
-              <ImageIcon className="h-5 w-5" />
-            </Button>
-            <Button 
-              variant="ghost" 
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={sending}
-              className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
-            >
-              <Paperclip className="h-5 w-5" />
-            </Button>
-            <Input
-              placeholder={isChannel ? "Broadcast..." : isSavedMessages ? "Write a note..." : "Message"}
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              disabled={sending}
-              className={cn(
-                "flex-1 border-0",
-                isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-secondary"
+          ) : (
+            <div className="flex items-center gap-2">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e, 'image')}
+              />
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => handleFileUpload(e, 'file')}
+              />
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => imageInputRef.current?.click()}
+                disabled={sending || isUploadingVoice}
+                className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
+              >
+                <ImageIcon className="h-5 w-5" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending || isUploadingVoice}
+                className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
+              >
+                <Paperclip className="h-5 w-5" />
+              </Button>
+              <Input
+                placeholder={isChannel ? "Broadcast..." : isSavedMessages ? "Write a note..." : "Message"}
+                value={messageText}
+                onChange={(e) => setMessageText(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={sending || isUploadingVoice}
+                className={cn(
+                  "flex-1 border-0",
+                  isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-secondary"
+                )}
+              />
+              {messageText.trim() ? (
+                <Button 
+                  size="icon"
+                  onClick={handleSend}
+                  disabled={!messageText.trim() || sending || isUploadingVoice}
+                  className="shrink-0"
+                >
+                  <Send className="h-5 w-5" />
+                </Button>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setIsRecordingVoice(true)}
+                  disabled={sending || isUploadingVoice}
+                  className={cn(
+                    "shrink-0",
+                    isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""
+                  )}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" x2="12" y1="19" y2="22"/>
+                  </svg>
+                </Button>
               )}
-            />
-            <Button 
-              size="icon"
-              onClick={handleSend}
-              disabled={!messageText.trim() || sending}
-              className="shrink-0"
-            >
-              <Send className="h-5 w-5" />
-            </Button>
-          </div>
+            </div>
+          )}
         </div>
       ) : isChannel && conversation.linked_discussion_id ? (
         <div className="p-3 bg-slate-800 border-t border-slate-700">

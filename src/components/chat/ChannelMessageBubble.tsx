@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { FilePreview } from './FilePreview';
+import { AudioPlayer } from './AudioPlayer';
 
 interface ChannelMessageBubbleProps {
   message: MessageWithSender;
@@ -81,7 +82,7 @@ export function ChannelMessageBubble({
 
   const isAudioFile = (url: string | null) => {
     if (!url) return false;
-    return /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(url);
+    return /\.(mp3|wav|ogg|m4a|aac|flac|webm|opus)$/i.test(url);
   };
 
   const copyMessageLink = () => {
@@ -134,25 +135,16 @@ export function ChannelMessageBubble({
       );
     }
 
-    // Audio file with player style
+    // Audio file with AudioPlayer
     if (isAudioFile(message.file_url)) {
       return (
-        <div 
-          className="flex items-center gap-3 mb-3 cursor-pointer group"
-          onClick={() => window.open(message.file_url!, '_blank')}
-        >
-          <div className="w-12 h-12 bg-sky-500/90 rounded-full flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-            <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium text-foreground truncate text-sm">
-              {message.file_name || 'Audio'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {formatFileSize(message.file_size)}
-            </p>
-          </div>
-        </div>
+        <AudioPlayer
+          url={message.file_url}
+          fileName={message.file_name || undefined}
+          fileSize={message.file_size || undefined}
+          variant="compact"
+          className="mb-3"
+        />
       );
     }
 
