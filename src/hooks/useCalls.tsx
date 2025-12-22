@@ -348,7 +348,7 @@ export function useCalls(conversationId: string | null) {
         .from('chat-media')
         .getPublicUrl(filePath);
 
-      // Find Saved Messages conversation (direct conversation with only current user)
+      // Find Saved Messages conversation (direct conversation with only current user, type='direct')
       const { data: participantData } = await supabase
         .from('conversation_participants')
         .select('conversation_id')
@@ -358,6 +358,15 @@ export function useCalls(conversationId: string | null) {
 
       if (participantData) {
         for (const p of participantData) {
+          // First check if this conversation is type 'direct'
+          const { data: convData } = await supabase
+            .from('conversations')
+            .select('type')
+            .eq('id', p.conversation_id)
+            .single();
+
+          if (convData?.type !== 'direct') continue;
+
           const { data: participants } = await supabase
             .from('conversation_participants')
             .select('*')
