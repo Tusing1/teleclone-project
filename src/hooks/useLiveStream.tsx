@@ -40,18 +40,44 @@ export function useLiveStream(conversationId: string | null) {
       .select('*')
       .eq('conversation_id', conversationId)
       .eq('is_active', true)
+      .order('started_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (!error && data) {
-      setActiveStream(data as LiveStream);
-      setIsRecording(data.is_recording);
-      await fetchParticipants(data.id);
-    } else {
+    if (error) {
+      console.error('Error fetching active stream:', error);
       setActiveStream(null);
       setParticipants([]);
       setIsRecording(false);
+      return;
     }
-  }, [conversationId]);
+
+    if (data) {
+      // If the current user accidentally started multiple streams, close the older ones.
+      if (user) {
+        const { error: cleanupError } = await supabase
+          .from('calls')
+          .update({ is_active: false, ended_at: new Date().toISOString() })
+          .eq('conversation_id', conversationId)
+          .eq('is_active', true)
+          .eq('started_by', user.id)
+          .neq('id', data.id);
+
+        if (cleanupError) {
+          console.warn('Failed to cleanup duplicate streams:', cleanupError);
+        }
+      }
+
+      setActiveStream(data as LiveStream);
+      setIsRecording(data.is_recording);
+      await fetchParticipants(data.id);
+      return;
+    }
+
+    setActiveStream(null);
+    setParticipants([]);
+    setIsRecording(false);
+  }, [conversationId, user]);
 
   // Fetch participants
   const fetchParticipants = async (callId: string) => {
@@ -93,6 +119,30 @@ export function useLiveStream(conversationId: string | null) {
       console.log('Cannot start stream: missing user or conversationId');
       return null;
     }
+
+    // If a stream is already active for this channel, just join it.
+    const { data: existing, error: existingError } = await supabase
+      .from('calls')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .eq('is_active', true)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingError && existing) {
+      console.log('Stream already active, joining instead of creating:', existing.id);
+      await joinStream(existing.id, false);
+      return existing.id;
+    }
+
+    // Cleanup any other active streams started by this same user (prevents duplicates).
+    await supabase
+      .from('calls')
+      .update({ is_active: false, ended_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .eq('is_active', true)
+      .eq('started_by', user.id);
 
     console.log('Starting live stream...', { conversationId, title });
 
@@ -148,24 +198,56 @@ export function useLiveStream(conversationId: string | null) {
       setLocalStream(stream);
       setIsMuted(startMuted);
 
-      // Add participant to database
-      const { error: participantError } = await supabase
+      // Ensure the user has only one active participant row per call.
+      const { data: existingParticipant, error: existingParticipantError } = await supabase
         .from('call_participants')
-        .insert({
-          call_id: callId,
-          user_id: user.id,
-          is_muted: startMuted,
-          is_video_off: true
-        });
+        .select('id')
+        .eq('call_id', callId)
+        .eq('user_id', user.id)
+        .is('left_at', null)
+        .limit(1)
+        .maybeSingle();
 
-      if (participantError) {
-        console.error('Error adding participant:', participantError);
-        return;
+      if (existingParticipantError) {
+        console.warn('Error checking existing participant:', existingParticipantError);
       }
 
-      console.log('Participant added, setting isInStream to true');
+      if (existingParticipant?.id) {
+        const { error: updateError } = await supabase
+          .from('call_participants')
+          .update({
+            is_muted: startMuted,
+            is_video_off: true,
+            hand_raised: false,
+            noise_suppression: noiseSuppression
+          })
+          .eq('id', existingParticipant.id);
+
+        if (updateError) {
+          console.error('Error updating participant:', updateError);
+          return;
+        }
+      } else {
+        const { error: participantError } = await supabase
+          .from('call_participants')
+          .insert({
+            call_id: callId,
+            user_id: user.id,
+            is_muted: startMuted,
+            is_video_off: true,
+            hand_raised: false,
+            noise_suppression: noiseSuppression
+          });
+
+        if (participantError) {
+          console.error('Error adding participant:', participantError);
+          return;
+        }
+      }
+
+      console.log('Participant ensured, setting isInStream to true');
       setIsInStream(true);
-      
+
       // Fetch the active stream to update state
       await fetchActiveStream();
       console.log('Stream joined successfully');
