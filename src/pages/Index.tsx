@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
@@ -16,6 +16,7 @@ import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
@@ -73,6 +74,7 @@ export default function Index() {
   const handleOpenSavedMessages = async () => {
     const savedId = await getOrCreateSavedMessages();
     if (savedId) {
+      await refetchConversations();
       setSelectedConversationId(savedId);
     }
   };
