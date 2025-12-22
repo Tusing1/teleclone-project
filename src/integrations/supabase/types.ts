@@ -102,6 +102,85 @@ export type Database = {
           },
         ]
       }
+      channel_banned_users: {
+        Row: {
+          banned_at: string
+          banned_by: string
+          conversation_id: string
+          id: string
+          reason: string | null
+          user_id: string
+        }
+        Insert: {
+          banned_at?: string
+          banned_by: string
+          conversation_id: string
+          id?: string
+          reason?: string | null
+          user_id: string
+        }
+        Update: {
+          banned_at?: string
+          banned_by?: string
+          conversation_id?: string
+          id?: string
+          reason?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_banned_users_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_invite_links: {
+        Row: {
+          code: string
+          conversation_id: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          uses_count: number
+        }
+        Insert: {
+          code?: string
+          conversation_id: string
+          created_at?: string
+          created_by: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          uses_count?: number
+        }
+        Update: {
+          code?: string
+          conversation_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          max_uses?: number | null
+          uses_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_invite_links_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_participants: {
         Row: {
           conversation_id: string
@@ -180,6 +259,35 @@ export type Database = {
             columns: ["linked_discussion_id"]
             isOneToOne: false
             referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invite_link_uses: {
+        Row: {
+          id: string
+          invite_link_id: string
+          joined_at: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          invite_link_id: string
+          joined_at?: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          invite_link_id?: string
+          joined_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invite_link_uses_invite_link_id_fkey"
+            columns: ["invite_link_id"]
+            isOneToOne: false
+            referencedRelation: "channel_invite_links"
             referencedColumns: ["id"]
           },
         ]
@@ -317,6 +425,50 @@ export type Database = {
           username?: string
         }
         Relationships: []
+      }
+      scheduled_calls: {
+        Row: {
+          call_type: string
+          conversation_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_cancelled: boolean
+          scheduled_at: string
+          title: string
+        }
+        Insert: {
+          call_type?: string
+          conversation_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_cancelled?: boolean
+          scheduled_at: string
+          title: string
+        }
+        Update: {
+          call_type?: string
+          conversation_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_cancelled?: boolean
+          scheduled_at?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_calls_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
