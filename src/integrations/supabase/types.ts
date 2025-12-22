@@ -263,6 +263,44 @@ export type Database = {
           },
         ]
       }
+      discussion_restricted_members: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          id: string
+          reason: string | null
+          restricted_by: string
+          restricted_until: string | null
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          restricted_by: string
+          restricted_until?: string | null
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          restricted_by?: string
+          restricted_until?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "discussion_restricted_members_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invite_link_uses: {
         Row: {
           id: string
