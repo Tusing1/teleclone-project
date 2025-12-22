@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Settings, Radio, MessageCircle, Users, Trash2, Link2, Calendar, ChevronRight, Shield } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Settings, Radio, MessageCircle, Users, Trash2, Link2, Calendar, ChevronRight, Shield, Camera } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -37,8 +37,11 @@ export function ChannelSettingsDialog({
 }: ChannelSettingsDialogProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [discussionInfo, setDiscussionInfo] = useState<{ id: string; name: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Sub-dialogs
   const [showInviteLinks, setShowInviteLinks] = useState(false);
@@ -53,6 +56,7 @@ export function ChannelSettingsDialog({
     if (channel) {
       setName(channel.name || '');
       setDescription(channel.description || '');
+      setAvatarUrl(channel.avatar_url || null);
       fetchDiscussionInfo();
       fetchCounts();
     }
@@ -91,6 +95,47 @@ export function ChannelSettingsDialog({
     setAdminCount(admins.length);
   };
 
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !channel) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image must be less than 5MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `channel-${channel.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(filePath);
+
+      setAvatarUrl(publicUrl);
+      toast.success('Avatar uploaded');
+    } catch (error) {
+      console.error('Avatar upload error:', error);
+      toast.error('Failed to upload avatar');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!channel || !isOwner) return;
 
@@ -99,7 +144,8 @@ export function ChannelSettingsDialog({
       .from('conversations')
       .update({ 
         name: name.trim() || null,
-        description: description.trim() || null 
+        description: description.trim() || null,
+        avatar_url: avatarUrl
       })
       .eq('id', channel.id);
 
@@ -206,10 +252,34 @@ export function ChannelSettingsDialog({
 
           <ScrollArea className="max-h-[70vh]">
             <div className="space-y-4 py-4 pr-4">
-              {/* Channel Info */}
+              {/* Channel Info with Avatar Upload */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-700/50">
-                <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center">
-                  <Radio className="h-6 w-6 text-white" />
+                <div className="relative group">
+                  <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Channel" className="w-full h-full object-cover" />
+                    ) : (
+                      <Radio className="h-6 w-6 text-white" />
+                    )}
+                  </div>
+                  {isOwner && (
+                    <>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        className="hidden"
+                      />
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <Camera className="h-5 w-5 text-white" />
+                      </button>
+                    </>
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-slate-100">{channel.name}</p>
