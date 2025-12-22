@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MessageWithSender, Profile } from '@/types/chat';
 import { format } from 'date-fns';
-import { Eye, Share2, Download, ChevronRight, Smile, MoreVertical, Reply, Link, Pin, Pencil, Trash2, Play } from 'lucide-react';
+import { Eye, Share2, ChevronRight, Smile, MoreVertical, Reply, Link, Pin, Pencil, Trash2, Play, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Reaction } from '@/hooks/useReactions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
+import { FilePreview } from './FilePreview';
 
 interface ChannelMessageBubbleProps {
   message: MessageWithSender;
@@ -118,17 +119,14 @@ export function ChannelMessageBubble({
             className="w-full max-h-80 object-cover"
             preload="metadata"
           />
-          {/* Play button overlay */}
           <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
             <div className="w-14 h-14 rounded-full bg-sky-500/90 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
               <Play className="w-7 h-7 text-white ml-1" fill="white" />
             </div>
           </div>
-          {/* Duration badge - if we had duration info */}
           <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 rounded text-white text-xs font-medium">
             Video
           </div>
-          {/* Download indicator */}
           <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-sky-500/90 flex items-center justify-center">
             <Download className="w-4 h-4 text-white" />
           </div>
@@ -158,34 +156,14 @@ export function ChannelMessageBubble({
       );
     }
 
-    // PDF and document thumbnail
-    const ext = getFileExtension(message.file_name);
-    const isPDF = ext === 'PDF';
-    
+    // PDF and document files - use FilePreview with caching
     return (
-      <a
-        href={message.file_url}
-        download={message.file_name}
-        className="flex items-start gap-3 mb-3 group"
-      >
-        <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 group-hover:opacity-90 transition-opacity ${
-          isPDF ? 'bg-red-500/20' : 'bg-slate-700/60'
-        }`}>
-          {isPDF ? (
-            <span className="text-red-400 font-bold text-sm">PDF</span>
-          ) : (
-            <Download className="w-7 h-7 text-slate-300" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0 pt-1">
-          <p className="font-medium text-foreground truncate text-sm">
-            {message.file_name || 'File'}
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {formatFileSize(message.file_size)} {ext}
-          </p>
-        </div>
-      </a>
+      <FilePreview
+        url={message.file_url}
+        fileName={message.file_name || 'File'}
+        fileSize={message.file_size || undefined}
+        className="mb-3"
+      />
     );
   };
 
