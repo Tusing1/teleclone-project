@@ -17,29 +17,35 @@ export type Database = {
       call_participants: {
         Row: {
           call_id: string
+          hand_raised: boolean | null
           id: string
           is_muted: boolean
           is_video_off: boolean
           joined_at: string
           left_at: string | null
+          noise_suppression: boolean | null
           user_id: string
         }
         Insert: {
           call_id: string
+          hand_raised?: boolean | null
           id?: string
           is_muted?: boolean
           is_video_off?: boolean
           joined_at?: string
           left_at?: string | null
+          noise_suppression?: boolean | null
           user_id: string
         }
         Update: {
           call_id?: string
+          hand_raised?: boolean | null
           id?: string
           is_muted?: boolean
           is_video_off?: boolean
           joined_at?: string
           left_at?: string | null
+          noise_suppression?: boolean | null
           user_id?: string
         }
         Relationships: [
@@ -60,6 +66,7 @@ export type Database = {
           id: string
           is_active: boolean
           is_recording: boolean
+          livestream_title: string | null
           recorded_by: string | null
           recording_title: string | null
           recording_url: string | null
@@ -73,6 +80,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_recording?: boolean
+          livestream_title?: string | null
           recorded_by?: string | null
           recording_title?: string | null
           recording_url?: string | null
@@ -86,6 +94,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_recording?: boolean
+          livestream_title?: string | null
           recorded_by?: string | null
           recording_title?: string | null
           recording_url?: string | null
