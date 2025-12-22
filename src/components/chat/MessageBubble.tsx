@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { FilePreview } from './FilePreview';
+import { AudioPlayer } from './AudioPlayer';
 
 interface MessageBubbleProps {
   message: MessageWithSender;
@@ -68,7 +69,7 @@ export function MessageBubble({
 
   const isAudioFile = (url: string | null) => {
     if (!url) return false;
-    return /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(url);
+    return /\.(mp3|wav|ogg|m4a|aac|flac|webm|opus)$/i.test(url);
   };
 
   const copyMessageLink = () => {
@@ -112,35 +113,16 @@ export function MessageBubble({
       );
     }
 
-    // Audio file
+    // Audio file - use AudioPlayer with caching
     if (message.file_url && isAudioFile(message.file_url)) {
       return (
-        <div 
-          className={cn(
-            'flex items-center gap-3 p-2 rounded-lg mb-1 cursor-pointer group',
-            isOwn ? 'bg-primary-foreground/10' : 'bg-muted'
-          )}
-          onClick={() => window.open(message.file_url!, '_blank')}
-        >
-          <div className={cn(
-            'w-10 h-10 rounded-full flex items-center justify-center group-hover:scale-105 transition-transform',
-            isOwn ? 'bg-primary-foreground/20' : 'bg-primary/80'
-          )}>
-            <Play className={cn(
-              'w-5 h-5 ml-0.5',
-              isOwn ? 'text-primary-foreground' : 'text-white'
-            )} fill={isOwn ? 'currentColor' : 'white'} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium truncate text-sm">{message.file_name}</p>
-            <p className={cn(
-              'text-xs',
-              isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-            )}>
-              {message.file_size && formatFileSize(message.file_size)}
-            </p>
-          </div>
-        </div>
+        <AudioPlayer
+          url={message.file_url}
+          fileName={message.file_name || undefined}
+          fileSize={message.file_size || undefined}
+          variant="compact"
+          className="mb-1"
+        />
       );
     }
 
