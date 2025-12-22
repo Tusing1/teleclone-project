@@ -200,13 +200,19 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             <Bookmark className="w-5 h-5 text-primary-foreground" />
           </div>
         ) : isGroup ? (
-          <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
+          <button 
+            onClick={() => isAdminOrOwner && setShowGroupSettings(true)}
+            className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
+          >
             <Users className="w-5 h-5 text-white" />
-          </div>
+          </button>
         ) : isChannel ? (
-          <div className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center">
+          <button 
+            onClick={() => setShowChannelSettings(true)}
+            className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
+          >
             <Radio className="w-5 h-5 text-white" />
-          </div>
+          </button>
         ) : (
           <Avatar
             src={otherProfile?.avatar_url}
