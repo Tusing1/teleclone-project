@@ -174,14 +174,23 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   }
 
   return (
-    <div className="flex flex-col h-full bg-chat-bg">
+    <div className={cn(
+      "flex flex-col h-full",
+      isChannel ? "bg-slate-900" : "bg-chat-bg"
+    )}>
       {/* Header */}
-      <div className="flex items-center gap-3 p-3 bg-card border-b border-border">
+      <div className={cn(
+        "flex items-center gap-3 p-3 border-b",
+        isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border"
+      )}>
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={onBack}
-          className="md:hidden shrink-0"
+          className={cn(
+            "md:hidden shrink-0",
+            isChannel && "text-slate-300 hover:text-slate-100 hover:bg-slate-700"
+          )}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -208,10 +217,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         )}
         
         <div className="flex-1 min-w-0">
-          <h2 className="font-semibold truncate">{displayName}</h2>
+          <h2 className={cn(
+            "font-semibold truncate",
+            isChannel && "text-slate-100"
+          )}>{displayName}</h2>
           <p className={cn(
             'text-xs truncate',
-            !isSavedMessages && !isGroup && !isChannel && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground'
+            isChannel ? 'text-slate-400' : 
+            (!isSavedMessages && !isGroup && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground')
           )}>
             {statusText}
           </p>
@@ -234,6 +247,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             size="icon"
             onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}
             title="Go to discussion"
+            className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : ""}
           >
             <MessageCircle className="h-5 w-5" />
           </Button>
@@ -242,7 +256,11 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         {/* Menu button */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
+            <Button 
+              variant="ghost" 
+              size="icon"
+              className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : ""}
+            >
               <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -334,6 +352,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                     } : undefined}
                     onForward={onForwardMessage ? () => onForwardMessage(message) : undefined}
                     commentCount={message.commentCount || 0}
+                    canForward={isAdminOrOwner}
                   />
                 );
               }
@@ -355,7 +374,10 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
 
       {/* Input */}
       {canSendMessages ? (
-        <div className="p-3 bg-card border-t border-border">
+        <div className={cn(
+          "p-3 border-t",
+          isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border"
+        )}>
           <div className="flex items-center gap-2">
             <input
               ref={imageInputRef}
@@ -375,24 +397,29 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
               size="icon"
               onClick={() => imageInputRef.current?.click()}
               disabled={sending}
+              className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
             >
-              <ImageIcon className="h-5 w-5 text-muted-foreground" />
+              <ImageIcon className="h-5 w-5" />
             </Button>
             <Button 
               variant="ghost" 
               size="icon"
               onClick={() => fileInputRef.current?.click()}
               disabled={sending}
+              className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
             >
-              <Paperclip className="h-5 w-5 text-muted-foreground" />
+              <Paperclip className="h-5 w-5" />
             </Button>
             <Input
-              placeholder={isSavedMessages ? "Write a note..." : "Message"}
+              placeholder={isChannel ? "Broadcast..." : isSavedMessages ? "Write a note..." : "Message"}
               value={messageText}
               onChange={(e) => setMessageText(e.target.value)}
               onKeyDown={handleKeyDown}
               disabled={sending}
-              className="flex-1 bg-secondary border-0"
+              className={cn(
+                "flex-1 border-0",
+                isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-secondary"
+              )}
             />
             <Button 
               size="icon"
@@ -405,10 +432,10 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </div>
         </div>
       ) : isChannel && conversation.linked_discussion_id ? (
-        <div className="p-3 bg-card border-t border-border">
+        <div className="p-3 bg-slate-800 border-t border-slate-700">
           <Button 
             variant="secondary" 
-            className="w-full"
+            className="w-full bg-slate-700 hover:bg-slate-600 text-slate-100"
             onClick={() => onNavigateToDiscussion?.(conversation.linked_discussion_id!)}
           >
             <MessageCircle className="h-4 w-4 mr-2" />
@@ -416,7 +443,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </Button>
         </div>
       ) : isChannel ? (
-        <div className="p-3 bg-card border-t border-border text-center text-sm text-muted-foreground">
+        <div className="p-3 bg-slate-800 border-t border-slate-700 text-center text-sm text-slate-400">
           Only admins can post to this channel
         </div>
       ) : null}
