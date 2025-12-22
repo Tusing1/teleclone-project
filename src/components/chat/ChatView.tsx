@@ -15,13 +15,31 @@ import { useCalls } from '@/hooks/useCalls';
 import { useReactions } from '@/hooks/useReactions';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
-import { toast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 
 interface ChatViewProps {
   conversation: ConversationWithDetails;
@@ -42,6 +60,11 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [sending, setSending] = useState(false);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [messageToDelete, setMessageToDelete] = useState<MessageWithSender | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [messageToEdit, setMessageToEdit] = useState<MessageWithSender | null>(null);
+  const [editText, setEditText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -77,9 +100,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const handleStartCall = async (type: 'voice' | 'video') => {
     const callId = await startCall(type);
     if (callId) {
-      toast({ title: `${type === 'video' ? 'Video' : 'Voice'} call started` });
+      toast.success(`${type === 'video' ? 'Video' : 'Voice'} call started`);
     } else {
-      toast({ title: 'Failed to start call', variant: 'destructive' });
+      toast.error('Failed to start call');
     }
   };
 
@@ -131,6 +154,76 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     }
     setSending(false);
     e.target.value = '';
+  };
+
+  // Handle message deletion
+  const handleDeleteMessage = async () => {
+    if (!messageToDelete) return;
+    
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .delete()
+        .eq('id', messageToDelete.id);
+      
+      if (error) throw error;
+      
+      toast.success('Message deleted');
+      refetch();
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      toast.error('Failed to delete message');
+    } finally {
+      setDeleteDialogOpen(false);
+      setMessageToDelete(null);
+    }
+  };
+
+  // Handle message edit
+  const handleEditMessage = async () => {
+    if (!messageToEdit || !editText.trim()) return;
+    
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ content: editText.trim() })
+        .eq('id', messageToEdit.id);
+      
+      if (error) throw error;
+      
+      toast.success('Message updated');
+      refetch();
+    } catch (error) {
+      console.error('Error updating message:', error);
+      toast.error('Failed to update message');
+    } finally {
+      setEditDialogOpen(false);
+      setMessageToEdit(null);
+      setEditText('');
+    }
+  };
+
+  // Open delete confirmation
+  const openDeleteDialog = (message: MessageWithSender) => {
+    setMessageToDelete(message);
+    setDeleteDialogOpen(true);
+  };
+
+  // Open edit dialog
+  const openEditDialog = (message: MessageWithSender) => {
+    setMessageToEdit(message);
+    setEditText(message.content || '');
+    setEditDialogOpen(true);
+  };
+
+  // Handle pin message
+  const handlePinMessage = (message: MessageWithSender) => {
+    toast.info('Pin feature coming soon');
+  };
+
+  // Handle reply
+  const handleReply = (message: MessageWithSender) => {
+    toast.info('Reply feature coming soon');
   };
 
   // Display name and status for header
@@ -359,6 +452,11 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                     onForward={onForwardMessage ? () => onForwardMessage(message) : undefined}
                     commentCount={message.commentCount || 0}
                     canForward={isAdminOrOwner}
+                    onReply={() => handleReply(message)}
+                    onPin={() => handlePinMessage(message)}
+                    onEdit={() => openEditDialog(message)}
+                    onDelete={() => openDeleteDialog(message)}
+                    isAdmin={isAdminOrOwner}
                   />
                 );
               }
@@ -370,6 +468,11 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   showAvatar={showAvatar}
                   onForward={!isSavedMessages ? onForwardMessage : undefined}
                   isChannelMessage={false}
+                  onReply={(msg) => handleReply(msg)}
+                  onEdit={(msg) => openEditDialog(msg)}
+                  onDelete={(msg) => openDeleteDialog(msg)}
+                  onPin={(msg) => handlePinMessage(msg)}
+                  isAdmin={isAdminOrOwner}
                 />
               );
             })}
@@ -453,6 +556,47 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           Only admins can post to this channel
         </div>
       ) : null}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Message</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this message? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteMessage} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Message Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Message</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={editText}
+            onChange={(e) => setEditText(e.target.value)}
+            placeholder="Enter new message..."
+            className="mt-2"
+          />
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEditMessage} disabled={!editText.trim()}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
