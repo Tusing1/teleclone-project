@@ -280,30 +280,41 @@ export function useConversations() {
       }
     }
 
-    // Create new Saved Messages conversation
-    const { data: newConv, error: convError } = await supabase
-      .from('conversations')
-      .insert({ type: 'direct' })
-      .select()
-      .single();
+    // Create new Saved Messages conversation via edge function (to bypass RLS)
+    try {
+      const { data, error } = await supabase.functions.invoke('create-conversation', {
+        body: { type: 'saved' }
+      });
 
-    if (convError || !newConv) return null;
+      if (error) {
+        console.error('Error creating Saved Messages via edge function:', error);
+        return null;
+      }
 
-    // Add only the current user as participant
-    await supabase
-      .from('conversation_participants')
-      .insert({ conversation_id: newConv.id, user_id: user.id, role: 'owner' });
-
-    setSavedMessagesId(newConv.id);
-    await fetchConversations();
-    return newConv.id;
+      if (data?.id) {
+        setSavedMessagesId(data.id);
+        await fetchConversations();
+        return data.id;
+      }
+      
+      return null;
+    } catch (err) {
+      console.error('Failed to create Saved Messages:', err);
+      return null;
+    }
   };
 
   const forwardToSavedMessages = async (message: Message): Promise<boolean> => {
-    if (!user) return false;
+    if (!user) {
+      console.error('forwardToSavedMessages: No user');
+      return false;
+    }
 
     const savedId = await getOrCreateSavedMessages();
-    if (!savedId) return false;
+    if (!savedId) {
+      console.error('forwardToSavedMessages: Could not get or create Saved Messages');
+      return false;
+    }
 
     const forwardedContent = message.content 
       ? `📤 Forwarded:\n${message.content}`
@@ -326,7 +337,10 @@ export function useConversations() {
       .from('messages')
       .insert(messageData);
 
-    if (error) return false;
+    if (error) {
+      console.error('forwardToSavedMessages: Error inserting message:', error);
+      return false;
+    }
 
     // Update conversation timestamp
     await supabase

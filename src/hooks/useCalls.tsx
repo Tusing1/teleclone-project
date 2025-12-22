@@ -380,24 +380,18 @@ export function useCalls(conversationId: string | null) {
         }
       }
 
-      // Create Saved Messages if it doesn't exist
+      // Create Saved Messages if it doesn't exist via edge function
       if (!savedConversationId) {
-        const { data: newConversation } = await supabase
-          .from('conversations')
-          .insert({ type: 'direct' })
-          .select()
-          .single();
+        try {
+          const { data, error } = await supabase.functions.invoke('create-conversation', {
+            body: { type: 'saved' }
+          });
 
-        if (newConversation) {
-          savedConversationId = newConversation.id;
-          
-          await supabase
-            .from('conversation_participants')
-            .insert({
-              conversation_id: savedConversationId,
-              user_id: user.id,
-              role: 'owner'
-            });
+          if (!error && data?.id) {
+            savedConversationId = data.id;
+          }
+        } catch (err) {
+          console.error('Failed to create Saved Messages for recording:', err);
         }
       }
 
