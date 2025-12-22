@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
+import { DiscussionView } from '@/components/chat/DiscussionView';
 import { EmptyState } from '@/components/chat/EmptyState';
 import { NewChatDialog } from '@/components/chat/NewChatDialog';
 import { Sidebar } from '@/components/chat/Sidebar';
@@ -12,6 +13,7 @@ import { ContactsDialog } from '@/components/chat/ContactsDialog';
 import { InviteFriendsDialog } from '@/components/chat/InviteFriendsDialog';
 import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
 import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
+import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -41,6 +43,12 @@ export default function Index() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  
+  // Discussion group navigation state
+  const [discussionContext, setDiscussionContext] = useState<{
+    parentChannel: ConversationWithDetails | null;
+    replyToMessage: MessageWithSender | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -120,13 +128,26 @@ export default function Index() {
     return success;
   };
 
-  const handleNavigateToDiscussion = (discussionId: string) => {
+  const handleNavigateToDiscussion = (discussionId: string, parentChannel?: ConversationWithDetails, replyToMessage?: MessageWithSender) => {
     setSelectedConversationId(discussionId);
+    if (parentChannel) {
+      setDiscussionContext({ parentChannel, replyToMessage: replyToMessage || null });
+    }
   };
 
   const selectedConversation = [...conversations, ...archivedConversations].find(
     c => c.id === selectedConversationId
   );
+  
+  // Check if current conversation is a discussion group (has a parent channel linking to it)
+  const isDiscussionGroup = selectedConversation && conversations.some(
+    c => c.type === 'channel' && c.linked_discussion_id === selectedConversation.id
+  );
+  
+  // Get parent channel if in discussion
+  const parentChannel = isDiscussionGroup ? conversations.find(
+    c => c.type === 'channel' && c.linked_discussion_id === selectedConversation?.id
+  ) : discussionContext?.parentChannel;
 
   if (authLoading) {
     return (
@@ -183,13 +204,33 @@ export default function Index() {
         )}
       >
         {selectedConversation ? (
-          <ChatView 
-            conversation={selectedConversation}
-            onBack={() => setSelectedConversationId(null)}
-            onForwardMessage={handleForwardMessage}
-            onNavigateToDiscussion={handleNavigateToDiscussion}
-            onRefreshConversations={refetchConversations}
-          />
+          isDiscussionGroup ? (
+            <DiscussionView
+              conversation={selectedConversation}
+              parentChannel={parentChannel}
+              replyToMessage={discussionContext?.replyToMessage}
+              onBack={() => {
+                // Go back to parent channel if available
+                if (parentChannel) {
+                  setSelectedConversationId(parentChannel.id);
+                } else {
+                  setSelectedConversationId(null);
+                }
+                setDiscussionContext(null);
+              }}
+              onRefreshConversations={refetchConversations}
+            />
+          ) : (
+            <ChatView 
+              conversation={selectedConversation}
+              onBack={() => setSelectedConversationId(null)}
+              onForwardMessage={handleForwardMessage}
+              onNavigateToDiscussion={(discussionId, msg) => {
+                handleNavigateToDiscussion(discussionId, selectedConversation, msg);
+              }}
+              onRefreshConversations={refetchConversations}
+            />
+          )
         ) : (
           <EmptyState />
         )}

@@ -26,6 +26,7 @@ interface MessageBubbleProps {
   onDelete?: (message: MessageWithSender) => void;
   onPin?: (message: MessageWithSender) => void;
   isAdmin?: boolean;
+  discussionMode?: boolean;
 }
 
 export function MessageBubble({ 
@@ -38,7 +39,8 @@ export function MessageBubble({
   onEdit,
   onDelete,
   onPin,
-  isAdmin = false
+  isAdmin = false,
+  discussionMode = false
 }: MessageBubbleProps) {
   const { user } = useAuth();
   const isOwn = message.sender_id === user?.id;
