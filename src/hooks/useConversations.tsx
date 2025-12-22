@@ -258,12 +258,21 @@ export function useConversations() {
 
     if (participantData) {
       for (const p of participantData) {
+        // First check if this conversation is type 'direct'
+        const { data: convData } = await supabase
+          .from('conversations')
+          .select('type')
+          .eq('id', p.conversation_id)
+          .single();
+
+        if (convData?.type !== 'direct') continue;
+
         const { data: participants } = await supabase
           .from('conversation_participants')
           .select('*')
           .eq('conversation_id', p.conversation_id);
 
-        // Saved Messages = conversation with only the current user
+        // Saved Messages = direct conversation with only the current user
         if (participants?.length === 1 && participants[0].user_id === user.id) {
           setSavedMessagesId(p.conversation_id);
           return p.conversation_id;
