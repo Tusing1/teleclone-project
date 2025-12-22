@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { CallParticipant } from './useCalls';
 
-export interface Call {
+export interface LiveStream {
   id: string;
   conversation_id: string;
   started_by: string;
@@ -14,39 +15,24 @@ export interface Call {
   recording_title: string | null;
   recording_url: string | null;
   recorded_by: string | null;
+  livestream_title: string | null;
 }
 
-export interface CallParticipant {
-  id: string;
-  call_id: string;
-  user_id: string;
-  joined_at: string;
-  left_at: string | null;
-  is_muted: boolean;
-  is_video_off: boolean;
-  hand_raised?: boolean;
-  noise_suppression?: boolean;
-  profile?: {
-    username: string;
-    full_name: string | null;
-    avatar_url: string | null;
-  };
-}
-
-export function useCalls(conversationId: string | null) {
+export function useLiveStream(conversationId: string | null) {
   const { user } = useAuth();
-  const [activeCall, setActiveCall] = useState<Call | null>(null);
+  const [activeStream, setActiveStream] = useState<LiveStream | null>(null);
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
-  const [isInCall, setIsInCall] = useState(false);
+  const [isInStream, setIsInStream] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [isRecording, setIsRecording] = useState(false);
-  const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const [handRaised, setHandRaised] = useState(false);
+  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [isMuted, setIsMuted] = useState(true); // Non-admins start muted
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
 
-  // Fetch active call for conversation
-  const fetchActiveCall = useCallback(async () => {
+  // Fetch active stream
+  const fetchActiveStream = useCallback(async () => {
     if (!conversationId) return;
 
     const { data, error } = await supabase
@@ -57,17 +43,17 @@ export function useCalls(conversationId: string | null) {
       .maybeSingle();
 
     if (!error && data) {
-      setActiveCall(data as Call);
+      setActiveStream(data as LiveStream);
       setIsRecording(data.is_recording);
       await fetchParticipants(data.id);
     } else {
-      setActiveCall(null);
+      setActiveStream(null);
       setParticipants([]);
       setIsRecording(false);
     }
   }, [conversationId]);
 
-  // Fetch call participants
+  // Fetch participants
   const fetchParticipants = async (callId: string) => {
     const { data: participantsData } = await supabase
       .from('call_participants')
@@ -88,16 +74,21 @@ export function useCalls(conversationId: string | null) {
       })) as CallParticipant[];
 
       setParticipants(participantsWithProfiles);
-      
-      // Check if current user is in call
+
       if (user) {
-        setIsInCall(participantsData.some(p => p.user_id === user.id));
+        const currentParticipant = participantsData.find(p => p.user_id === user.id);
+        setIsInStream(!!currentParticipant);
+        if (currentParticipant) {
+          setHandRaised(currentParticipant.hand_raised || false);
+          setIsMuted(currentParticipant.is_muted);
+          setNoiseSuppression(currentParticipant.noise_suppression ?? true);
+        }
       }
     }
   };
 
-  // Start a new call (admin/owner only)
-  const startCall = async (callType: 'voice' | 'video' = 'video'): Promise<string | null> => {
+  // Start a new live stream
+  const startStream = async (title: string = 'Live Stream'): Promise<string | null> => {
     if (!user || !conversationId) return null;
 
     const { data, error } = await supabase
@@ -105,85 +96,84 @@ export function useCalls(conversationId: string | null) {
       .insert({
         conversation_id: conversationId,
         started_by: user.id,
-        call_type: callType
+        call_type: 'voice',
+        livestream_title: title
       })
       .select()
       .single();
 
     if (error) {
-      console.error('Error starting call:', error);
+      console.error('Error starting stream:', error);
       return null;
     }
 
-    // Join the call immediately
-    await joinCall(data.id, callType);
+    await joinStream(data.id, false); // Admin starts unmuted
     return data.id;
   };
 
-  // Join an existing call
-  const joinCall = async (callId: string, callType: 'voice' | 'video' = 'video') => {
+  // Join stream
+  const joinStream = async (callId: string, startMuted: boolean = true) => {
     if (!user) return;
 
     try {
-      // Get media stream
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: callType === 'video'
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: noiseSuppression,
+          autoGainControl: true
+        }
       });
-      setLocalStream(stream);
 
-      // Add participant to database
+      // Mute by default for non-admins
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = !startMuted;
+      });
+
+      setLocalStream(stream);
+      setIsMuted(startMuted);
+
       await supabase
         .from('call_participants')
         .insert({
           call_id: callId,
           user_id: user.id,
-          is_video_off: callType === 'voice'
+          is_muted: startMuted,
+          is_video_off: true,
+          hand_raised: false,
+          noise_suppression: noiseSuppression
         });
 
-      setIsInCall(true);
-      await fetchActiveCall();
+      setIsInStream(true);
+      await fetchActiveStream();
     } catch (error) {
-      console.error('Error joining call:', error);
+      console.error('Error joining stream:', error);
     }
   };
 
-  // Leave the call
-  const leaveCall = async () => {
-    if (!user || !activeCall) return;
+  // Leave stream
+  const leaveStream = async () => {
+    if (!user || !activeStream) return;
 
-    // Stop recording if active
-    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-      mediaRecorder.current.stop();
-    }
-
-    // Stop local stream
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
     }
 
-    // Close peer connections
-    peerConnections.current.forEach(pc => pc.close());
-    peerConnections.current.clear();
-    setRemoteStreams(new Map());
-
-    // Update database
     await supabase
       .from('call_participants')
       .update({ left_at: new Date().toISOString() })
-      .eq('call_id', activeCall.id)
+      .eq('call_id', activeStream.id)
       .eq('user_id', user.id);
 
-    setIsInCall(false);
-    await fetchActiveCall();
+    setIsInStream(false);
+    setHandRaised(false);
+    await fetchActiveStream();
   };
 
-  // End call (only call starter)
-  const endCall = async () => {
-    if (!activeCall) return;
+  // End stream
+  const endStream = async () => {
+    if (!activeStream) return;
 
-    // Stop recording and save if active
     if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
       mediaRecorder.current.stop();
     }
@@ -194,14 +184,130 @@ export function useCalls(conversationId: string | null) {
         is_active: false, 
         ended_at: new Date().toISOString() 
       })
-      .eq('id', activeCall.id);
+      .eq('id', activeStream.id);
 
-    await leaveCall();
+    await leaveStream();
+  };
+
+  // Raise hand
+  const raiseHand = async () => {
+    if (!user || !activeStream) return;
+
+    await supabase
+      .from('call_participants')
+      .update({ hand_raised: true })
+      .eq('call_id', activeStream.id)
+      .eq('user_id', user.id);
+
+    setHandRaised(true);
+  };
+
+  // Lower hand
+  const lowerHand = async () => {
+    if (!user || !activeStream) return;
+
+    await supabase
+      .from('call_participants')
+      .update({ hand_raised: false })
+      .eq('call_id', activeStream.id)
+      .eq('user_id', user.id);
+
+    setHandRaised(false);
+  };
+
+  // Toggle mute
+  const toggleMute = async () => {
+    if (!user || !activeStream || !localStream) return;
+
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      const newMutedState = !audioTrack.enabled;
+
+      await supabase
+        .from('call_participants')
+        .update({ is_muted: newMutedState })
+        .eq('call_id', activeStream.id)
+        .eq('user_id', user.id);
+
+      setIsMuted(newMutedState);
+    }
+  };
+
+  // Unmute participant (admin only)
+  const unmuteParticipant = async (userId: string) => {
+    if (!activeStream) return;
+
+    await supabase
+      .from('call_participants')
+      .update({ is_muted: false, hand_raised: false })
+      .eq('call_id', activeStream.id)
+      .eq('user_id', userId);
+
+    await fetchParticipants(activeStream.id);
+  };
+
+  // Mute participant (admin only)
+  const muteParticipant = async (userId: string) => {
+    if (!activeStream) return;
+
+    await supabase
+      .from('call_participants')
+      .update({ is_muted: true })
+      .eq('call_id', activeStream.id)
+      .eq('user_id', userId);
+
+    await fetchParticipants(activeStream.id);
+  };
+
+  // Toggle noise suppression
+  const toggleNoiseSuppression = async () => {
+    if (!user || !activeStream) return;
+
+    const newValue = !noiseSuppression;
+    setNoiseSuppression(newValue);
+
+    await supabase
+      .from('call_participants')
+      .update({ noise_suppression: newValue })
+      .eq('call_id', activeStream.id)
+      .eq('user_id', user.id);
+
+    // Re-initialize audio stream with new settings
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: newValue,
+          autoGainControl: true
+        }
+      });
+
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = !isMuted;
+      });
+
+      setLocalStream(stream);
+    }
+  };
+
+  // Update stream title
+  const updateStreamTitle = async (title: string) => {
+    if (!activeStream) return;
+
+    await supabase
+      .from('calls')
+      .update({ livestream_title: title })
+      .eq('id', activeStream.id);
+
+    setActiveStream(prev => prev ? { ...prev, livestream_title: title } : null);
   };
 
   // Start recording
   const startRecording = async (title: string) => {
-    if (!user || !activeCall || !localStream) return;
+    if (!user || !activeStream || !localStream) return;
 
     try {
       recordedChunks.current = [];
@@ -220,9 +326,8 @@ export function useCalls(conversationId: string | null) {
         await saveRecording(blob, title);
       };
 
-      mediaRecorder.current.start(1000); // Collect data every second
+      mediaRecorder.current.start(1000);
 
-      // Update database
       await supabase
         .from('calls')
         .update({ 
@@ -230,7 +335,7 @@ export function useCalls(conversationId: string | null) {
           recording_title: title,
           recorded_by: user.id
         })
-        .eq('id', activeCall.id);
+        .eq('id', activeStream.id);
 
       setIsRecording(true);
     } catch (error) {
@@ -240,7 +345,7 @@ export function useCalls(conversationId: string | null) {
 
   // Stop recording
   const stopRecording = async () => {
-    if (!activeCall || !mediaRecorder.current) return;
+    if (!activeStream || !mediaRecorder.current) return;
 
     if (mediaRecorder.current.state !== 'inactive') {
       mediaRecorder.current.stop();
@@ -249,12 +354,12 @@ export function useCalls(conversationId: string | null) {
     await supabase
       .from('calls')
       .update({ is_recording: false })
-      .eq('id', activeCall.id);
+      .eq('id', activeStream.id);
 
     setIsRecording(false);
   };
 
-  // Save recording to storage and create message in Saved Messages
+  // Save recording
   const saveRecording = async (blob: Blob, title: string) => {
     if (!user) return;
 
@@ -262,7 +367,6 @@ export function useCalls(conversationId: string | null) {
       const fileName = `recording_${Date.now()}.webm`;
       const filePath = `${user.id}/${fileName}`;
 
-      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
         .upload(filePath, blob);
@@ -272,12 +376,11 @@ export function useCalls(conversationId: string | null) {
         return;
       }
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('chat-media')
         .getPublicUrl(filePath);
 
-      // Find Saved Messages conversation (direct conversation with only current user)
+      // Save to user's saved messages
       const { data: participantData } = await supabase
         .from('conversation_participants')
         .select('conversation_id')
@@ -292,7 +395,6 @@ export function useCalls(conversationId: string | null) {
             .select('*')
             .eq('conversation_id', p.conversation_id);
 
-          // Saved Messages = direct conversation with only the current user
           if (participants?.length === 1 && participants[0].user_id === user.id) {
             savedConversationId = p.conversation_id;
             break;
@@ -300,7 +402,6 @@ export function useCalls(conversationId: string | null) {
         }
       }
 
-      // Create Saved Messages if it doesn't exist
       if (!savedConversationId) {
         const { data: newConversation } = await supabase
           .from('conversations')
@@ -310,7 +411,6 @@ export function useCalls(conversationId: string | null) {
 
         if (newConversation) {
           savedConversationId = newConversation.id;
-          
           await supabase
             .from('conversation_participants')
             .insert({
@@ -322,20 +422,18 @@ export function useCalls(conversationId: string | null) {
       }
 
       if (savedConversationId) {
-        // Create message with recording
         await supabase
           .from('messages')
           .insert({
             conversation_id: savedConversationId,
             sender_id: user.id,
-            content: `🎙️ Recording: ${title || 'Call Recording'}`,
+            content: `🎙️ Recording: ${title || 'Live Stream Recording'}`,
             message_type: 'file',
             file_url: publicUrl,
-            file_name: `${title || 'Call Recording'}.webm`,
+            file_name: `${title || 'Live Stream Recording'}.webm`,
             file_size: blob.size
           });
 
-        // Update conversation timestamp
         await supabase
           .from('conversations')
           .update({ updated_at: new Date().toISOString() })
@@ -346,57 +444,25 @@ export function useCalls(conversationId: string | null) {
     }
   };
 
-  // Toggle mute
-  const toggleMute = async () => {
-    if (!user || !activeCall || !localStream) return;
-
-    const audioTrack = localStream.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      
-      await supabase
-        .from('call_participants')
-        .update({ is_muted: !audioTrack.enabled })
-        .eq('call_id', activeCall.id)
-        .eq('user_id', user.id);
-    }
-  };
-
-  // Toggle video
-  const toggleVideo = async () => {
-    if (!user || !activeCall || !localStream) return;
-
-    const videoTrack = localStream.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      
-      await supabase
-        .from('call_participants')
-        .update({ is_video_off: !videoTrack.enabled })
-        .eq('call_id', activeCall.id)
-        .eq('user_id', user.id);
-    }
-  };
-
-  // Subscribe to call changes
+  // Subscribe to changes
   useEffect(() => {
     if (!conversationId) return;
 
-    fetchActiveCall();
+    fetchActiveStream();
 
     const channel = supabase
-      .channel(`calls-${conversationId}`)
+      .channel(`livestream-${conversationId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` },
-        () => fetchActiveCall()
+        () => fetchActiveStream()
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'call_participants' },
         () => {
-          if (activeCall) {
-            fetchParticipants(activeCall.id);
+          if (activeStream) {
+            fetchParticipants(activeStream.id);
           }
         }
       )
@@ -405,15 +471,14 @@ export function useCalls(conversationId: string | null) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, fetchActiveCall]);
+  }, [conversationId, fetchActiveStream, activeStream?.id]);
 
-  // Cleanup on unmount
+  // Cleanup
   useEffect(() => {
     return () => {
       if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
       }
-      peerConnections.current.forEach(pc => pc.close());
       if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
         mediaRecorder.current.stop();
       }
@@ -421,18 +486,25 @@ export function useCalls(conversationId: string | null) {
   }, []);
 
   return {
-    activeCall,
+    activeStream,
     participants,
-    isInCall,
+    isInStream,
     localStream,
-    remoteStreams,
     isRecording,
-    startCall,
-    joinCall,
-    leaveCall,
-    endCall,
+    handRaised,
+    noiseSuppression,
+    isMuted,
+    startStream,
+    joinStream,
+    leaveStream,
+    endStream,
+    raiseHand,
+    lowerHand,
     toggleMute,
-    toggleVideo,
+    unmuteParticipant,
+    muteParticipant,
+    toggleNoiseSuppression,
+    updateStreamTitle,
     startRecording,
     stopRecording
   };
