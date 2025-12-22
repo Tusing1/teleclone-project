@@ -53,6 +53,7 @@ export interface Message {
   created_at: string;
   updated_at: string;
   reply_to_channel_message_id?: string | null;
+  view_count?: number;
 }
 
 export interface MessageWithSender extends Message {

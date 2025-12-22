@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
 import { MessageBubble } from './MessageBubble';
+import { ChannelMessageBubble } from './ChannelMessageBubble';
 import { CallButton } from './CallButton';
 import { CallView } from './CallView';
 import { ChannelSettingsDialog } from './ChannelSettingsDialog';
@@ -11,6 +12,7 @@ import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
+import { useReactions } from '@/hooks/useReactions';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -31,10 +33,11 @@ interface ChatViewProps {
 
 export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToDiscussion, onRefreshConversations }: ChatViewProps) {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, uploadFile } = useMessages(
+  const { messages, loading, sendMessage, uploadFile, refetch } = useMessages(
     conversation.id, 
     conversation.linked_discussion_id
   );
+  const { reactions, fetchReactions, toggleReaction } = useReactions(conversation.id);
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [showChannelSettings, setShowChannelSettings] = useState(false);
@@ -93,6 +96,13 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Fetch reactions when messages load
+  useEffect(() => {
+    if (messages.length > 0) {
+      fetchReactions(messages.map(m => m.id));
+    }
+  }, [messages.length]);
 
   const handleSend = async () => {
     if (!messageText.trim() || sending) return;
@@ -306,25 +316,40 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             )}
           </div>
         ) : (
-          <>
+          <div className="px-3 space-y-4">
             {messages.map((message, index) => {
               const showAvatar = index === 0 || 
                 messages[index - 1].sender_id !== message.sender_id;
+              
+              // Use ChannelMessageBubble for channels
+              if (isChannel) {
+                return (
+                  <ChannelMessageBubble
+                    key={message.id}
+                    message={message}
+                    reactions={reactions[message.id] || []}
+                    onToggleReaction={(emoji) => toggleReaction(message.id, emoji)}
+                    onOpenComments={conversation.linked_discussion_id ? () => {
+                      onNavigateToDiscussion?.(conversation.linked_discussion_id!);
+                    } : undefined}
+                    onForward={onForwardMessage ? () => onForwardMessage(message) : undefined}
+                    commentCount={message.commentCount || 0}
+                  />
+                );
+              }
+              
               return (
                 <MessageBubble 
                   key={message.id} 
                   message={message}
                   showAvatar={showAvatar}
                   onForward={!isSavedMessages ? onForwardMessage : undefined}
-                  isChannelMessage={isChannel && !!conversation.linked_discussion_id}
-                  onOpenComments={isChannel && conversation.linked_discussion_id ? () => {
-                    onNavigateToDiscussion?.(conversation.linked_discussion_id!);
-                  } : undefined}
+                  isChannelMessage={false}
                 />
               );
             })}
             <div ref={messagesEndRef} />
-          </>
+          </div>
         )}
       </div>
 
