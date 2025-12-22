@@ -54,18 +54,44 @@ export function useCalls(conversationId: string | null) {
       .select('*')
       .eq('conversation_id', conversationId)
       .eq('is_active', true)
+      .order('started_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
-    if (!error && data) {
-      setActiveCall(data as Call);
-      setIsRecording(data.is_recording);
-      await fetchParticipants(data.id);
-    } else {
+    if (error) {
+      console.error('Error fetching active call:', error);
       setActiveCall(null);
       setParticipants([]);
       setIsRecording(false);
+      return;
     }
-  }, [conversationId]);
+
+    if (data) {
+      // If this user started multiple calls, close the older ones.
+      if (user) {
+        const { error: cleanupError } = await supabase
+          .from('calls')
+          .update({ is_active: false, ended_at: new Date().toISOString() })
+          .eq('conversation_id', conversationId)
+          .eq('is_active', true)
+          .eq('started_by', user.id)
+          .neq('id', data.id);
+
+        if (cleanupError) {
+          console.warn('Failed to cleanup duplicate calls:', cleanupError);
+        }
+      }
+
+      setActiveCall(data as Call);
+      setIsRecording(data.is_recording);
+      await fetchParticipants(data.id);
+      return;
+    }
+
+    setActiveCall(null);
+    setParticipants([]);
+    setIsRecording(false);
+  }, [conversationId, user]);
 
   // Fetch call participants
   const fetchParticipants = async (callId: string) => {
@@ -100,6 +126,30 @@ export function useCalls(conversationId: string | null) {
   const startCall = async (callType: 'voice' | 'video' = 'video'): Promise<string | null> => {
     if (!user || !conversationId) return null;
 
+    // If a call is already active, just join it.
+    const { data: existing, error: existingError } = await supabase
+      .from('calls')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .eq('is_active', true)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingError && existing) {
+      const existingType: 'voice' | 'video' = existing.call_type === 'voice' ? 'voice' : 'video';
+      await joinCall(existing.id, existingType);
+      return existing.id;
+    }
+
+    // Cleanup any other active calls started by this same user (prevents duplicates).
+    await supabase
+      .from('calls')
+      .update({ is_active: false, ended_at: new Date().toISOString() })
+      .eq('conversation_id', conversationId)
+      .eq('is_active', true)
+      .eq('started_by', user.id);
+
     const { data, error } = await supabase
       .from('calls')
       .insert({
@@ -132,14 +182,35 @@ export function useCalls(conversationId: string | null) {
       });
       setLocalStream(stream);
 
-      // Add participant to database
-      await supabase
+      // Ensure the user has only one active participant row per call.
+      const { data: existingParticipant, error: existingParticipantError } = await supabase
         .from('call_participants')
-        .insert({
-          call_id: callId,
-          user_id: user.id,
-          is_video_off: callType === 'voice'
-        });
+        .select('id')
+        .eq('call_id', callId)
+        .eq('user_id', user.id)
+        .is('left_at', null)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingParticipantError) {
+        console.warn('Error checking existing call participant:', existingParticipantError);
+      }
+
+      if (existingParticipant?.id) {
+        await supabase
+          .from('call_participants')
+          .update({ is_video_off: callType === 'voice' })
+          .eq('id', existingParticipant.id);
+      } else {
+        // Add participant to database
+        await supabase
+          .from('call_participants')
+          .insert({
+            call_id: callId,
+            user_id: user.id,
+            is_video_off: callType === 'voice'
+          });
+      }
 
       setIsInCall(true);
       await fetchActiveCall();
