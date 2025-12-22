@@ -47,7 +47,7 @@ interface ChatViewProps {
   conversation: ConversationWithDetails;
   onBack: () => void;
   onForwardMessage?: (message: MessageWithSender) => void;
-  onNavigateToDiscussion?: (discussionId: string) => void;
+  onNavigateToDiscussion?: (discussionId: string, replyToMessage?: MessageWithSender) => void;
   onRefreshConversations?: () => void;
 }
 
@@ -463,7 +463,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                     reactions={reactions[message.id] || []}
                     onToggleReaction={(emoji) => toggleReaction(message.id, emoji)}
                     onOpenComments={conversation.linked_discussion_id ? () => {
-                      onNavigateToDiscussion?.(conversation.linked_discussion_id!);
+                      onNavigateToDiscussion?.(conversation.linked_discussion_id!, message);
                     } : undefined}
                     onForward={onForwardMessage ? () => onForwardMessage(message) : undefined}
                     commentCount={message.commentCount || 0}

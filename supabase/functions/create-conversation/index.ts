@@ -100,9 +100,18 @@ Deno.serve(async (req) => {
       { conversation_id: conversation.id, user_id: user.id, role: 'owner' }
     ]
 
+    // Also add to discussion group if it exists
+    const discussionParticipants = discussionId ? [
+      { conversation_id: discussionId, user_id: user.id, role: 'owner' }
+    ] : []
+
     if (memberIds && memberIds.length > 0) {
       memberIds.forEach((id: string) => {
         participants.push({ conversation_id: conversation.id, user_id: id, role: 'member' })
+        // Also add to discussion group
+        if (discussionId) {
+          discussionParticipants.push({ conversation_id: discussionId, user_id: id, role: 'member' })
+        }
       })
     }
 
@@ -112,6 +121,17 @@ Deno.serve(async (req) => {
 
     if (participantError) {
       console.error('Participant error:', participantError)
+    }
+
+    // Add members to discussion group
+    if (discussionParticipants.length > 1) {
+      const { error: discPartError } = await supabaseAdmin
+        .from('conversation_participants')
+        .insert(discussionParticipants.slice(1)) // Owner already added above
+
+      if (discPartError) {
+        console.error('Discussion participant error:', discPartError)
+      }
     }
 
     console.log('Participants added successfully')
