@@ -1,10 +1,19 @@
 import { useState } from 'react';
 import { MessageWithSender, Profile } from '@/types/chat';
 import { format } from 'date-fns';
-import { Eye, Share2, Download, ChevronRight, Smile } from 'lucide-react';
+import { Eye, Share2, Download, ChevronRight, Smile, MoreVertical, Reply, Link, Pin, Pencil, Trash2, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Reaction } from '@/hooks/useReactions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ChannelMessageBubbleProps {
   message: MessageWithSender;
@@ -15,6 +24,11 @@ interface ChannelMessageBubbleProps {
   commentCount?: number;
   commentAvatars?: Profile[];
   canForward?: boolean;
+  onReply?: () => void;
+  onPin?: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
+  isAdmin?: boolean;
 }
 
 const EMOJI_LIST = ['❤️', '👍', '👎', '😂', '😮', '😢', '🔥', '🎉'];
@@ -27,9 +41,16 @@ export function ChannelMessageBubble({
   onForward,
   commentCount = 0,
   commentAvatars = [],
-  canForward = false
+  canForward = false,
+  onReply,
+  onPin,
+  onEdit,
+  onDelete,
+  isAdmin = false
 }: ChannelMessageBubbleProps) {
+  const { user } = useAuth();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const isOwn = message.sender_id === user?.id;
 
   const formatTime = (dateString: string) => {
     return format(new Date(dateString), 'h:mm a');
@@ -52,38 +73,116 @@ export function ChannelMessageBubble({
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
   };
 
+  const isVideoFile = (url: string | null) => {
+    if (!url) return false;
+    return /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(url);
+  };
+
+  const isAudioFile = (url: string | null) => {
+    if (!url) return false;
+    return /\.(mp3|wav|ogg|m4a|aac|flac)$/i.test(url);
+  };
+
+  const copyMessageLink = () => {
+    const link = `${window.location.origin}/message/${message.id}`;
+    navigator.clipboard.writeText(link);
+    toast.success('Link copied to clipboard');
+  };
+
   const renderFileThumbnail = () => {
     if (!message.file_url) return null;
 
+    // Image thumbnail
     if (message.message_type === 'image' || isImageFile(message.file_url)) {
       return (
         <div className="relative rounded-xl overflow-hidden mb-3">
           <img
             src={message.file_url}
             alt={message.file_name || 'Image'}
-            className="w-full max-h-80 object-cover cursor-pointer"
+            className="w-full max-h-80 object-cover cursor-pointer hover:opacity-95 transition-opacity"
             onClick={() => window.open(message.file_url!, '_blank')}
           />
         </div>
       );
     }
 
-    // File thumbnail with download icon - Telegram style
+    // Video thumbnail with play button
+    if (isVideoFile(message.file_url)) {
+      return (
+        <div 
+          className="relative rounded-xl overflow-hidden mb-3 cursor-pointer group"
+          onClick={() => window.open(message.file_url!, '_blank')}
+        >
+          <video
+            src={message.file_url}
+            className="w-full max-h-80 object-cover"
+            preload="metadata"
+          />
+          {/* Play button overlay */}
+          <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+            <div className="w-14 h-14 rounded-full bg-sky-500/90 flex items-center justify-center shadow-lg group-hover:scale-105 transition-transform">
+              <Play className="w-7 h-7 text-white ml-1" fill="white" />
+            </div>
+          </div>
+          {/* Duration badge - if we had duration info */}
+          <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 rounded text-white text-xs font-medium">
+            Video
+          </div>
+          {/* Download indicator */}
+          <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-sky-500/90 flex items-center justify-center">
+            <Download className="w-4 h-4 text-white" />
+          </div>
+        </div>
+      );
+    }
+
+    // Audio file with player style
+    if (isAudioFile(message.file_url)) {
+      return (
+        <div 
+          className="flex items-center gap-3 mb-3 cursor-pointer group"
+          onClick={() => window.open(message.file_url!, '_blank')}
+        >
+          <div className="w-12 h-12 bg-sky-500/90 rounded-full flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+            <Play className="w-5 h-5 text-white ml-0.5" fill="white" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-foreground truncate text-sm">
+              {message.file_name || 'Audio'}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {formatFileSize(message.file_size)}
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    // PDF and document thumbnail
+    const ext = getFileExtension(message.file_name);
+    const isPDF = ext === 'PDF';
+    
     return (
       <a
         href={message.file_url}
         download={message.file_name}
         className="flex items-start gap-3 mb-3 group"
       >
-        <div className="w-16 h-16 bg-slate-700/60 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-slate-600/60 transition-colors">
-          <Download className="w-7 h-7 text-slate-300" />
+        <div className={`w-16 h-16 rounded-xl flex items-center justify-center shrink-0 group-hover:opacity-90 transition-opacity ${
+          isPDF ? 'bg-red-500/20' : 'bg-slate-700/60'
+        }`}>
+          {isPDF ? (
+            <span className="text-red-400 font-bold text-sm">PDF</span>
+          ) : (
+            <Download className="w-7 h-7 text-slate-300" />
+          )}
         </div>
         <div className="flex-1 min-w-0 pt-1">
           <p className="font-medium text-foreground truncate text-sm">
             {message.file_name || 'File'}
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {formatFileSize(message.file_size)} {getFileExtension(message.file_name)}
+            {formatFileSize(message.file_size)} {ext}
           </p>
         </div>
       </a>
@@ -121,7 +220,51 @@ export function ChannelMessageBubble({
   };
 
   return (
-    <div className="max-w-[85%] md:max-w-[70%]">
+    <div className="max-w-[85%] md:max-w-[70%] group relative">
+      {/* More options button - 3 dots */}
+      <div className="absolute -right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-slate-700/80 hover:bg-slate-600 text-slate-300"
+            >
+              <MoreVertical className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
+            <DropdownMenuItem onClick={onReply} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+              <Reply className="h-4 w-4" />
+              Reply
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={copyMessageLink} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+              <Link className="h-4 w-4" />
+              Copy Link
+            </DropdownMenuItem>
+            {isAdmin && (
+              <DropdownMenuItem onClick={onPin} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                <Pin className="h-4 w-4" />
+                Pin
+              </DropdownMenuItem>
+            )}
+            {(isOwn || isAdmin) && (
+              <>
+                <DropdownMenuSeparator className="bg-slate-700" />
+                <DropdownMenuItem onClick={onEdit} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                  <Pencil className="h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-400 focus:bg-slate-700 focus:text-red-400">
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
       <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg">
         {/* File/Image Content */}
         {message.file_url && (
