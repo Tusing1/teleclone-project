@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { FilePreview } from './FilePreview';
 
 interface MessageBubbleProps {
   message: MessageWithSender;
@@ -143,48 +144,16 @@ export function MessageBubble({
       );
     }
 
-    // Regular file
+    // Regular file - use FilePreview with caching and PDF viewer
     if (message.message_type === 'file' && message.file_url) {
-      const ext = getFileExtension(message.file_name);
-      const isPDF = ext === 'PDF';
-
       return (
-        <a
-          href={message.file_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={cn(
-            'flex items-center gap-3 p-2 rounded-lg mb-1',
-            isOwn ? 'bg-primary-foreground/10' : 'bg-muted'
-          )}
-        >
-          <div className={cn(
-            'w-10 h-10 rounded-full flex items-center justify-center',
-            isPDF ? 'bg-red-500/20' : isOwn ? 'bg-primary-foreground/20' : 'bg-primary/20'
-          )}>
-            {isPDF ? (
-              <span className="text-red-500 font-bold text-xs">PDF</span>
-            ) : (
-              <FileIcon className={cn(
-                'w-5 h-5',
-                isOwn ? 'text-primary-foreground' : 'text-primary'
-              )} />
-            )}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-medium truncate text-sm">{message.file_name}</p>
-            <p className={cn(
-              'text-xs',
-              isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-            )}>
-              {message.file_size && formatFileSize(message.file_size)} {ext}
-            </p>
-          </div>
-          <Download className={cn(
-            'w-5 h-5',
-            isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-          )} />
-        </a>
+        <FilePreview
+          url={message.file_url}
+          fileName={message.file_name || 'File'}
+          fileSize={message.file_size || undefined}
+          variant="compact"
+          className="mb-1"
+        />
       );
     }
 
