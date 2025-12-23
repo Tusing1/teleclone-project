@@ -643,7 +643,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   key={message.id} 
                   message={message}
                   showAvatar={showAvatar}
-                  onForward={!isSavedMessages ? onForwardMessage : undefined}
+                  onForward={onForwardMessage}
                   isChannelMessage={false}
                   onReply={(msg) => handleReply(msg)}
                   onEdit={(msg) => openEditDialog(msg)}
