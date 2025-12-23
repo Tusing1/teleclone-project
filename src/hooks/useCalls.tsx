@@ -228,24 +228,37 @@ export function useCalls(conversationId: string | null) {
       // Get the title from the active call before stopping
       const recordingTitle = activeCall.recording_title || 'Call Recording';
       
+      // Request any pending data before stopping
+      mediaRecorder.current.requestData();
+      
       // Create a promise to wait for the recording to be saved
-      const savePromise = new Promise<void>((resolve) => {
-        const originalOnStop = mediaRecorder.current!.onstop;
-        mediaRecorder.current!.onstop = async (event) => {
-          const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
-          await saveRecording(blob, recordingTitle);
+      await new Promise<void>((resolve) => {
+        if (!mediaRecorder.current) {
+          resolve();
+          return;
+        }
+        
+        mediaRecorder.current.onstop = async () => {
+          console.log('Recording stopped, saving...', recordedChunks.current.length, 'chunks');
+          if (recordedChunks.current.length > 0) {
+            const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+            console.log('Blob size:', blob.size);
+            await saveRecording(blob, recordingTitle);
+            console.log('Recording saved to Saved Messages');
+          }
           resolve();
         };
+        
+        mediaRecorder.current.stop();
       });
-      
-      mediaRecorder.current.stop();
-      await savePromise;
       
       // Update database to mark recording stopped
       await supabase
         .from('calls')
         .update({ is_recording: false })
         .eq('id', activeCall.id);
+        
+      setIsRecording(false);
     }
 
     // Stop local stream
@@ -416,16 +429,16 @@ export function useCalls(conversationId: string | null) {
       }
 
       if (savedConversationId) {
-        // Create message with recording
+        // Create message with recording - use audio type, no emoji in content
         await supabase
           .from('messages')
           .insert({
             conversation_id: savedConversationId,
             sender_id: user.id,
-            content: `🎙️ Recording: ${title || 'Call Recording'}`,
-            message_type: 'file',
+            content: title || 'Call Recording',
+            message_type: 'audio',
             file_url: publicUrl,
-            file_name: `${title || 'Call Recording'}.webm`,
+            file_name: `${title || 'Call Recording'}.opus`,
             file_size: blob.size
           });
 
