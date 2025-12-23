@@ -1,4 +1,4 @@
-import { Radio, Phone, Video } from 'lucide-react';
+import { Radio, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -26,9 +26,37 @@ export function SystemMessage({
     });
   };
 
-  const isLiveStreamMessage = content.toLowerCase().includes('live stream') || content.toLowerCase().includes('livestream');
+  const isLiveStreamStarted = content.toLowerCase().includes('live stream started') || content.toLowerCase().includes('livestream started');
+  const isLiveStreamEnded = content.toLowerCase().includes('live stream ended') || content.toLowerCase().includes('livestream ended');
   const isCallMessage = content.toLowerCase().includes('call started') || content.toLowerCase().includes('voice call') || content.toLowerCase().includes('video call');
 
+  // Extract duration if present (e.g., "Live stream ended (1 hour)")
+  const durationMatch = content.match(/\(([^)]+)\)/);
+  const duration = durationMatch ? durationMatch[1] : null;
+
+  // Compact pill style for live stream messages
+  if (isLiveStreamStarted || isLiveStreamEnded) {
+    return (
+      <div className="flex justify-center py-1.5 px-4">
+        <div className={cn(
+          "inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-medium",
+          isLiveStreamStarted 
+            ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" 
+            : "bg-slate-600/50 text-slate-300 border border-slate-500/30"
+        )}>
+          <Radio className={cn(
+            "w-3.5 h-3.5",
+            isLiveStreamStarted && "animate-pulse"
+          )} />
+          <span>
+            {isLiveStreamStarted ? 'Live stream started' : `Live stream ended${duration ? ` (${duration})` : ''}`}
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Default system message style for calls and other messages
   return (
     <div className="flex justify-center py-2 px-4">
       <div className={cn(
@@ -42,9 +70,7 @@ export function SystemMessage({
           "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
           isChannel ? "bg-violet-500" : "bg-primary"
         )}>
-          {isLiveStreamMessage ? (
-            <Radio className="w-4 h-4 text-white" />
-          ) : isCallMessage ? (
+          {isCallMessage ? (
             <Phone className="w-4 h-4 text-white" />
           ) : (
             <Radio className="w-4 h-4 text-white" />
