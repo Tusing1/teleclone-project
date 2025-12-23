@@ -1,6 +1,6 @@
 import { 
   LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact, Heart, Bell 
+  Users, UserPlus, Radio, Contact, Heart, Bell, Phone 
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ interface SidebarProps {
   onOpenFindFriends: () => void;
   onOpenEditProfile: () => void;
   onOpenNotificationSettings: () => void;
+  onOpenCallsInbox: () => void;
 }
 
 export function Sidebar({ 
@@ -34,7 +35,8 @@ export function Sidebar({
   onOpenInviteFriends,
   onOpenFindFriends,
   onOpenEditProfile,
-  onOpenNotificationSettings
+  onOpenNotificationSettings,
+  onOpenCallsInbox
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
@@ -142,6 +144,14 @@ export function Sidebar({
               <span className="bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent font-medium">
                 Find Friends
               </span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenCallsInbox)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Phone className="h-5 w-5 text-muted-foreground" />
+              <span>Calls</span>
             </button>
 
             <Separator className="my-2" />
