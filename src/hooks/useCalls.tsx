@@ -223,42 +223,9 @@ export function useCalls(conversationId: string | null) {
   const leaveCall = async () => {
     if (!user || !activeCall) return;
 
-    // Stop recording if active and save it automatically
-    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-      // Get the title from the active call before stopping
-      const recordingTitle = activeCall.recording_title || 'Call Recording';
-      
-      // Request any pending data before stopping
-      mediaRecorder.current.requestData();
-      
-      // Create a promise to wait for the recording to be saved
-      await new Promise<void>((resolve) => {
-        if (!mediaRecorder.current) {
-          resolve();
-          return;
-        }
-        
-        mediaRecorder.current.onstop = async () => {
-          console.log('Recording stopped, saving...', recordedChunks.current.length, 'chunks');
-          if (recordedChunks.current.length > 0) {
-            const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
-            console.log('Blob size:', blob.size);
-            await saveRecording(blob, recordingTitle);
-            console.log('Recording saved to Saved Messages');
-          }
-          resolve();
-        };
-        
-        mediaRecorder.current.stop();
-      });
-      
-      // Update database to mark recording stopped
-      await supabase
-        .from('calls')
-        .update({ is_recording: false })
-        .eq('id', activeCall.id);
-        
-      setIsRecording(false);
+    // If YOU are the one recording, stop + save before leaving.
+    if (activeCall.is_recording && activeCall.recorded_by === user.id) {
+      await stopRecording();
     }
 
     // Stop local stream
@@ -285,18 +252,18 @@ export function useCalls(conversationId: string | null) {
 
   // End call (only call starter)
   const endCall = async () => {
-    if (!activeCall) return;
+    if (!user || !activeCall) return;
 
-    // Stop recording and save if active
-    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-      mediaRecorder.current.stop();
+    // Stop + save recording first (prevents losing audio when ending the call).
+    if (activeCall.is_recording && activeCall.recorded_by === user.id) {
+      await stopRecording();
     }
 
     await supabase
       .from('calls')
-      .update({ 
-        is_active: false, 
-        ended_at: new Date().toISOString() 
+      .update({
+        is_active: false,
+        ended_at: new Date().toISOString(),
       })
       .eq('id', activeCall.id);
 
@@ -329,10 +296,10 @@ export function useCalls(conversationId: string | null) {
       // Update database
       await supabase
         .from('calls')
-        .update({ 
-          is_recording: true, 
+        .update({
+          is_recording: true,
           recording_title: title,
-          recorded_by: user.id
+          recorded_by: user.id,
         })
         .eq('id', activeCall.id);
 
@@ -342,20 +309,70 @@ export function useCalls(conversationId: string | null) {
     }
   };
 
-  // Stop recording
+  // Stop recording (always clears the backend "is_recording" flag; saves locally if possible)
   const stopRecording = async () => {
-    if (!activeCall || !mediaRecorder.current) return;
+    if (!user || !activeCall) return;
 
-    if (mediaRecorder.current.state !== 'inactive') {
-      mediaRecorder.current.stop();
+    // Only the user who started the recording can stop it.
+    if (activeCall.recorded_by && activeCall.recorded_by !== user.id) return;
+
+    const recordingTitle = activeCall.recording_title || 'Call Recording';
+    const recorder = mediaRecorder.current;
+
+    try {
+      // If we have an active local recorder, stop and WAIT for onstop -> save.
+      if (recorder && recorder.state !== 'inactive') {
+        const existingOnStop = recorder.onstop;
+
+        try {
+          recorder.requestData();
+        } catch {
+          // ignore
+        }
+
+        await new Promise<void>((resolve) => {
+          recorder.onstop = async (ev) => {
+            try {
+              if (existingOnStop) {
+                await (existingOnStop as any)(ev);
+              } else if (recordedChunks.current.length > 0) {
+                const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+                await saveRecording(blob, recordingTitle);
+              }
+            } catch (err) {
+              console.error('Error saving recording on stop:', err);
+            } finally {
+              resolve();
+            }
+          };
+
+          try {
+            recorder.stop();
+          } catch (err) {
+            console.error('Failed to stop recorder:', err);
+            resolve();
+          }
+        });
+      }
+
+      // If the recorder is missing (e.g. refresh) but chunks exist, try saving anyway.
+      if (!recorder && recordedChunks.current.length > 0) {
+        const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        await saveRecording(blob, recordingTitle);
+      }
+    } finally {
+      // Always clear local state so the UI can't get stuck.
+      mediaRecorder.current = null;
+      recordedChunks.current = [];
+
+      // Always clear backend recording flag (prevents "can't stop recording").
+      await supabase
+        .from('calls')
+        .update({ is_recording: false })
+        .eq('id', activeCall.id);
+
+      setIsRecording(false);
     }
-
-    await supabase
-      .from('calls')
-      .update({ is_recording: false })
-      .eq('id', activeCall.id);
-
-    setIsRecording(false);
   };
 
   // Save recording to storage and create message in Saved Messages

@@ -270,41 +270,9 @@ export function useLiveStream(conversationId: string | null) {
   const leaveStream = async () => {
     if (!user || !activeStream) return;
 
-    // Stop recording if active and save it automatically
-    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-      const recordingTitle = activeStream.recording_title || activeStream.livestream_title || 'Live Stream Recording';
-      
-      // Request any pending data before stopping
-      mediaRecorder.current.requestData();
-      
-      // Create a promise to wait for the recording to be saved
-      await new Promise<void>((resolve) => {
-        if (!mediaRecorder.current) {
-          resolve();
-          return;
-        }
-        
-        mediaRecorder.current.onstop = async () => {
-          console.log('Live stream recording stopped, saving...', recordedChunks.current.length, 'chunks');
-          if (recordedChunks.current.length > 0) {
-            const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
-            console.log('Blob size:', blob.size);
-            await saveRecording(blob, recordingTitle);
-            console.log('Live stream recording saved to Saved Messages');
-          }
-          resolve();
-        };
-        
-        mediaRecorder.current.stop();
-      });
-      
-      // Update database to mark recording stopped
-      await supabase
-        .from('calls')
-        .update({ is_recording: false })
-        .eq('id', activeStream.id);
-        
-      setIsRecording(false);
+    // If YOU are the one recording, stop + save before leaving.
+    if (activeStream.is_recording && activeStream.recorded_by === user.id) {
+      await stopRecording();
     }
 
     if (localStream) {
@@ -329,15 +297,16 @@ export function useLiveStream(conversationId: string | null) {
 
     const streamTitle = activeStream.livestream_title || 'Live Stream';
 
-    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-      mediaRecorder.current.stop();
+    // Stop + save recording first (prevents losing audio when ending the stream).
+    if (activeStream.is_recording && activeStream.recorded_by === user.id) {
+      await stopRecording();
     }
 
     await supabase
       .from('calls')
-      .update({ 
-        is_active: false, 
-        ended_at: new Date().toISOString() 
+      .update({
+        is_active: false,
+        ended_at: new Date().toISOString(),
       })
       .eq('id', activeStream.id);
 
@@ -348,7 +317,7 @@ export function useLiveStream(conversationId: string | null) {
         conversation_id: conversationId,
         sender_id: user.id,
         content: `⚫ Live Stream Ended: "${streamTitle}"`,
-        message_type: 'system'
+        message_type: 'system',
       });
 
     await leaveStream();
@@ -441,13 +410,13 @@ export function useLiveStream(conversationId: string | null) {
     // Re-initialize audio stream with new settings
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: newValue,
-          autoGainControl: true
-        }
+          autoGainControl: true,
+        },
       });
 
       stream.getAudioTracks().forEach(track => {
@@ -467,7 +436,7 @@ export function useLiveStream(conversationId: string | null) {
       .update({ livestream_title: title })
       .eq('id', activeStream.id);
 
-    setActiveStream(prev => prev ? { ...prev, livestream_title: title } : null);
+    setActiveStream(prev => (prev ? { ...prev, livestream_title: title } : null));
   };
 
   // Start recording
@@ -476,7 +445,7 @@ export function useLiveStream(conversationId: string | null) {
 
     try {
       recordedChunks.current = [];
-      
+
       const options = { mimeType: 'audio/webm;codecs=opus' };
       mediaRecorder.current = new MediaRecorder(localStream, options);
 
@@ -495,10 +464,10 @@ export function useLiveStream(conversationId: string | null) {
 
       await supabase
         .from('calls')
-        .update({ 
-          is_recording: true, 
+        .update({
+          is_recording: true,
           recording_title: title,
-          recorded_by: user.id
+          recorded_by: user.id,
         })
         .eq('id', activeStream.id);
 
@@ -508,20 +477,66 @@ export function useLiveStream(conversationId: string | null) {
     }
   };
 
-  // Stop recording
+  // Stop recording (always clears the backend "is_recording" flag; saves locally if possible)
   const stopRecording = async () => {
-    if (!activeStream || !mediaRecorder.current) return;
+    if (!user || !activeStream) return;
 
-    if (mediaRecorder.current.state !== 'inactive') {
-      mediaRecorder.current.stop();
+    // Only the user who started the recording can stop it.
+    if (activeStream.recorded_by && activeStream.recorded_by !== user.id) return;
+
+    const recordingTitle = activeStream.recording_title || activeStream.livestream_title || 'Live Stream Recording';
+    const recorder = mediaRecorder.current;
+
+    try {
+      if (recorder && recorder.state !== 'inactive') {
+        const existingOnStop = recorder.onstop;
+
+        try {
+          recorder.requestData();
+        } catch {
+          // ignore
+        }
+
+        await new Promise<void>((resolve) => {
+          recorder.onstop = async (ev) => {
+            try {
+              if (existingOnStop) {
+                await (existingOnStop as any)(ev);
+              } else if (recordedChunks.current.length > 0) {
+                const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+                await saveRecording(blob, recordingTitle);
+              }
+            } catch (err) {
+              console.error('Error saving recording on stop:', err);
+            } finally {
+              resolve();
+            }
+          };
+
+          try {
+            recorder.stop();
+          } catch (err) {
+            console.error('Failed to stop recorder:', err);
+            resolve();
+          }
+        });
+      }
+
+      if (!recorder && recordedChunks.current.length > 0) {
+        const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        await saveRecording(blob, recordingTitle);
+      }
+    } finally {
+      mediaRecorder.current = null;
+      recordedChunks.current = [];
+
+      await supabase
+        .from('calls')
+        .update({ is_recording: false })
+        .eq('id', activeStream.id);
+
+      setIsRecording(false);
     }
-
-    await supabase
-      .from('calls')
-      .update({ is_recording: false })
-      .eq('id', activeStream.id);
-
-    setIsRecording(false);
   };
 
   // Save recording
