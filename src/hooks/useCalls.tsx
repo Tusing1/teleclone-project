@@ -223,9 +223,29 @@ export function useCalls(conversationId: string | null) {
   const leaveCall = async () => {
     if (!user || !activeCall) return;
 
-    // Stop recording if active
+    // Stop recording if active and save it automatically
     if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
+      // Get the title from the active call before stopping
+      const recordingTitle = activeCall.recording_title || 'Call Recording';
+      
+      // Create a promise to wait for the recording to be saved
+      const savePromise = new Promise<void>((resolve) => {
+        const originalOnStop = mediaRecorder.current!.onstop;
+        mediaRecorder.current!.onstop = async (event) => {
+          const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+          await saveRecording(blob, recordingTitle);
+          resolve();
+        };
+      });
+      
       mediaRecorder.current.stop();
+      await savePromise;
+      
+      // Update database to mark recording stopped
+      await supabase
+        .from('calls')
+        .update({ is_recording: false })
+        .eq('id', activeCall.id);
     }
 
     // Stop local stream
