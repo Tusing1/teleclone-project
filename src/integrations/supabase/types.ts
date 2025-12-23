@@ -434,6 +434,27 @@ export type Database = {
           },
         ]
       }
+      premium_unlocks: {
+        Row: {
+          can_see_likes: boolean
+          id: string
+          unlocked_at: string
+          user_id: string
+        }
+        Insert: {
+          can_see_likes?: boolean
+          id?: string
+          unlocked_at?: string
+          user_id: string
+        }
+        Update: {
+          can_see_likes?: boolean
+          id?: string
+          unlocked_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -516,6 +537,62 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_matches: {
+        Row: {
+          conversation_id: string | null
+          id: string
+          matched_at: string
+          user1_id: string
+          user2_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          id?: string
+          matched_at?: string
+          user1_id: string
+          user2_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          id?: string
+          matched_at?: string
+          user1_id?: string
+          user2_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_matches_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_swipes: {
+        Row: {
+          created_at: string
+          direction: string
+          id: string
+          swiped_id: string
+          swiper_id: string
+        }
+        Insert: {
+          created_at?: string
+          direction: string
+          id?: string
+          swiped_id: string
+          swiper_id: string
+        }
+        Update: {
+          created_at?: string
+          direction?: string
+          id?: string
+          swiped_id?: string
+          swiper_id?: string
+        }
+        Relationships: []
       }
     }
     Views: {
