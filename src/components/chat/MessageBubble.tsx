@@ -45,6 +45,7 @@ export function MessageBubble({
   const { user } = useAuth();
   const isOwn = message.sender_id === user?.id;
   const [showMenu, setShowMenu] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { 
@@ -155,16 +156,24 @@ export function MessageBubble({
         isOwn ? 'justify-end' : 'justify-start'
       )}
       onMouseEnter={() => setShowMenu(true)}
-      onMouseLeave={() => setShowMenu(false)}
+      onMouseLeave={() => {
+        if (!menuOpen) setShowMenu(false);
+      }}
     >
       {/* Action menu for non-own messages */}
-      {!isOwn && showMenu && (
-        <DropdownMenu>
+      {!isOwn && (
+        <DropdownMenu open={menuOpen} onOpenChange={(open) => {
+          setMenuOpen(open);
+          if (!open) setShowMenu(false);
+        }}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity self-center"
+              className={cn(
+                "h-7 w-7 transition-opacity self-center",
+                showMenu || menuOpen ? "opacity-100" : "opacity-0"
+              )}
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
@@ -251,13 +260,19 @@ export function MessageBubble({
       </div>
 
       {/* Action menu for own messages */}
-      {isOwn && showMenu && (
-        <DropdownMenu>
+      {isOwn && (
+        <DropdownMenu open={menuOpen} onOpenChange={(open) => {
+          setMenuOpen(open);
+          if (!open) setShowMenu(false);
+        }}>
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity self-center"
+              className={cn(
+                "h-7 w-7 transition-opacity self-center",
+                showMenu || menuOpen ? "opacity-100" : "opacity-0"
+              )}
             >
               <MoreVertical className="h-4 w-4" />
             </Button>
