@@ -270,6 +270,43 @@ export function useLiveStream(conversationId: string | null) {
   const leaveStream = async () => {
     if (!user || !activeStream) return;
 
+    // Stop recording if active and save it automatically
+    if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
+      const recordingTitle = activeStream.recording_title || activeStream.livestream_title || 'Live Stream Recording';
+      
+      // Request any pending data before stopping
+      mediaRecorder.current.requestData();
+      
+      // Create a promise to wait for the recording to be saved
+      await new Promise<void>((resolve) => {
+        if (!mediaRecorder.current) {
+          resolve();
+          return;
+        }
+        
+        mediaRecorder.current.onstop = async () => {
+          console.log('Live stream recording stopped, saving...', recordedChunks.current.length, 'chunks');
+          if (recordedChunks.current.length > 0) {
+            const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+            console.log('Blob size:', blob.size);
+            await saveRecording(blob, recordingTitle);
+            console.log('Live stream recording saved to Saved Messages');
+          }
+          resolve();
+        };
+        
+        mediaRecorder.current.stop();
+      });
+      
+      // Update database to mark recording stopped
+      await supabase
+        .from('calls')
+        .update({ is_recording: false })
+        .eq('id', activeStream.id);
+        
+      setIsRecording(false);
+    }
+
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
@@ -550,12 +587,13 @@ export function useLiveStream(conversationId: string | null) {
       }
 
       if (savedConversationId) {
+        // Create message with recording - use audio type, no emoji
         await supabase
           .from('messages')
           .insert({
             conversation_id: savedConversationId,
             sender_id: user.id,
-            content: `${title || 'Live Stream Recording'}`,
+            content: title || 'Live Stream Recording',
             message_type: 'audio',
             file_url: publicUrl,
             file_name: `${title || 'Live Stream Recording'}.opus`,
