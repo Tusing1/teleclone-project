@@ -15,6 +15,8 @@ import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { VoiceRecorder } from './VoiceRecorder';
 import { ScheduleCallDialog } from './ScheduleCallDialog';
 import { EditProfileDialog } from './EditProfileDialog';
+import { TypingIndicator } from './TypingIndicator';
+import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
@@ -148,6 +150,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     startRecording: startStreamRecording,
     stopRecording: stopStreamRecording
   } = useLiveStream(isChannel ? conversation.id : null);
+
+  // Typing indicator
+  const { typingUsers, handleTyping } = useTypingIndicator(conversation.id);
 
   const handleStartCall = async (type: 'voice' | 'video') => {
     if (isChannel) {
@@ -402,7 +407,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
 
   return (
     <div className={cn(
-      "flex flex-col h-full relative",
+      "flex flex-col h-full relative md:rounded-2xl md:m-2 md:shadow-lg overflow-hidden",
       isChannel ? "bg-slate-900" : "bg-chat-bg"
     )}>
       {/* Minimized Live Stream Bar */}
@@ -435,7 +440,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       )}
       {/* Header - add top margin when minimized stream bar is visible */}
       <div className={cn(
-        "flex items-center gap-3 p-3 border-b",
+        "flex items-center gap-3 p-3 border-b md:rounded-t-2xl",
         isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border",
         isStreamMinimized && isInStream && "mt-14"
       )}>
@@ -689,10 +694,16 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         )}
       </div>
 
+      {/* Typing Indicator */}
+      <TypingIndicator 
+        users={typingUsers} 
+        className={isChannel ? "text-slate-400" : ""}
+      />
+
       {/* Input */}
       {canSendMessages ? (
         <div className={cn(
-          "p-3 border-t",
+          "p-3 border-t md:rounded-b-2xl",
           isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border"
         )}>
           {isRecordingVoice ? (
@@ -736,11 +747,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
               <Input
                 placeholder={isChannel ? "Broadcast..." : isSavedMessages ? "Write a note..." : "Message"}
                 value={messageText}
-                onChange={(e) => setMessageText(e.target.value)}
+                onChange={(e) => {
+                  setMessageText(e.target.value);
+                  handleTyping();
+                }}
                 onKeyDown={handleKeyDown}
                 disabled={sending || isUploadingVoice}
                 className={cn(
-                  "flex-1 border-0",
+                  "flex-1 border-0 rounded-full",
                   isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-secondary"
                 )}
               />
