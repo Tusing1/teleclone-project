@@ -39,7 +39,7 @@ export function InviteFriendsDialog({ open, onClose }: InviteFriendsDialogProps)
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Join me on Telegram Clone',
+          title: 'Join me on StudyGram',
           text: `${profile?.full_name || profile?.username} invites you to join!`,
           url: inviteLink,
         });

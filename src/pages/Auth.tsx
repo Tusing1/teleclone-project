@@ -119,7 +119,7 @@ export default function Auth() {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary mb-4">
             <MessageCircle className="w-10 h-10 text-primary-foreground" />
           </div>
-          <h1 className="text-3xl font-bold text-foreground">Telegram</h1>
+          <h1 className="text-3xl font-bold text-foreground">StudyGram</h1>
           <p className="text-muted-foreground mt-2">
             {isSignUp ? 'Create your account' : 'Welcome back'}
           </p>

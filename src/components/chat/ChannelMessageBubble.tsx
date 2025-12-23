@@ -335,7 +335,7 @@ export function ChannelMessageBubble({
           </div>
         </div>
 
-        {/* Comments Section - Outside the bubble like Telegram */}
+        {/* Comments Section - Outside the bubble */}
         {onOpenComments && (
           <button
             onClick={onOpenComments}
