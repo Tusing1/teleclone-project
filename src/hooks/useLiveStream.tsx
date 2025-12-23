@@ -447,8 +447,19 @@ export function useLiveStream(conversationId: string | null) {
     try {
       recordedChunks.current = [];
 
-      const options = { mimeType: 'audio/webm;codecs=opus' };
-      mediaRecorder.current = new MediaRecorder(localStream, options);
+      // Pick a supported mimeType (prevents "start recording" failures on some browsers)
+      const preferredMimeType = 'audio/webm;codecs=opus';
+      let recorder: MediaRecorder;
+
+      if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(preferredMimeType)) {
+        recorder = new MediaRecorder(localStream, { mimeType: preferredMimeType });
+      } else if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.('audio/webm')) {
+        recorder = new MediaRecorder(localStream, { mimeType: 'audio/webm' });
+      } else {
+        recorder = new MediaRecorder(localStream);
+      }
+
+      mediaRecorder.current = recorder;
 
       mediaRecorder.current.ondataavailable = (event) => {
         if (event.data.size > 0) {
@@ -602,17 +613,20 @@ export function useLiveStream(conversationId: string | null) {
 
       console.log('Inserting message into Saved Messages:', savedConversationId);
 
-      // Create message with recording - use audio type
+      // Create message with recording (store as a normal file; UI detects .webm as audio)
+      const displayTitle = (title || 'Live Stream Recording').trim() || 'Live Stream Recording';
+      const safeFileTitle = displayTitle.replace(/[\\/]/g, '-');
+
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
           conversation_id: savedConversationId,
           sender_id: user.id,
-          content: title || 'Live Stream Recording',
-          message_type: 'audio',
+          content: displayTitle,
+          message_type: 'file',
           file_url: publicUrl,
-          file_name: `${title || 'Live Stream Recording'}.opus`,
-          file_size: blob.size
+          file_name: `${safeFileTitle}.webm`,
+          file_size: blob.size,
         });
 
       if (msgError) {
