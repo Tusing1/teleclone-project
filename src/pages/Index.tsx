@@ -30,6 +30,8 @@ export default function Index() {
     createChannel,
     archiveConversation,
     unarchiveConversation,
+    deleteConversation,
+    getUserRole,
     getOrCreateSavedMessages,
     forwardToSavedMessages,
     refetch: refetchConversations
@@ -122,6 +124,18 @@ export default function Index() {
     }
   };
 
+  const handleDeleteConversation = async (conversationId: string) => {
+    const success = await deleteConversation(conversationId);
+    if (success) {
+      toast.success('Deleted successfully');
+      if (selectedConversationId === conversationId) {
+        setSelectedConversationId(null);
+      }
+    } else {
+      toast.error('Failed to delete');
+    }
+  };
+
   const handleUnarchiveConversation = async (conversationId: string) => {
     const success = await unarchiveConversation(conversationId);
     if (success) {
@@ -195,6 +209,8 @@ export default function Index() {
           onMenuClick={() => setShowSidebar(true)}
           onOpenSavedMessages={handleOpenSavedMessages}
           onArchiveConversation={handleArchiveConversation}
+          onDeleteConversation={handleDeleteConversation}
+          getUserRole={getUserRole}
         />
       </div>
 
