@@ -7,6 +7,7 @@ export interface Profile {
   bio: string | null;
   last_seen: string | null;
   is_online: boolean;
+  interests: string[] | null;
   created_at: string;
   updated_at: string;
 }

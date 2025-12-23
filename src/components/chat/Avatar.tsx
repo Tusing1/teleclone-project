@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 interface AvatarProps {
   src?: string | null;
   name: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
   isOnline?: boolean;
   className?: string;
 }
@@ -11,7 +11,8 @@ interface AvatarProps {
 const sizeClasses = {
   sm: 'w-10 h-10 text-sm',
   md: 'w-12 h-12 text-base',
-  lg: 'w-16 h-16 text-xl'
+  lg: 'w-16 h-16 text-xl',
+  xl: 'w-24 h-24 text-3xl'
 };
 
 export function Avatar({ src, name, size = 'md', isOnline, className }: AvatarProps) {
