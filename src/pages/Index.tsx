@@ -15,6 +15,7 @@ import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
 import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
 import { ForwardMessageDialog } from '@/components/chat/ForwardMessageDialog';
 import { FindFriendsDialog } from '@/components/chat/FindFriendsDialog';
+import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -49,6 +50,7 @@ export default function Index() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showFindFriends, setShowFindFriends] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   
@@ -215,6 +217,7 @@ export default function Index() {
         onOpenCreateChannel={() => setShowCreateChannel(true)}
         onOpenInviteFriends={() => setShowInviteFriends(true)}
         onOpenFindFriends={() => setShowFindFriends(true)}
+        onOpenEditProfile={() => setShowEditProfile(true)}
       />
 
       {/* Conversation list */}
@@ -330,6 +333,11 @@ export default function Index() {
           refetchConversations();
           setSelectedConversationId(conversationId);
         }}
+      />
+
+      <EditProfileDialog
+        open={showEditProfile}
+        onClose={() => setShowEditProfile(false)}
       />
     </div>
   );

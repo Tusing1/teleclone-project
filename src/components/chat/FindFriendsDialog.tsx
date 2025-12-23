@@ -169,11 +169,31 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
             </div>
           </div>
 
-          {/* Bio section */}
-          <div className="p-4">
-            <p className="text-muted-foreground text-sm line-clamp-3">
+          {/* Bio and interests section */}
+          <div className="p-4 space-y-3">
+            <p className="text-muted-foreground text-sm line-clamp-2">
               {currentProfile.bio || "No bio yet. Say hi and get to know them!"}
             </p>
+            
+            {/* Interests */}
+            {currentProfile.interests && currentProfile.interests.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {currentProfile.interests.slice(0, 5).map((interest, idx) => (
+                  <Badge 
+                    key={idx} 
+                    variant="secondary"
+                    className="text-xs"
+                  >
+                    {interest}
+                  </Badge>
+                ))}
+                {currentProfile.interests.length > 5 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{currentProfile.interests.length - 5}
+                  </Badge>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

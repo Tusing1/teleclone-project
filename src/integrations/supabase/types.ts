@@ -310,6 +310,27 @@ export type Database = {
           },
         ]
       }
+      interest_categories: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       invite_link_uses: {
         Row: {
           id: string
@@ -462,6 +483,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          interests: string[] | null
           is_online: boolean | null
           last_seen: string | null
           updated_at: string
@@ -474,6 +496,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          interests?: string[] | null
           is_online?: boolean | null
           last_seen?: string | null
           updated_at?: string
@@ -486,6 +509,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          interests?: string[] | null
           is_online?: boolean | null
           last_seen?: string | null
           updated_at?: string

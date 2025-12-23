@@ -19,6 +19,7 @@ interface SidebarProps {
   onOpenCreateChannel: () => void;
   onOpenInviteFriends: () => void;
   onOpenFindFriends: () => void;
+  onOpenEditProfile: () => void;
 }
 
 export function Sidebar({ 
@@ -30,7 +31,8 @@ export function Sidebar({
   onOpenCreateGroup,
   onOpenCreateChannel,
   onOpenInviteFriends,
-  onOpenFindFriends
+  onOpenFindFriends,
+  onOpenEditProfile
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
@@ -142,7 +144,10 @@ export function Sidebar({
 
             <Separator className="my-2" />
 
-            <button className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors">
+            <button 
+              onClick={() => handleMenuClick(onOpenEditProfile)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
               <User className="h-5 w-5 text-muted-foreground" />
               <span>My Profile</span>
             </button>
