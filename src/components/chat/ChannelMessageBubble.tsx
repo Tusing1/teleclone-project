@@ -170,7 +170,15 @@ export function ChannelMessageBubble({
     );
   };
 
+  // Check if this is a forwarded audio file - don't show "Forwarded: Recording:" text
+  const isForwardedAudio = message.file_url && 
+    isAudioFile(message.file_url, message.message_type) && 
+    message.content?.includes('📤 Forwarded');
+
   const renderContent = () => {
+    // Don't render content for forwarded audio files - title is shown in player
+    if (isForwardedAudio) return null;
+    
     if (message.content) {
       // Parse links in content
       const urlRegex = /(https?:\/\/[^\s]+)/g;
