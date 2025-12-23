@@ -76,7 +76,33 @@ export function useReactions(conversationId: string | null) {
         ).filter(r => r.count > 0) || []
       }));
     } else {
-      // Add reaction
+      // Check if user already has ANY reaction on this message (limit to one reaction per post)
+      const currentReactions = reactions[messageId] || [];
+      const userHasReaction = currentReactions.some(r => r.userReacted);
+      
+      if (userHasReaction) {
+        // Remove existing reaction first, then add new one
+        const existingUserReaction = currentReactions.find(r => r.userReacted);
+        if (existingUserReaction) {
+          await supabase
+            .from('message_reactions')
+            .delete()
+            .eq('message_id', messageId)
+            .eq('user_id', user.id);
+          
+          // Update local state to remove old reaction
+          setReactions(prev => ({
+            ...prev,
+            [messageId]: prev[messageId]?.map(r => 
+              r.userReacted 
+                ? { ...r, count: r.count - 1, userReacted: false }
+                : r
+            ).filter(r => r.count > 0) || []
+          }));
+        }
+      }
+      
+      // Add new reaction
       await supabase
         .from('message_reactions')
         .insert({
@@ -87,12 +113,17 @@ export function useReactions(conversationId: string | null) {
       
       setReactions(prev => {
         const current = prev[messageId] || [];
-        const existing = current.find(r => r.emoji === emoji);
+        // First remove any existing user reaction
+        const withoutUserReaction = current.map(r => 
+          r.userReacted ? { ...r, count: r.count - 1, userReacted: false } : r
+        ).filter(r => r.count > 0);
+        
+        const existing = withoutUserReaction.find(r => r.emoji === emoji);
         
         if (existing) {
           return {
             ...prev,
-            [messageId]: current.map(r =>
+            [messageId]: withoutUserReaction.map(r =>
               r.emoji === emoji
                 ? { ...r, count: r.count + 1, userReacted: true }
                 : r
@@ -101,7 +132,7 @@ export function useReactions(conversationId: string | null) {
         } else {
           return {
             ...prev,
-            [messageId]: [...current, { emoji, count: 1, userReacted: true }]
+            [messageId]: [...withoutUserReaction, { emoji, count: 1, userReacted: true }]
           };
         }
       });

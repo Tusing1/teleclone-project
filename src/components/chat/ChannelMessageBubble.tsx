@@ -33,7 +33,8 @@ interface ChannelMessageBubbleProps {
   isAdmin?: boolean;
 }
 
-const EMOJI_LIST = ['❤️', '👍', '👎', '😂', '😮', '😢', '🔥', '🎉'];
+// Only positive emojis - removed 👎 and 😢
+const EMOJI_LIST = ['❤️', '👍', '😂', '😮', '🔥', '🎉'];
 
 export function ChannelMessageBubble({
   message,
@@ -246,6 +247,29 @@ export function ChannelMessageBubble({
       </div>
 
       <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg">
+        {/* Header Row - View count, time, and forward button at top */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700/50">
+          <div className="flex items-center gap-3 text-xs text-slate-400">
+            <span className="flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5" />
+              {((message.view_count || 0) / 1000).toFixed(1)}K
+            </span>
+            <span>{formatTime(message.created_at)}</span>
+          </div>
+
+          {/* Forward button - only for admins - moved to top */}
+          {canForward && onForward && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onForward}
+              className="h-7 w-7 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
+            >
+              <Share2 className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
+
         {/* File/Image Content */}
         {message.file_url && (
           <div className="p-3 pb-0">
@@ -308,28 +332,6 @@ export function ChannelMessageBubble({
           </div>
         )}
 
-        {/* Footer Row - View count and time */}
-        <div className="flex items-center justify-between px-4 py-2 border-t border-slate-700/50">
-          <div className="flex items-center gap-3 text-xs text-slate-400">
-            <span className="flex items-center gap-1">
-              <Eye className="w-3.5 h-3.5" />
-              {((message.view_count || 0) / 1000).toFixed(1)}K
-            </span>
-            <span>{formatTime(message.created_at)}</span>
-          </div>
-
-          {/* Forward button - only for admins */}
-          {canForward && onForward && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onForward}
-              className="h-7 w-7 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-            >
-              <Share2 className="w-4 h-4" />
-            </Button>
-          )}
-        </div>
       </div>
 
       {/* Comments Section - Outside the bubble like Telegram */}
