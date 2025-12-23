@@ -138,9 +138,17 @@ export function ConversationList({
             selectedId === conv.id && 'bg-primary/10'
           )}
         >
-          <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center">
-            <Users className="w-6 h-6 text-white" />
-          </div>
+          {conv.avatar_url ? (
+            <img 
+              src={conv.avatar_url} 
+              alt={conv.name || 'Group'} 
+              className="w-12 h-12 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="font-medium truncate">{conv.name}</span>
@@ -201,9 +209,17 @@ export function ConversationList({
             selectedId === conv.id && 'bg-primary/10'
           )}
         >
-          <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center">
-            <Radio className="w-6 h-6 text-white" />
-          </div>
+          {conv.avatar_url ? (
+            <img 
+              src={conv.avatar_url} 
+              alt={conv.name || 'Channel'} 
+              className="w-12 h-12 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center">
+              <Radio className="w-6 h-6 text-white" />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
               <span className="font-medium truncate">{conv.name}</span>
