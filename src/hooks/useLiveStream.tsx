@@ -164,6 +164,16 @@ export function useLiveStream(conversationId: string | null) {
 
     console.log('Stream created:', data);
 
+    // Send a system message to notify channel members
+    await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content: `🔴 Live Stream Started: "${title}"`,
+        message_type: 'system'
+      });
+
     // Join the stream immediately
     await joinStream(data.id, false); // Admin starts unmuted
     return data.id;

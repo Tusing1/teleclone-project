@@ -57,7 +57,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
 
     const messagesWithSenders: MessageWithSender[] = messagesData.map(msg => ({
       ...msg,
-      message_type: msg.message_type as 'text' | 'image' | 'file',
+      message_type: msg.message_type as 'text' | 'image' | 'file' | 'system',
       sender: profiles?.find(p => p.user_id === msg.sender_id) as Profile,
       commentCount: commentCounts[msg.id] || 0
     }));
@@ -96,7 +96,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
 
           const messageWithSender: MessageWithSender = {
             ...newMessage,
-            message_type: newMessage.message_type as 'text' | 'image' | 'file',
+            message_type: newMessage.message_type as 'text' | 'image' | 'file' | 'system',
             sender: profile as Profile,
             commentCount: 0
           };
@@ -113,7 +113,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
 
   const sendMessage = async (
     content: string, 
-    type: 'text' | 'image' | 'file' = 'text', 
+    type: 'text' | 'image' | 'file' | 'system' = 'text', 
     fileData?: { url: string; name: string; size: number },
     replyToChannelMessageId?: string
   ) => {
@@ -122,7 +122,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
     const messageData: any = {
       conversation_id: conversationId,
       sender_id: user.id,
-      content: type === 'text' ? content : null,
+      content: type === 'text' || type === 'system' ? content : null,
       message_type: type,
     };
 
