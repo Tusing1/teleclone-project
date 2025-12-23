@@ -190,12 +190,34 @@ export function usePushNotifications() {
     }
   }, [user]);
 
+  const sendTestNotification = useCallback(async () => {
+    if (!user || !isSubscribed) return false;
+
+    try {
+      const { error } = await supabase.functions.invoke('send-push-notification', {
+        body: {
+          userId: user.id,
+          title: '🔔 Test Notification',
+          body: 'Push notifications are working correctly!',
+          data: { type: 'test' }
+        }
+      });
+
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.error('Error sending test notification:', error);
+      return false;
+    }
+  }, [user, isSubscribed]);
+
   return {
     supported,
     permission,
     isSubscribed,
     loading,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    sendTestNotification
   };
 }

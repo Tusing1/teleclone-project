@@ -1,4 +1,4 @@
-import { Bell, BellOff, Loader2, Smartphone, Check, X } from 'lucide-react';
+import { Bell, BellOff, Loader2, Smartphone, Check, X, Volume2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface NotificationSettingsDialogProps {
   open: boolean;
@@ -24,7 +25,8 @@ export function NotificationSettingsDialog({ open, onClose }: NotificationSettin
     isSubscribed,
     loading,
     subscribe,
-    unsubscribe
+    unsubscribe,
+    sendTestNotification
   } = usePushNotifications();
 
   const handleToggle = async () => {
@@ -32,6 +34,13 @@ export function NotificationSettingsDialog({ open, onClose }: NotificationSettin
       await unsubscribe();
     } else {
       await subscribe();
+    }
+  };
+
+  const handleTestNotification = async () => {
+    const success = await sendTestNotification();
+    if (!success) {
+      toast.error('Failed to send test notification');
     }
   };
 
@@ -142,6 +151,19 @@ export function NotificationSettingsDialog({ open, onClose }: NotificationSettin
                   Notifications will be sent to this device
                 </span>
               </div>
+
+              {/* Test notification button */}
+              {isSubscribed && (
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2"
+                  onClick={handleTestNotification}
+                  disabled={loading}
+                >
+                  <Volume2 className="h-4 w-4" />
+                  Send Test Notification
+                </Button>
+              )}
             </>
           )}
         </div>

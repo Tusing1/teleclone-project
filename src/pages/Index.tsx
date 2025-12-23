@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
+import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { DiscussionView } from '@/components/chat/DiscussionView';
@@ -25,6 +26,10 @@ import { supabase } from '@/integrations/supabase/client';
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  
+  // Initialize notification sound listener
+  useNotificationSound();
+  
   const { 
     conversations, 
     archivedConversations,
