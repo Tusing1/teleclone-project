@@ -15,7 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { FilePreview } from './FilePreview';
-import { AudioPlayer } from './AudioPlayer';
+import { ChannelAudioPlayer } from './ChannelAudioPlayer';
 
 interface ChannelMessageBubbleProps {
   message: MessageWithSender;
@@ -75,14 +75,26 @@ export function ChannelMessageBubble({
     return /\.(jpg|jpeg|png|gif|webp)$/i.test(url);
   };
 
-  const isVideoFile = (url: string | null) => {
+  const isVideoFile = (url: string | null, messageType?: string) => {
     if (!url) return false;
-    return /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(url);
+    // If explicitly marked as audio, it's not a video
+    if (messageType === 'audio' || messageType === 'voice') return false;
+    // webm can be audio or video - check message type first
+    if (/\.webm$/i.test(url) && messageType === 'file') {
+      // For webm, we need to determine if it's audio or video
+      // If filename suggests audio (recording, stream, etc.) treat as audio
+      return false;
+    }
+    return /\.(mp4|mov|avi|mkv|m4v)$/i.test(url);
   };
 
-  const isAudioFile = (url: string | null) => {
+  const isAudioFile = (url: string | null, messageType?: string) => {
     if (!url) return false;
-    return /\.(mp3|wav|ogg|m4a|aac|flac|webm|opus)$/i.test(url);
+    // Explicit audio types
+    if (messageType === 'audio' || messageType === 'voice') return true;
+    // webm files from recordings are audio
+    if (/\.webm$/i.test(url)) return true;
+    return /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(url);
   };
 
   const copyMessageLink = () => {
@@ -108,8 +120,19 @@ export function ChannelMessageBubble({
       );
     }
 
+    // Audio file with ChannelAudioPlayer (check audio first as webm can be both)
+    if (isAudioFile(message.file_url, message.message_type)) {
+      return (
+        <ChannelAudioPlayer
+          url={message.file_url}
+          title={message.file_name?.replace(/\.[^/.]+$/, '') || message.content || 'Audio Recording'}
+          className="mb-3"
+        />
+      );
+    }
+
     // Video thumbnail with play button
-    if (isVideoFile(message.file_url)) {
+    if (isVideoFile(message.file_url, message.message_type)) {
       return (
         <div 
           className="relative rounded-xl overflow-hidden mb-3 cursor-pointer group"
@@ -132,19 +155,6 @@ export function ChannelMessageBubble({
             <Download className="w-4 h-4 text-white" />
           </div>
         </div>
-      );
-    }
-
-    // Audio file with AudioPlayer
-    if (isAudioFile(message.file_url)) {
-      return (
-        <AudioPlayer
-          url={message.file_url}
-          fileName={message.file_name || undefined}
-          fileSize={message.file_size || undefined}
-          variant="compact"
-          className="mb-3"
-        />
       );
     }
 

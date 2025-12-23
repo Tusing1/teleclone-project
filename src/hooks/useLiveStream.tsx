@@ -555,10 +555,10 @@ export function useLiveStream(conversationId: string | null) {
           .insert({
             conversation_id: savedConversationId,
             sender_id: user.id,
-            content: `🎙️ Recording: ${title || 'Live Stream Recording'}`,
-            message_type: 'file',
+            content: `${title || 'Live Stream Recording'}`,
+            message_type: 'audio',
             file_url: publicUrl,
-            file_name: `${title || 'Live Stream Recording'}.webm`,
+            file_name: `${title || 'Live Stream Recording'}.opus`,
             file_size: blob.size
           });
 

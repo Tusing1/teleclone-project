@@ -64,14 +64,18 @@ export function MessageBubble({
     return fileName.split('.').pop()?.toUpperCase() || '';
   };
 
-  const isVideoFile = (url: string | null) => {
+  const isVideoFile = (url: string | null, messageType?: string) => {
     if (!url) return false;
-    return /\.(mp4|webm|mov|avi|mkv|m4v)$/i.test(url);
+    if (messageType === 'audio' || messageType === 'voice') return false;
+    if (/\.webm$/i.test(url)) return false; // Treat webm as audio by default (recordings)
+    return /\.(mp4|mov|avi|mkv|m4v)$/i.test(url);
   };
 
-  const isAudioFile = (url: string | null) => {
+  const isAudioFile = (url: string | null, messageType?: string) => {
     if (!url) return false;
-    return /\.(mp3|wav|ogg|m4a|aac|flac|webm|opus)$/i.test(url);
+    if (messageType === 'audio' || messageType === 'voice') return true;
+    if (/\.webm$/i.test(url)) return true;
+    return /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(url);
   };
 
   const copyMessageLink = () => {
@@ -94,8 +98,21 @@ export function MessageBubble({
       );
     }
 
+    // Audio file - check audio first as webm can be both
+    if (message.file_url && isAudioFile(message.file_url, message.message_type)) {
+      return (
+        <AudioPlayer
+          url={message.file_url}
+          fileName={message.file_name || undefined}
+          fileSize={message.file_size || undefined}
+          variant="compact"
+          className="mb-1"
+        />
+      );
+    }
+
     // Video with thumbnail and play button
-    if (message.file_url && isVideoFile(message.file_url)) {
+    if (message.file_url && isVideoFile(message.file_url, message.message_type)) {
       return (
         <div 
           className="mb-1 relative rounded-lg overflow-hidden cursor-pointer group"
@@ -112,19 +129,6 @@ export function MessageBubble({
             </div>
           </div>
         </div>
-      );
-    }
-
-    // Audio file - use AudioPlayer with caching
-    if (message.file_url && isAudioFile(message.file_url)) {
-      return (
-        <AudioPlayer
-          url={message.file_url}
-          fileName={message.file_name || undefined}
-          fileSize={message.file_size || undefined}
-          variant="compact"
-          className="mb-1"
-        />
       );
     }
 
