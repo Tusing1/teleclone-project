@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
 import { MessageBubble } from './MessageBubble';
 import { ChannelMessageBubble } from './ChannelMessageBubble';
+import { SystemMessage } from './SystemMessage';
 import { CallButton } from './CallButton';
 import { CallView } from './CallView';
 import { LiveStreamPreview } from './LiveStreamPreview';
@@ -564,6 +565,23 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             {messages.map((message, index) => {
               const showAvatar = index === 0 || 
                 messages[index - 1].sender_id !== message.sender_id;
+              
+              // Render system messages (e.g., "Live Stream Started")
+              if (message.message_type === 'system') {
+                const hasActiveCallOrStream = isChannel ? !!activeStream : !!activeCall;
+                const isNotInCallOrStream = isChannel ? !isInStream : !isInCall;
+                
+                return (
+                  <SystemMessage
+                    key={message.id}
+                    content={message.content || ''}
+                    timestamp={message.created_at}
+                    hasActiveCall={hasActiveCallOrStream && isNotInCallOrStream}
+                    onJoinCall={handleJoinCall}
+                    isChannel={isChannel}
+                  />
+                );
+              }
               
               // Use ChannelMessageBubble for channels
               if (isChannel) {
