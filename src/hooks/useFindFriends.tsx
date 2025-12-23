@@ -1,0 +1,327 @@
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './useAuth';
+import { Profile } from '@/types/chat';
+import { toast } from 'sonner';
+
+interface Match {
+  id: string;
+  user1_id: string;
+  user2_id: string;
+  conversation_id: string | null;
+  matched_at: string;
+  matchedUser?: Profile;
+}
+
+interface LikedByUser {
+  id: string;
+  swiper_id: string;
+  created_at: string;
+  profile?: Profile;
+}
+
+export function useFindFriends() {
+  const { user } = useAuth();
+  const [potentialMatches, setPotentialMatches] = useState<Profile[]>([]);
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [likedByUsers, setLikedByUsers] = useState<LikedByUser[]>([]);
+  const [likedByCount, setLikedByCount] = useState(0);
+  const [canSeeLikes, setCanSeeLikes] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  const fetchPotentialMatches = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Get users that the current user has already swiped on
+      const { data: swipedUsers } = await supabase
+        .from('user_swipes')
+        .select('swiped_id')
+        .eq('swiper_id', user.id);
+
+      const swipedIds = swipedUsers?.map(s => s.swiped_id) || [];
+
+      // Get all users except current user and already swiped users
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .neq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (swipedIds.length > 0) {
+        query = query.not('user_id', 'in', `(${swipedIds.join(',')})`);
+      }
+
+      const { data: profiles, error } = await query.limit(50);
+
+      if (error) throw error;
+      setPotentialMatches(profiles as Profile[] || []);
+      setCurrentIndex(0);
+    } catch (error) {
+      console.error('Error fetching potential matches:', error);
+    }
+  }, [user]);
+
+  const fetchMatches = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { data: matchData, error } = await supabase
+        .from('user_matches')
+        .select('*')
+        .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+        .order('matched_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Fetch profiles for matched users
+      if (matchData && matchData.length > 0) {
+        const otherUserIds = matchData.map(m => 
+          m.user1_id === user.id ? m.user2_id : m.user1_id
+        );
+
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('user_id', otherUserIds);
+
+        const matchesWithProfiles = matchData.map(m => {
+          const otherUserId = m.user1_id === user.id ? m.user2_id : m.user1_id;
+          return {
+            ...m,
+            matchedUser: profiles?.find(p => p.user_id === otherUserId)
+          };
+        });
+
+        setMatches(matchesWithProfiles);
+      } else {
+        setMatches([]);
+      }
+    } catch (error) {
+      console.error('Error fetching matches:', error);
+    }
+  }, [user]);
+
+  const fetchLikedByCount = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      // Count users who swiped right on current user (that current user hasn't swiped on yet)
+      const { data: swipedOnMe, error } = await supabase
+        .from('user_swipes')
+        .select('swiper_id')
+        .eq('swiped_id', user.id)
+        .eq('direction', 'right');
+
+      if (error) throw error;
+
+      // Filter out users we've already matched with or swiped on
+      const { data: mySwipes } = await supabase
+        .from('user_swipes')
+        .select('swiped_id')
+        .eq('swiper_id', user.id);
+
+      const mySwipedIds = mySwipes?.map(s => s.swiped_id) || [];
+      const pendingLikes = swipedOnMe?.filter(s => !mySwipedIds.includes(s.swiper_id)) || [];
+      
+      setLikedByCount(pendingLikes.length);
+    } catch (error) {
+      console.error('Error fetching liked by count:', error);
+    }
+  }, [user]);
+
+  const fetchCanSeeLikes = useCallback(async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('premium_unlocks')
+        .select('can_see_likes')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!error && data) {
+        setCanSeeLikes(data.can_see_likes);
+      }
+    } catch (error) {
+      // No premium record exists
+      setCanSeeLikes(false);
+    }
+  }, [user]);
+
+  const fetchLikedByUsers = useCallback(async () => {
+    if (!user || !canSeeLikes) return;
+
+    try {
+      const { data: swipedOnMe } = await supabase
+        .from('user_swipes')
+        .select('*')
+        .eq('swiped_id', user.id)
+        .eq('direction', 'right');
+
+      if (swipedOnMe && swipedOnMe.length > 0) {
+        const swiperIds = swipedOnMe.map(s => s.swiper_id);
+        
+        // Filter out already matched users
+        const { data: mySwipes } = await supabase
+          .from('user_swipes')
+          .select('swiped_id')
+          .eq('swiper_id', user.id);
+
+        const mySwipedIds = mySwipes?.map(s => s.swiped_id) || [];
+        const pendingLikes = swipedOnMe.filter(s => !mySwipedIds.includes(s.swiper_id));
+        
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('*')
+          .in('user_id', pendingLikes.map(s => s.swiper_id));
+
+        const likesWithProfiles = pendingLikes.map(s => ({
+          ...s,
+          profile: profiles?.find(p => p.user_id === s.swiper_id)
+        }));
+
+        setLikedByUsers(likesWithProfiles);
+      }
+    } catch (error) {
+      console.error('Error fetching liked by users:', error);
+    }
+  }, [user, canSeeLikes]);
+
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true);
+      await Promise.all([
+        fetchPotentialMatches(),
+        fetchMatches(),
+        fetchLikedByCount(),
+        fetchCanSeeLikes()
+      ]);
+      setLoading(false);
+    };
+    init();
+  }, [fetchPotentialMatches, fetchMatches, fetchLikedByCount, fetchCanSeeLikes]);
+
+  useEffect(() => {
+    if (canSeeLikes) {
+      fetchLikedByUsers();
+    }
+  }, [canSeeLikes, fetchLikedByUsers]);
+
+  const swipe = async (direction: 'left' | 'right') => {
+    if (!user || currentIndex >= potentialMatches.length) return null;
+
+    const swipedUser = potentialMatches[currentIndex];
+
+    try {
+      // Record the swipe
+      const { error: swipeError } = await supabase
+        .from('user_swipes')
+        .insert({
+          swiper_id: user.id,
+          swiped_id: swipedUser.user_id,
+          direction
+        });
+
+      if (swipeError) throw swipeError;
+
+      // Check for match if swiped right
+      if (direction === 'right') {
+        const { data: theirSwipe } = await supabase
+          .from('user_swipes')
+          .select('*')
+          .eq('swiper_id', swipedUser.user_id)
+          .eq('swiped_id', user.id)
+          .eq('direction', 'right')
+          .single();
+
+        if (theirSwipe) {
+          // It's a match! Create a conversation
+          const { data: conversation, error: convError } = await supabase
+            .from('conversations')
+            .insert({
+              type: 'direct',
+              created_by: user.id
+            })
+            .select()
+            .single();
+
+          if (convError) throw convError;
+
+          // Add both participants
+          await supabase.from('conversation_participants').insert([
+            { conversation_id: conversation.id, user_id: user.id, role: 'member' },
+            { conversation_id: conversation.id, user_id: swipedUser.user_id, role: 'member' }
+          ]);
+
+          // Create the match record
+          const { error: matchError } = await supabase
+            .from('user_matches')
+            .insert({
+              user1_id: user.id,
+              user2_id: swipedUser.user_id,
+              conversation_id: conversation.id
+            });
+
+          if (matchError) throw matchError;
+
+          // Refresh matches
+          await fetchMatches();
+          
+          setCurrentIndex(prev => prev + 1);
+          return { matched: true, user: swipedUser, conversationId: conversation.id };
+        }
+      }
+
+      setCurrentIndex(prev => prev + 1);
+      return { matched: false };
+    } catch (error) {
+      console.error('Error swiping:', error);
+      toast.error('Something went wrong');
+      return null;
+    }
+  };
+
+  const unlockSeeLikes = async () => {
+    if (!user) return false;
+
+    try {
+      // In a real app, this would involve payment processing
+      // For now, we'll just enable it
+      const { error } = await supabase
+        .from('premium_unlocks')
+        .upsert({
+          user_id: user.id,
+          can_see_likes: true
+        });
+
+      if (error) throw error;
+
+      setCanSeeLikes(true);
+      await fetchLikedByUsers();
+      toast.success('Premium feature unlocked!');
+      return true;
+    } catch (error) {
+      console.error('Error unlocking:', error);
+      toast.error('Failed to unlock feature');
+      return false;
+    }
+  };
+
+  const currentProfile = potentialMatches[currentIndex] || null;
+  const hasMoreProfiles = currentIndex < potentialMatches.length;
+
+  return {
+    currentProfile,
+    hasMoreProfiles,
+    matches,
+    likedByCount,
+    likedByUsers,
+    canSeeLikes,
+    loading,
+    swipe,
+    unlockSeeLikes,
+    refetch: fetchPotentialMatches
+  };
+}

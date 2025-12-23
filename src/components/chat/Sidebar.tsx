@@ -1,6 +1,6 @@
 import { 
   LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact 
+  Users, UserPlus, Radio, Contact, Heart 
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ interface SidebarProps {
   onOpenCreateGroup: () => void;
   onOpenCreateChannel: () => void;
   onOpenInviteFriends: () => void;
+  onOpenFindFriends: () => void;
 }
 
 export function Sidebar({ 
@@ -28,7 +29,8 @@ export function Sidebar({
   onOpenContacts,
   onOpenCreateGroup,
   onOpenCreateChannel,
-  onOpenInviteFriends
+  onOpenInviteFriends,
+  onOpenFindFriends
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
@@ -124,6 +126,18 @@ export function Sidebar({
             >
               <UserPlus className="h-5 w-5 text-muted-foreground" />
               <span>Invite Friends</span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenFindFriends)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors group"
+            >
+              <div className="relative">
+                <Heart className="h-5 w-5 text-pink-500" />
+              </div>
+              <span className="bg-gradient-to-r from-pink-500 to-purple-600 bg-clip-text text-transparent font-medium">
+                Find Friends
+              </span>
             </button>
 
             <Separator className="my-2" />
