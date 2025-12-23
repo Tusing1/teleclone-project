@@ -200,92 +200,78 @@ export function ChannelMessageBubble({
     return null;
   };
 
+  // Format view count nicely
+  const formatViewCount = (count: number) => {
+    if (count >= 1000) {
+      return (count / 1000).toFixed(1) + 'K';
+    }
+    return count.toString();
+  };
+
   return (
-    <div className="max-w-[85%] md:max-w-[70%] group relative">
-      {/* More options button - 3 dots */}
-      <div className="absolute -right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full bg-slate-700/80 hover:bg-slate-600 text-slate-300"
-            >
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
-            <DropdownMenuItem onClick={onReply} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
-              <Reply className="h-4 w-4" />
-              Reply
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={copyMessageLink} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
-              <Link className="h-4 w-4" />
-              Copy Link
-            </DropdownMenuItem>
-            {isAdmin && (
-              <DropdownMenuItem onClick={onPin} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
-                <Pin className="h-4 w-4" />
-                Pin
+    <div className="flex items-start gap-2 group">
+      {/* Main message bubble */}
+      <div className="max-w-[85%] md:max-w-[70%] relative flex-1">
+        {/* More options button - 3 dots */}
+        <div className="absolute -right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full bg-slate-700/80 hover:bg-slate-600 text-slate-300"
+              >
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
+              <DropdownMenuItem onClick={onReply} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                <Reply className="h-4 w-4" />
+                Reply
               </DropdownMenuItem>
-            )}
-            {(isOwn || isAdmin) && (
-              <>
-                <DropdownMenuSeparator className="bg-slate-700" />
-                <DropdownMenuItem onClick={onEdit} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
-                  <Pencil className="h-4 w-4" />
-                  Edit
+              <DropdownMenuItem onClick={copyMessageLink} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                <Link className="h-4 w-4" />
+                Copy Link
+              </DropdownMenuItem>
+              {isAdmin && (
+                <DropdownMenuItem onClick={onPin} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                  <Pin className="h-4 w-4" />
+                  Pin
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-400 focus:bg-slate-700 focus:text-red-400">
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
-              </>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-
-      <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg">
-        {/* Header Row - View count, time, and forward button at top */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-slate-700/50">
-          <div className="flex items-center gap-3 text-xs text-slate-400">
-            <span className="flex items-center gap-1">
-              <Eye className="w-3.5 h-3.5" />
-              {((message.view_count || 0) / 1000).toFixed(1)}K
-            </span>
-            <span>{formatTime(message.created_at)}</span>
-          </div>
-
-          {/* Forward button - only for admins - moved to top */}
-          {canForward && onForward && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onForward}
-              className="h-7 w-7 rounded-full text-slate-400 hover:text-slate-200 hover:bg-slate-700/50"
-            >
-              <Share2 className="w-4 h-4" />
-            </Button>
-          )}
+              )}
+              {(isOwn || isAdmin) && (
+                <>
+                  <DropdownMenuSeparator className="bg-slate-700" />
+                  <DropdownMenuItem onClick={onEdit} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                    <Pencil className="h-4 w-4" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-400 focus:bg-slate-700 focus:text-red-400">
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
 
-        {/* File/Image Content */}
-        {message.file_url && (
-          <div className="p-3 pb-0">
-            {renderFileThumbnail()}
-          </div>
-        )}
+        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg">
+          {/* File/Image Content */}
+          {message.file_url && (
+            <div className="p-3 pb-0">
+              {renderFileThumbnail()}
+            </div>
+          )}
 
-        {/* Text Content */}
-        {message.content && (
-          <div className="px-4 py-3">
-            {renderContent()}
-          </div>
-        )}
+          {/* Text Content */}
+          {message.content && (
+            <div className="px-4 py-3">
+              {renderContent()}
+            </div>
+          )}
 
-        {/* Reactions Row */}
-        {(reactions.length > 0 || true) && (
+          {/* Reactions Row */}
           <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap">
             {reactions.map((reaction) => (
               <button
@@ -330,46 +316,66 @@ export function ChannelMessageBubble({
               </PopoverContent>
             </Popover>
           </div>
-        )}
 
+          {/* View count and time at bottom */}
+          <div className="flex items-center gap-2 px-3 pb-2 text-xs text-slate-400">
+            <span className="flex items-center gap-1">
+              <Eye className="w-3 h-3" />
+              {formatViewCount(message.view_count || 0)}
+            </span>
+            <span>{formatTime(message.created_at)}</span>
+          </div>
+        </div>
+
+        {/* Comments Section - Outside the bubble like Telegram */}
+        {onOpenComments && (
+          <button
+            onClick={onOpenComments}
+            className="flex items-center gap-2 mt-2 ml-1 group"
+          >
+            {/* Comment avatars */}
+            {commentAvatars.length > 0 ? (
+              <div className="flex -space-x-2">
+                {commentAvatars.slice(0, 3).map((profile, index) => (
+                  <div
+                    key={index}
+                    className="w-6 h-6 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-700"
+                  >
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-[10px] text-white font-medium">
+                        {profile?.username?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex -space-x-2">
+                <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-emerald-500 to-teal-600" />
+                <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-violet-500 to-purple-600" />
+              </div>
+            )}
+            
+            <span className="text-sm font-medium text-sky-400 group-hover:text-sky-300 transition-colors flex items-center gap-1">
+              {commentCount > 0 ? `${commentCount} comments` : 'Leave a comment'}
+              <ChevronRight className="w-4 h-4" />
+            </span>
+          </button>
+        )}
       </div>
 
-      {/* Comments Section - Outside the bubble like Telegram */}
-      {onOpenComments && (
-        <button
-          onClick={onOpenComments}
-          className="flex items-center gap-2 mt-2 ml-1 group"
+      {/* Forward button on the side - only for admins */}
+      {isAdmin && canForward && onForward && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onForward}
+          className="h-10 w-10 rounded-full bg-slate-700/60 hover:bg-slate-600 text-slate-300 hover:text-white shrink-0 self-center"
         >
-          {/* Comment avatars */}
-          {commentAvatars.length > 0 ? (
-            <div className="flex -space-x-2">
-              {commentAvatars.slice(0, 3).map((profile, index) => (
-                <div
-                  key={index}
-                  className="w-6 h-6 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-700"
-                >
-                  {profile?.avatar_url ? (
-                    <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-[10px] text-white font-medium">
-                      {profile?.username?.charAt(0).toUpperCase() || '?'}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="flex -space-x-2">
-              <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-emerald-500 to-teal-600" />
-              <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-violet-500 to-purple-600" />
-            </div>
-          )}
-          
-          <span className="text-sm font-medium text-sky-400 group-hover:text-sky-300 transition-colors flex items-center gap-1">
-            {commentCount > 0 ? `${commentCount} comments` : 'Leave a comment'}
-            <ChevronRight className="w-4 h-4" />
-          </span>
-        </button>
+          <Share2 className="w-5 h-5" />
+        </Button>
       )}
     </div>
   );
