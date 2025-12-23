@@ -20,26 +20,37 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 
 export function usePushNotifications() {
   const { user } = useAuth();
-  const [permission, setPermission] = useState<NotificationPermission>('default');
+  
+  const [permission, setPermission] = useState<NotificationPermission>(() => {
+    // Safe initialization - check if we're in browser and Notification is available
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      return Notification.permission;
+    }
+    return 'default';
+  });
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [supported, setSupported] = useState(false);
+  const [supported, setSupported] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return 'serviceWorker' in navigator && 
+             'PushManager' in window && 
+             'Notification' in window;
+    }
+    return false;
+  });
   const [vapidPublicKey, setVapidPublicKey] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check if push notifications are supported
-    const checkSupport = () => {
-      const isSupported = 'serviceWorker' in navigator && 
-                          'PushManager' in window && 
-                          'Notification' in window;
-      setSupported(isSupported);
-      
-      if (isSupported) {
-        setPermission(Notification.permission);
-      }
-    };
-
-    checkSupport();
+    // Re-check support after mount (for safety)
+    const isSupported = typeof window !== 'undefined' &&
+                        'serviceWorker' in navigator && 
+                        'PushManager' in window && 
+                        'Notification' in window;
+    setSupported(isSupported);
+    
+    if (isSupported) {
+      setPermission(Notification.permission);
+    }
   }, []);
 
   useEffect(() => {
