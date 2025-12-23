@@ -64,7 +64,19 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
 
     setMessages(messagesWithSenders);
     setLoading(false);
-  }, [conversationId, fetchCommentCounts]);
+
+    // Mark unread messages from others as read
+    const unreadMessageIds = messagesData
+      .filter(m => m.sender_id !== user?.id && !m.is_read)
+      .map(m => m.id);
+
+    if (unreadMessageIds.length > 0) {
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .in('id', unreadMessageIds);
+    }
+  }, [conversationId, fetchCommentCounts, user]);
 
   useEffect(() => {
     fetchMessages();
@@ -102,6 +114,31 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
           };
 
           setMessages(prev => [...prev, messageWithSender]);
+
+          // Mark message as read if it's from someone else
+          if (newMessage.sender_id !== user?.id) {
+            await supabase
+              .from('messages')
+              .update({ is_read: true })
+              .eq('id', newMessage.id);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversationId}`
+        },
+        (payload) => {
+          const updatedMessage = payload.new as any;
+          setMessages(prev => prev.map(msg => 
+            msg.id === updatedMessage.id 
+              ? { ...msg, ...updatedMessage }
+              : msg
+          ));
         }
       )
       .subscribe();
@@ -109,7 +146,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId]);
+  }, [conversationId, user]);
 
   const sendMessage = async (
     content: string, 

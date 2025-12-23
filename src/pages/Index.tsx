@@ -254,7 +254,7 @@ export default function Index() {
       {/* Chat view */}
       <div 
         className={cn(
-          'flex-1 min-w-0',
+          'flex-1 min-w-0 md:p-0',
           !showChat && 'hidden md:block'
         )}
       >
