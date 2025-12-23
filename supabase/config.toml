@@ -2,3 +2,12 @@ project_id = "plhzfgfrlxywxaccewyh"
 
 [functions.create-conversation]
 verify_jwt = false
+
+[functions.sync-discussion-members]
+verify_jwt = true
+
+[functions.send-push-notification]
+verify_jwt = true
+
+[functions.get-vapid-key]
+verify_jwt = false

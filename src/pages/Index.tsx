@@ -16,6 +16,7 @@ import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
 import { ForwardMessageDialog } from '@/components/chat/ForwardMessageDialog';
 import { FindFriendsDialog } from '@/components/chat/FindFriendsDialog';
 import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
+import { NotificationSettingsDialog } from '@/components/chat/NotificationSettingsDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -51,6 +52,7 @@ export default function Index() {
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showFindFriends, setShowFindFriends] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   
@@ -218,6 +220,7 @@ export default function Index() {
         onOpenInviteFriends={() => setShowInviteFriends(true)}
         onOpenFindFriends={() => setShowFindFriends(true)}
         onOpenEditProfile={() => setShowEditProfile(true)}
+        onOpenNotificationSettings={() => setShowNotificationSettings(true)}
       />
 
       {/* Conversation list */}
@@ -338,6 +341,11 @@ export default function Index() {
       <EditProfileDialog
         open={showEditProfile}
         onClose={() => setShowEditProfile(false)}
+      />
+
+      <NotificationSettingsDialog
+        open={showNotificationSettings}
+        onClose={() => setShowNotificationSettings(false)}
       />
     </div>
   );
