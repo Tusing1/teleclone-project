@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio } from 'lucide-react';
+import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio, Trash2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -21,6 +21,8 @@ interface ConversationListProps {
   onMenuClick: () => void;
   onOpenSavedMessages: () => void;
   onArchiveConversation?: (conversationId: string) => void;
+  onDeleteConversation?: (conversationId: string) => void;
+  getUserRole?: (conversationId: string) => string | null;
 }
 
 export function ConversationList({ 
@@ -30,7 +32,9 @@ export function ConversationList({
   onNewChat,
   onMenuClick,
   onOpenSavedMessages,
-  onArchiveConversation
+  onArchiveConversation,
+  onDeleteConversation,
+  getUserRole
 }: ConversationListProps) {
   const { user, profile } = useAuth();
   const [search, setSearch] = useState('');
@@ -70,6 +74,16 @@ export function ConversationList({
   const handleArchive = (e: React.MouseEvent, conversationId: string) => {
     e.stopPropagation();
     onArchiveConversation?.(conversationId);
+  };
+
+  const handleDelete = (e: React.MouseEvent, conversationId: string) => {
+    e.stopPropagation();
+    onDeleteConversation?.(conversationId);
+  };
+
+  const isAdmin = (conversationId: string) => {
+    const role = getUserRole?.(conversationId);
+    return role === 'admin' || role === 'owner';
   };
 
   const renderConversationItem = (conv: ConversationWithDetails) => {
@@ -149,6 +163,15 @@ export function ConversationList({
                       <Archive className="h-4 w-4 mr-2" />
                       Archive
                     </DropdownMenuItem>
+                    {isAdmin(conv.id) && (
+                      <DropdownMenuItem 
+                        onClick={(e) => handleDelete(e, conv.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Group
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
@@ -203,6 +226,15 @@ export function ConversationList({
                       <Archive className="h-4 w-4 mr-2" />
                       Archive
                     </DropdownMenuItem>
+                    {isAdmin(conv.id) && (
+                      <DropdownMenuItem 
+                        onClick={(e) => handleDelete(e, conv.id)}
+                        className="text-destructive focus:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete Channel
+                      </DropdownMenuItem>
+                    )}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

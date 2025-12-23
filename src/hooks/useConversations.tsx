@@ -351,6 +351,57 @@ export function useConversations() {
     return true;
   };
 
+  const deleteConversation = async (conversationId: string): Promise<boolean> => {
+    if (!user) return false;
+
+    // Check if user is admin/owner of this conversation
+    const { data: participant } = await supabase
+      .from('conversation_participants')
+      .select('role')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!participant || !['admin', 'owner'].includes(participant.role)) {
+      console.error('User is not admin/owner of this conversation');
+      return false;
+    }
+
+    // Delete all messages first
+    await supabase
+      .from('messages')
+      .delete()
+      .eq('conversation_id', conversationId);
+
+    // Delete all participants
+    await supabase
+      .from('conversation_participants')
+      .delete()
+      .eq('conversation_id', conversationId);
+
+    // Delete the conversation itself - this requires a migration to add DELETE policy
+    const { error } = await supabase
+      .from('conversations')
+      .delete()
+      .eq('id', conversationId);
+
+    if (error) {
+      console.error('Error deleting conversation:', error);
+      return false;
+    }
+
+    await fetchConversations();
+    return true;
+  };
+
+  const getUserRole = (conversationId: string): string | null => {
+    if (!user) return null;
+    const conv = [...conversations, ...archivedConversations].find(c => c.id === conversationId);
+    if (!conv) return null;
+    const participant = conv.participants.find(p => p.user_id === user.id);
+    return participant?.role || null;
+  };
+
   return { 
     conversations, 
     archivedConversations,
@@ -360,6 +411,8 @@ export function useConversations() {
     createChannel,
     archiveConversation,
     unarchiveConversation,
+    deleteConversation,
+    getUserRole,
     refetch: fetchConversations,
     savedMessagesId,
     getOrCreateSavedMessages,
