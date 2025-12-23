@@ -1,6 +1,6 @@
 import { 
   LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact, Heart 
+  Users, UserPlus, Radio, Contact, Heart, Bell 
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ interface SidebarProps {
   onOpenInviteFriends: () => void;
   onOpenFindFriends: () => void;
   onOpenEditProfile: () => void;
+  onOpenNotificationSettings: () => void;
 }
 
 export function Sidebar({ 
@@ -32,7 +33,8 @@ export function Sidebar({
   onOpenCreateChannel,
   onOpenInviteFriends,
   onOpenFindFriends,
-  onOpenEditProfile
+  onOpenEditProfile,
+  onOpenNotificationSettings
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const [darkMode, setDarkMode] = useState(false);
@@ -162,6 +164,14 @@ export function Sidebar({
                 <Moon className="h-5 w-5 text-muted-foreground" />
               )}
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+
+            <button 
+              onClick={() => handleMenuClick(onOpenNotificationSettings)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Bell className="h-5 w-5 text-muted-foreground" />
+              <span>Notifications</span>
             </button>
 
             <button className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors">
