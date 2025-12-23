@@ -18,6 +18,7 @@ import { ForwardMessageDialog } from '@/components/chat/ForwardMessageDialog';
 import { FindFriendsDialog } from '@/components/chat/FindFriendsDialog';
 import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
 import { NotificationSettingsDialog } from '@/components/chat/NotificationSettingsDialog';
+import { CallsInboxDialog } from '@/components/chat/CallsInboxDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -58,6 +59,7 @@ export default function Index() {
   const [showFindFriends, setShowFindFriends] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
+  const [showCallsInbox, setShowCallsInbox] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   
@@ -226,6 +228,7 @@ export default function Index() {
         onOpenFindFriends={() => setShowFindFriends(true)}
         onOpenEditProfile={() => setShowEditProfile(true)}
         onOpenNotificationSettings={() => setShowNotificationSettings(true)}
+        onOpenCallsInbox={() => setShowCallsInbox(true)}
       />
 
       {/* Conversation list */}
@@ -351,6 +354,14 @@ export default function Index() {
       <NotificationSettingsDialog
         open={showNotificationSettings}
         onClose={() => setShowNotificationSettings(false)}
+      />
+
+      <CallsInboxDialog
+        open={showCallsInbox}
+        onClose={() => setShowCallsInbox(false)}
+        onOpenConversation={(conversationId) => {
+          setSelectedConversationId(conversationId);
+        }}
       />
     </div>
   );

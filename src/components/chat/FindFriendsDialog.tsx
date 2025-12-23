@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { useFindFriends } from '@/hooks/useFindFriends';
 import { Profile } from '@/types/chat';
 import { cn } from '@/lib/utils';
+import { MatchCelebration } from './MatchCelebration';
 
 interface FindFriendsDialogProps {
   open: boolean;
@@ -26,7 +27,7 @@ type TabType = 'discover' | 'matches' | 'likes';
 
 export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFriendsDialogProps) {
   const [activeTab, setActiveTab] = useState<TabType>('discover');
-  const [matchAnimation, setMatchAnimation] = useState<Profile | null>(null);
+  const [matchAnimation, setMatchAnimation] = useState<{ user: Profile; conversationId: string } | null>(null);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -50,10 +51,8 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
       const result = await swipe(direction);
       setSwipeDirection(null);
       
-      if (result?.matched && result.user) {
-        setMatchAnimation(result.user);
-        // Auto-dismiss match animation after 3s
-        setTimeout(() => setMatchAnimation(null), 3000);
+      if (result?.matched && result.user && result.conversationId) {
+        setMatchAnimation({ user: result.user, conversationId: result.conversationId });
       }
     }, 300);
   };
@@ -95,39 +94,6 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
 
     return (
       <div className="relative h-[450px] flex flex-col items-center">
-        {/* Match animation overlay */}
-        {matchAnimation && (
-          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-gradient-to-br from-pink-500/90 to-purple-600/90 rounded-xl animate-in fade-in zoom-in duration-300">
-            <div className="animate-bounce mb-4">
-              <Heart className="h-16 w-16 text-white fill-white" />
-            </div>
-            <h2 className="text-3xl font-bold text-white mb-2">It's a Match!</h2>
-            <p className="text-white/90 mb-6">You and {matchAnimation.full_name || matchAnimation.username} liked each other</p>
-            <div className="flex gap-4">
-              <Button 
-                variant="secondary" 
-                onClick={() => setMatchAnimation(null)}
-              >
-                Keep Swiping
-              </Button>
-              <Button 
-                className="bg-white text-purple-600 hover:bg-white/90"
-                onClick={() => {
-                  const match = matches.find(m => 
-                    m.matchedUser?.user_id === matchAnimation.user_id
-                  );
-                  if (match?.conversation_id) {
-                    handleOpenMatch(match.conversation_id);
-                  }
-                  setMatchAnimation(null);
-                }}
-              >
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Send Message
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* Profile card */}
         <div
@@ -340,16 +306,29 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md p-0 overflow-hidden">
-        <DialogHeader className="p-6 pb-0">
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center">
-              <Heart className="h-4 w-4 text-white" />
-            </div>
-            Find Friends
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      {/* Match Celebration Modal */}
+      {matchAnimation && (
+        <MatchCelebration
+          matchedUser={matchAnimation.user}
+          onClose={() => setMatchAnimation(null)}
+          onSendMessage={() => {
+            handleOpenMatch(matchAnimation.conversationId);
+            setMatchAnimation(null);
+          }}
+        />
+      )}
+
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-md p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-0">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center">
+                <Heart className="h-4 w-4 text-white" />
+              </div>
+              Find Friends
+            </DialogTitle>
+          </DialogHeader>
 
         {/* Tabs */}
         <div className="flex border-b border-border">
@@ -414,5 +393,6 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
         </div>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

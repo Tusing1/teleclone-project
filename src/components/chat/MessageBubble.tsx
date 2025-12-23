@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { MessageWithSender } from '@/types/chat';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { FilePreview } from './FilePreview';
 import { AudioPlayer } from './AudioPlayer';
+import { LinkPreview, extractUrls } from './LinkPreview';
 
 interface MessageBubbleProps {
   message: MessageWithSender;
@@ -46,6 +47,12 @@ export function MessageBubble({
   const isOwn = message.sender_id === user?.id;
   const [showMenu, setShowMenu] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Extract URLs from message content for link previews
+  const urls = useMemo(() => {
+    if (!message.content || message.message_type !== 'text') return [];
+    return extractUrls(message.content);
+  }, [message.content, message.message_type]);
 
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], { 
@@ -226,6 +233,15 @@ export function MessageBubble({
 
         {message.content && (
           <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+        )}
+
+        {/* Link previews */}
+        {urls.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {urls.slice(0, 2).map((url, idx) => (
+              <LinkPreview key={idx} url={url} />
+            ))}
+          </div>
         )}
 
         <div className={cn(
