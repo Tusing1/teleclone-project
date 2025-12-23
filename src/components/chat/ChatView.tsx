@@ -51,7 +51,7 @@ import {
 interface ChatViewProps {
   conversation: ConversationWithDetails;
   onBack: () => void;
-  onForwardMessage?: (message: MessageWithSender) => void;
+  onForwardMessage?: (message: MessageWithSender, fromSavedMessages?: boolean) => void;
   onNavigateToDiscussion?: (discussionId: string, replyToMessage?: MessageWithSender) => void;
   onRefreshConversations?: () => void;
 }
@@ -643,7 +643,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   key={message.id} 
                   message={message}
                   showAvatar={showAvatar}
-                  onForward={onForwardMessage}
+                  onForward={onForwardMessage ? (msg) => onForwardMessage(msg, isSavedMessages) : undefined}
                   isChannelMessage={false}
                   onReply={(msg) => handleReply(msg)}
                   onEdit={(msg) => openEditDialog(msg)}
