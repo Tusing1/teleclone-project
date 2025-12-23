@@ -127,6 +127,20 @@ export function useConversations() {
           fetchConversations();
         }
       )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'profiles' },
+        () => {
+          fetchConversations();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'conversations' },
+        () => {
+          fetchConversations();
+        }
+      )
       .subscribe();
 
     return () => {
