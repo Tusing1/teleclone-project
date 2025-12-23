@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
+import { toast } from 'sonner';
 
 export interface Call {
   id: string;
@@ -319,11 +320,11 @@ export function useCalls(conversationId: string | null) {
     const recordingTitle = activeCall.recording_title || 'Call Recording';
     const recorder = mediaRecorder.current;
 
+    console.log('Stopping call recording...', { recordingTitle, hasRecorder: !!recorder, chunks: recordedChunks.current.length });
+
     try {
       // If we have an active local recorder, stop and WAIT for onstop -> save.
       if (recorder && recorder.state !== 'inactive') {
-        const existingOnStop = recorder.onstop;
-
         try {
           recorder.requestData();
         } catch {
@@ -331,16 +332,20 @@ export function useCalls(conversationId: string | null) {
         }
 
         await new Promise<void>((resolve) => {
-          recorder.onstop = async (ev) => {
+          recorder.onstop = async () => {
             try {
-              if (existingOnStop) {
-                await (existingOnStop as any)(ev);
-              } else if (recordedChunks.current.length > 0) {
+              console.log('Call recorder stopped, chunks:', recordedChunks.current.length);
+              if (recordedChunks.current.length > 0) {
                 const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+                console.log('Saving call recording blob, size:', blob.size);
                 await saveRecording(blob, recordingTitle);
+              } else {
+                console.warn('No recorded chunks to save');
+                toast.error('No audio recorded');
               }
             } catch (err) {
               console.error('Error saving recording on stop:', err);
+              toast.error('Failed to save recording');
             } finally {
               resolve();
             }
@@ -353,12 +358,13 @@ export function useCalls(conversationId: string | null) {
             resolve();
           }
         });
-      }
-
-      // If the recorder is missing (e.g. refresh) but chunks exist, try saving anyway.
-      if (!recorder && recordedChunks.current.length > 0) {
+      } else if (recordedChunks.current.length > 0) {
+        // If the recorder is missing but chunks exist, try saving anyway.
         const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        console.log('Saving orphaned call chunks, size:', blob.size);
         await saveRecording(blob, recordingTitle);
+      } else {
+        console.warn('No recorder and no chunks to save for call');
       }
     } finally {
       // Always clear local state so the UI can't get stuck.
@@ -377,12 +383,19 @@ export function useCalls(conversationId: string | null) {
 
   // Save recording to storage and create message in Saved Messages
   const saveRecording = async (blob: Blob, title: string) => {
-    if (!user) return;
+    if (!user) {
+      console.error('saveRecording: No user');
+      return;
+    }
+
+    console.log('saveRecording (call) called:', { title, blobSize: blob.size });
+    toast.loading('Saving recording...', { id: 'save-call-recording' });
 
     try {
       const fileName = `recording_${Date.now()}.webm`;
       const filePath = `${user.id}/${fileName}`;
 
+      console.log('Uploading call recording to storage:', filePath);
       // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
@@ -390,6 +403,7 @@ export function useCalls(conversationId: string | null) {
 
       if (uploadError) {
         console.error('Error uploading recording:', uploadError);
+        toast.error('Failed to upload recording', { id: 'save-call-recording' });
         return;
       }
 
@@ -398,75 +412,63 @@ export function useCalls(conversationId: string | null) {
         .from('chat-media')
         .getPublicUrl(filePath);
 
-      // Find Saved Messages conversation (direct conversation with only current user, type='direct')
-      const { data: participantData } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', user.id);
+      console.log('Uploaded call recording, public URL:', publicUrl);
 
+      // Use edge function to get or create Saved Messages (more reliable)
       let savedConversationId: string | null = null;
 
-      if (participantData) {
-        for (const p of participantData) {
-          // First check if this conversation is type 'direct'
-          const { data: convData } = await supabase
-            .from('conversations')
-            .select('type')
-            .eq('id', p.conversation_id)
-            .single();
+      try {
+        const { data, error } = await supabase.functions.invoke('create-conversation', {
+          body: { type: 'saved' }
+        });
 
-          if (convData?.type !== 'direct') continue;
+        console.log('create-conversation result for call:', { data, error });
 
-          const { data: participants } = await supabase
-            .from('conversation_participants')
-            .select('*')
-            .eq('conversation_id', p.conversation_id);
-
-          // Saved Messages = direct conversation with only the current user
-          if (participants?.length === 1 && participants[0].user_id === user.id) {
-            savedConversationId = p.conversation_id;
-            break;
-          }
+        if (!error && data?.id) {
+          savedConversationId = data.id;
         }
+      } catch (err) {
+        console.error('Failed to get/create Saved Messages for call recording:', err);
       }
 
-      // Create Saved Messages if it doesn't exist via edge function
       if (!savedConversationId) {
-        try {
-          const { data, error } = await supabase.functions.invoke('create-conversation', {
-            body: { type: 'saved' }
-          });
-
-          if (!error && data?.id) {
-            savedConversationId = data.id;
-          }
-        } catch (err) {
-          console.error('Failed to create Saved Messages for recording:', err);
-        }
+        console.error('Could not get Saved Messages conversation for call');
+        toast.error('Could not find Saved Messages', { id: 'save-call-recording' });
+        return;
       }
 
-      if (savedConversationId) {
-        // Create message with recording - use audio type, no emoji in content
-        await supabase
-          .from('messages')
-          .insert({
-            conversation_id: savedConversationId,
-            sender_id: user.id,
-            content: title || 'Call Recording',
-            message_type: 'audio',
-            file_url: publicUrl,
-            file_name: `${title || 'Call Recording'}.opus`,
-            file_size: blob.size
-          });
+      console.log('Inserting call recording message into Saved Messages:', savedConversationId);
 
-        // Update conversation timestamp
-        await supabase
-          .from('conversations')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', savedConversationId);
+      // Create message with recording - use audio type, no emoji in content
+      const { error: msgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: savedConversationId,
+          sender_id: user.id,
+          content: title || 'Call Recording',
+          message_type: 'audio',
+          file_url: publicUrl,
+          file_name: `${title || 'Call Recording'}.opus`,
+          file_size: blob.size
+        });
+
+      if (msgError) {
+        console.error('Error inserting call recording message:', msgError);
+        toast.error('Failed to save recording message', { id: 'save-call-recording' });
+        return;
       }
+
+      // Update conversation timestamp
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', savedConversationId);
+
+      console.log('Call recording saved successfully!');
+      toast.success('Recording saved to Saved Messages', { id: 'save-call-recording' });
     } catch (error) {
       console.error('Error saving recording:', error);
+      toast.error('Failed to save recording', { id: 'save-call-recording' });
     }
   };
 

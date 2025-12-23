@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { CallParticipant } from './useCalls';
+import { toast } from 'sonner';
 
 export interface LiveStream {
   id: string;
@@ -487,10 +488,10 @@ export function useLiveStream(conversationId: string | null) {
     const recordingTitle = activeStream.recording_title || activeStream.livestream_title || 'Live Stream Recording';
     const recorder = mediaRecorder.current;
 
+    console.log('Stopping recording...', { recordingTitle, hasRecorder: !!recorder, chunks: recordedChunks.current.length });
+
     try {
       if (recorder && recorder.state !== 'inactive') {
-        const existingOnStop = recorder.onstop;
-
         try {
           recorder.requestData();
         } catch {
@@ -498,16 +499,20 @@ export function useLiveStream(conversationId: string | null) {
         }
 
         await new Promise<void>((resolve) => {
-          recorder.onstop = async (ev) => {
+          recorder.onstop = async () => {
             try {
-              if (existingOnStop) {
-                await (existingOnStop as any)(ev);
-              } else if (recordedChunks.current.length > 0) {
+              console.log('Recorder stopped, chunks:', recordedChunks.current.length);
+              if (recordedChunks.current.length > 0) {
                 const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+                console.log('Saving recording blob, size:', blob.size);
                 await saveRecording(blob, recordingTitle);
+              } else {
+                console.warn('No recorded chunks to save');
+                toast.error('No audio recorded');
               }
             } catch (err) {
               console.error('Error saving recording on stop:', err);
+              toast.error('Failed to save recording');
             } finally {
               resolve();
             }
@@ -520,11 +525,13 @@ export function useLiveStream(conversationId: string | null) {
             resolve();
           }
         });
-      }
-
-      if (!recorder && recordedChunks.current.length > 0) {
+      } else if (recordedChunks.current.length > 0) {
+        // If recorder missing but chunks exist, save anyway
         const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        console.log('Saving orphaned chunks, size:', blob.size);
         await saveRecording(blob, recordingTitle);
+      } else {
+        console.warn('No recorder and no chunks to save');
       }
     } finally {
       mediaRecorder.current = null;
@@ -541,18 +548,26 @@ export function useLiveStream(conversationId: string | null) {
 
   // Save recording
   const saveRecording = async (blob: Blob, title: string) => {
-    if (!user) return;
+    if (!user) {
+      console.error('saveRecording: No user');
+      return;
+    }
+
+    console.log('saveRecording called:', { title, blobSize: blob.size });
+    toast.loading('Saving recording...', { id: 'save-recording' });
 
     try {
       const fileName = `recording_${Date.now()}.webm`;
       const filePath = `${user.id}/${fileName}`;
 
+      console.log('Uploading to storage:', filePath);
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
         .upload(filePath, blob);
 
       if (uploadError) {
         console.error('Error uploading recording:', uploadError);
+        toast.error('Failed to upload recording', { id: 'save-recording' });
         return;
       }
 
@@ -560,68 +575,62 @@ export function useLiveStream(conversationId: string | null) {
         .from('chat-media')
         .getPublicUrl(filePath);
 
-      // Save to user's saved messages
-      const { data: participantData } = await supabase
-        .from('conversation_participants')
-        .select('conversation_id')
-        .eq('user_id', user.id);
+      console.log('Uploaded, public URL:', publicUrl);
 
+      // Find or create Saved Messages via edge function (more reliable)
       let savedConversationId: string | null = null;
 
-      if (participantData) {
-        for (const p of participantData) {
-          const { data: participants } = await supabase
-            .from('conversation_participants')
-            .select('*')
-            .eq('conversation_id', p.conversation_id);
+      try {
+        const { data, error } = await supabase.functions.invoke('create-conversation', {
+          body: { type: 'saved' }
+        });
 
-          if (participants?.length === 1 && participants[0].user_id === user.id) {
-            savedConversationId = p.conversation_id;
-            break;
-          }
+        console.log('create-conversation result:', { data, error });
+
+        if (!error && data?.id) {
+          savedConversationId = data.id;
         }
+      } catch (err) {
+        console.error('Failed to get/create Saved Messages:', err);
       }
 
       if (!savedConversationId) {
-        const { data: newConversation } = await supabase
-          .from('conversations')
-          .insert({ type: 'direct' })
-          .select()
-          .single();
-
-        if (newConversation) {
-          savedConversationId = newConversation.id;
-          await supabase
-            .from('conversation_participants')
-            .insert({
-              conversation_id: savedConversationId,
-              user_id: user.id,
-              role: 'owner'
-            });
-        }
+        console.error('Could not get Saved Messages conversation');
+        toast.error('Could not find Saved Messages', { id: 'save-recording' });
+        return;
       }
 
-      if (savedConversationId) {
-        // Create message with recording - use audio type, no emoji
-        await supabase
-          .from('messages')
-          .insert({
-            conversation_id: savedConversationId,
-            sender_id: user.id,
-            content: title || 'Live Stream Recording',
-            message_type: 'audio',
-            file_url: publicUrl,
-            file_name: `${title || 'Live Stream Recording'}.opus`,
-            file_size: blob.size
-          });
+      console.log('Inserting message into Saved Messages:', savedConversationId);
 
-        await supabase
-          .from('conversations')
-          .update({ updated_at: new Date().toISOString() })
-          .eq('id', savedConversationId);
+      // Create message with recording - use audio type
+      const { error: msgError } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: savedConversationId,
+          sender_id: user.id,
+          content: title || 'Live Stream Recording',
+          message_type: 'audio',
+          file_url: publicUrl,
+          file_name: `${title || 'Live Stream Recording'}.opus`,
+          file_size: blob.size
+        });
+
+      if (msgError) {
+        console.error('Error inserting recording message:', msgError);
+        toast.error('Failed to save recording message', { id: 'save-recording' });
+        return;
       }
+
+      await supabase
+        .from('conversations')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', savedConversationId);
+
+      console.log('Recording saved successfully!');
+      toast.success('Recording saved to Saved Messages', { id: 'save-recording' });
     } catch (error) {
       console.error('Error saving recording:', error);
+      toast.error('Failed to save recording', { id: 'save-recording' });
     }
   };
 
