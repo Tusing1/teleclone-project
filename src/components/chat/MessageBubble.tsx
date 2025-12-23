@@ -159,7 +159,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        'flex gap-2 px-4 py-0.5 animate-fade-in group',
+        'flex gap-1.5 px-2 py-0.5 animate-fade-in group',
         isOwn ? 'justify-end' : 'justify-start'
       )}
       onMouseEnter={() => setShowMenu(true)}
@@ -223,7 +223,7 @@ export function MessageBubble({
 
       <div
         className={cn(
-          'max-w-[70%] rounded-2xl px-3 py-2 shadow-sm relative',
+          'max-w-[80%] rounded-2xl px-3 py-2 shadow-sm relative',
           isOwn 
             ? 'bg-message-out text-message-out-foreground rounded-tr-sm' 
             : 'bg-message-in text-message-in-foreground rounded-tl-sm'

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark, Users, Radio, Settings, MessageCircle } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark, Users, Radio, Settings, MessageCircle, Phone, Video, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
@@ -14,6 +14,7 @@ import { ChannelSettingsDialog } from './ChannelSettingsDialog';
 import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { VoiceRecorder } from './VoiceRecorder';
 import { ScheduleCallDialog } from './ScheduleCallDialog';
+import { EditProfileDialog } from './EditProfileDialog';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
@@ -28,6 +29,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -75,6 +77,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [showLiveStreamPreview, setShowLiveStreamPreview] = useState(false);
   const [showScheduleCall, setShowScheduleCall] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
   const [isStreamMinimized, setIsStreamMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -467,12 +470,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             <Radio className="w-5 h-5 text-white" />
           </button>
         ) : (
-          <Avatar
-            src={otherProfile?.avatar_url}
-            name={displayName}
-            size="sm"
-            isOnline={otherProfile?.is_online}
-          />
+          <button onClick={() => setShowEditProfile(true)} className="cursor-pointer">
+            <Avatar
+              src={otherProfile?.avatar_url}
+              name={displayName}
+              size="sm"
+              isOnline={otherProfile?.is_online}
+            />
+          </button>
         )}
         
         <div className="flex-1 min-w-0">
@@ -524,6 +529,24 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {/* Call options for direct chats */}
+            {!isGroup && !isChannel && !isSavedMessages && (
+              <>
+                <DropdownMenuItem onClick={() => startCall('voice')}>
+                  <Phone className="h-4 w-4 mr-2" />
+                  Voice Call
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => startCall('video')}>
+                  <Video className="h-4 w-4 mr-2" />
+                  Video Call
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowEditProfile(true)}>
+                  <User className="h-4 w-4 mr-2" />
+                  View Profile
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             {isGroup && isAdminOrOwner && (
               <DropdownMenuItem onClick={() => setShowGroupSettings(true)}>
                 <Settings className="h-4 w-4 mr-2" />
@@ -566,6 +589,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           channel={conversation}
           isOwner={currentUserParticipant?.role === 'owner'}
           onRefresh={onRefreshConversations || (() => {})}
+        />
+      )}
+
+      {/* Edit Profile Dialog for direct chats */}
+      {!isGroup && !isChannel && !isSavedMessages && (
+        <EditProfileDialog
+          open={showEditProfile}
+          onClose={() => setShowEditProfile(false)}
         />
       )}
 
