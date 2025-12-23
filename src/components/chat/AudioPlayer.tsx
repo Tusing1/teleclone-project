@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, Download, Loader2 } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Download, Loader2, RotateCcw, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ interface AudioPlayerProps {
   variant?: 'default' | 'compact';
 }
 
+const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
+
 export function AudioPlayer({ url, fileName, fileSize, className, variant = 'default' }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -23,6 +25,7 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
   const [isLoading, setIsLoading] = useState(true);
   const [isCached, setIsCached] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   
   const { isFileCached, getCachedFile, downloadAndCache } = useFileCache();
 
@@ -133,6 +136,27 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
     }
   };
 
+  const cyclePlaybackSpeed = () => {
+    if (!audioRef.current) return;
+    const currentIndex = PLAYBACK_SPEEDS.indexOf(playbackSpeed);
+    const nextIndex = (currentIndex + 1) % PLAYBACK_SPEEDS.length;
+    const newSpeed = PLAYBACK_SPEEDS[nextIndex];
+    audioRef.current.playbackRate = newSpeed;
+    setPlaybackSpeed(newSpeed);
+  };
+
+  const skipBackward = () => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+    setCurrentTime(audioRef.current.currentTime);
+  };
+
+  const skipForward = () => {
+    if (!audioRef.current) return;
+    audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 10);
+    setCurrentTime(audioRef.current.currentTime);
+  };
+
   const formatTime = (time: number) => {
     if (!isFinite(time) || isNaN(time)) return '0:00';
     const minutes = Math.floor(time / 60);
@@ -166,7 +190,7 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
 
   if (variant === 'compact') {
     return (
-      <div className={cn('flex items-center gap-2 p-2 rounded-lg bg-muted/50', className)}>
+      <div className={cn('flex flex-col gap-2 p-2 rounded-lg bg-muted/50', className)}>
         {audioUrl && (
           <audio
             ref={audioRef}
@@ -177,36 +201,65 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
           />
         )}
         
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90"
-          onClick={togglePlay}
-        >
-          {isPlaying ? (
-            <Pause className="h-4 w-4 text-primary-foreground" fill="currentColor" />
-          ) : (
-            <Play className="h-4 w-4 text-primary-foreground ml-0.5" fill="currentColor" />
-          )}
-        </Button>
-        
-        <div className="flex-1 space-y-1">
-          <Slider
-            value={[currentTime]}
-            max={duration || 100}
-            step={0.1}
-            onValueChange={handleSeek}
-            className="cursor-pointer"
-          />
-          <div className="flex justify-between text-[10px] text-muted-foreground">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+        <div className="flex items-center gap-2">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={skipBackward}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+          </Button>
+          
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 rounded-full bg-primary hover:bg-primary/90"
+            onClick={togglePlay}
+          >
+            {isPlaying ? (
+              <Pause className="h-4 w-4 text-primary-foreground" fill="currentColor" />
+            ) : (
+              <Play className="h-4 w-4 text-primary-foreground ml-0.5" fill="currentColor" />
+            )}
+          </Button>
+          
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={skipForward}
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+          </Button>
+          
+          <div className="flex-1 space-y-0.5">
+            <Slider
+              value={[currentTime]}
+              max={duration || 100}
+              step={0.1}
+              onValueChange={handleSeek}
+              className="cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] text-muted-foreground">
+              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(duration)}</span>
+            </div>
           </div>
+          
+          <Button
+            size="sm"
+            variant="ghost"
+            className="h-6 px-1.5 text-xs font-medium"
+            onClick={cyclePlaybackSpeed}
+          >
+            {playbackSpeed}x
+          </Button>
+          
+          {isCached && (
+            <span className="text-[10px] text-emerald-500">●</span>
+          )}
         </div>
-        
-        {isCached && (
-          <span className="text-[10px] text-emerald-500">●</span>
-        )}
       </div>
     );
   }
@@ -250,6 +303,15 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
         <Button
           size="icon"
           variant="ghost"
+          className="h-8 w-8 shrink-0"
+          onClick={skipBackward}
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
+        
+        <Button
+          size="icon"
+          variant="ghost"
           className="h-10 w-10 rounded-full bg-primary hover:bg-primary/90 shrink-0"
           onClick={togglePlay}
         >
@@ -258,6 +320,15 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
           ) : (
             <Play className="h-5 w-5 text-primary-foreground ml-0.5" fill="currentColor" />
           )}
+        </Button>
+        
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 shrink-0"
+          onClick={skipForward}
+        >
+          <RotateCw className="h-4 w-4" />
         </Button>
         
         <div className="flex-1 space-y-1">
@@ -275,9 +346,17 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
         </div>
       </div>
       
-      {/* Volume and download */}
+      {/* Volume, speed and download */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 px-2 text-xs font-medium"
+            onClick={cyclePlaybackSpeed}
+          >
+            {playbackSpeed}x
+          </Button>
           <Button
             size="icon"
             variant="ghost"

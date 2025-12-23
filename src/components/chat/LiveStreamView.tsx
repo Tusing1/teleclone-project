@@ -62,6 +62,8 @@ interface LiveStreamViewProps {
   handRaised: boolean;
   noiseSuppression: boolean;
   onToggleNoiseSuppression: () => void;
+  onMinimize?: () => void;
+  isMinimized?: boolean;
 }
 
 export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
@@ -85,7 +87,9 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   onUpdateTitle,
   handRaised,
   noiseSuppression,
-  onToggleNoiseSuppression
+  onToggleNoiseSuppression,
+  onMinimize,
+  isMinimized = false
 }) => {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [endStreamOnLeave, setEndStreamOnLeave] = useState(false);
@@ -146,11 +150,114 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   const otherParticipants = participants.filter(p => p.user_id !== currentUserId);
   const raisedHands = participants.filter(p => p.hand_raised);
 
+  // Minimized view - floating bar at the top
+  if (isMinimized) {
+    return (
+      <div className="fixed top-0 left-0 right-0 bg-[#1a1a2e] z-40 shadow-lg border-b border-[#3a3a5e]">
+        <div className="p-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {isRecording && (
+              <div className="flex items-center gap-1 text-red-500 bg-red-500/10 px-2 py-1 rounded-full">
+                <Circle className="h-2 w-2 fill-red-500 animate-pulse" />
+                <span className="text-xs font-medium">REC</span>
+              </div>
+            )}
+            <Avatar name={channelName} src={channelAvatar} size="sm" />
+            <div>
+              <p className="text-sm font-medium text-white">{streamTitle}</p>
+              <p className="text-xs text-gray-400">{participants.length} listening</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {isAdmin ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`rounded-full ${isMuted ? 'bg-gray-600' : 'bg-primary'}`}
+                onClick={onToggleMute}
+              >
+                {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`rounded-full ${handRaised ? 'bg-yellow-500' : 'bg-gray-600'}`}
+                onClick={handRaised ? onLowerHand : onRaiseHand}
+              >
+                <Hand className="h-4 w-4 text-white" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-primary"
+              onClick={onMinimize}
+            >
+              Expand
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="bg-red-500 hover:bg-red-500/80"
+              onClick={() => setShowLeaveDialog(true)}
+            >
+              <PhoneOff className="h-4 w-4 text-white" />
+            </Button>
+          </div>
+        </div>
+        
+        {/* Leave Dialog for minimized view */}
+        <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
+          <DialogContent className="bg-[#2a2a4e] border-[#3a3a5e]">
+            <DialogHeader>
+              <DialogTitle className="text-white">Leave live stream</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Do you want to leave this live stream?
+              </DialogDescription>
+            </DialogHeader>
+            {isAdmin && (
+              <div className="flex items-center space-x-2 py-4">
+                <Checkbox 
+                  id="end-stream-minimized" 
+                  checked={endStreamOnLeave}
+                  onCheckedChange={(checked) => setEndStreamOnLeave(checked as boolean)}
+                />
+                <label htmlFor="end-stream-minimized" className="text-sm text-gray-300">
+                  End stream for everyone
+                </label>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="ghost" onClick={() => setShowLeaveDialog(false)} className="text-white">
+                Cancel
+              </Button>
+              <Button 
+                onClick={handleLeave}
+                className={endStreamOnLeave ? 'bg-red-500 hover:bg-red-600' : ''}
+              >
+                {endStreamOnLeave ? 'End Stream' : 'Leave'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-[#1a1a2e] z-50 flex flex-col">
       {/* Header */}
       <div className="p-4 flex items-center justify-between bg-[#1a1a2e]/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-white hover:bg-white/10"
+            onClick={onMinimize}
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Button>
           <Avatar name={channelName} src={channelAvatar} size="md" />
           <div>
             <h2 className="font-semibold text-white">{channelName}</h2>

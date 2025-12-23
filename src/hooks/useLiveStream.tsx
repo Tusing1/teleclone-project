@@ -288,7 +288,9 @@ export function useLiveStream(conversationId: string | null) {
 
   // End stream
   const endStream = async () => {
-    if (!activeStream) return;
+    if (!activeStream || !user || !conversationId) return;
+
+    const streamTitle = activeStream.livestream_title || 'Live Stream';
 
     if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
       mediaRecorder.current.stop();
@@ -301,6 +303,16 @@ export function useLiveStream(conversationId: string | null) {
         ended_at: new Date().toISOString() 
       })
       .eq('id', activeStream.id);
+
+    // Send a system message to notify channel members that the stream ended
+    await supabase
+      .from('messages')
+      .insert({
+        conversation_id: conversationId,
+        sender_id: user.id,
+        content: `⚫ Live Stream Ended: "${streamTitle}"`,
+        message_type: 'system'
+      });
 
     await leaveStream();
   };
