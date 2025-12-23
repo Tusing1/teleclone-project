@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Play, Pause, Download, MoreVertical, Loader2, RotateCcw, RotateCw, Check } from 'lucide-react';
+import { Play, Pause, Download, MoreVertical, Loader2, RotateCcw, RotateCw, Check, ArrowDownToLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -200,7 +200,7 @@ export function ChannelAudioPlayer({
   }
 
   return (
-    <div className={cn('rounded-xl bg-slate-800/80 overflow-hidden', className)}>
+    <div className={cn('rounded-lg bg-slate-800/80 overflow-hidden', className)}>
       {audioUrl && (
         <audio
           ref={audioRef}
@@ -211,38 +211,38 @@ export function ChannelAudioPlayer({
         />
       )}
       
-      <div className="p-3 flex items-start gap-3">
-        {/* Play/Pause button with download indicator */}
+      <div className="p-2.5 flex items-start gap-2.5">
+        {/* Play/Pause button with download indicator - removed audio icon */}
         <div className="relative shrink-0">
           <Button
             size="icon"
             variant="ghost"
-            className="h-12 w-12 rounded-full bg-sky-500 hover:bg-sky-500/90"
+            className="h-10 w-10 rounded-full bg-sky-500 hover:bg-sky-500/90"
             onClick={togglePlay}
           >
             {isPlaying ? (
-              <Pause className="h-5 w-5 text-white" fill="white" />
+              <Pause className="h-4 w-4 text-white" fill="white" />
             ) : (
-              <Play className="h-5 w-5 text-white ml-0.5" fill="white" />
+              <Play className="h-4 w-4 text-white ml-0.5" fill="white" />
             )}
           </Button>
-          {/* Download indicator arrow */}
+          {/* Download indicator */}
           {!isCached && (
             <button 
               onClick={handleDownloadToCache}
               disabled={isDownloading}
-              className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-sky-500 flex items-center justify-center border-2 border-slate-800"
+              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center border border-slate-800"
             >
               {isDownloading ? (
-                <Loader2 className="h-2.5 w-2.5 text-white animate-spin" />
+                <Loader2 className="h-2 w-2 text-white animate-spin" />
               ) : (
-                <Download className="h-2.5 w-2.5 text-white" />
+                <ArrowDownToLine className="h-2 w-2 text-white" />
               )}
             </button>
           )}
           {isCached && (
-            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center border-2 border-slate-800">
-              <Check className="h-2.5 w-2.5 text-white" />
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center border border-slate-800">
+              <Check className="h-2 w-2 text-white" />
             </div>
           )}
         </div>
@@ -317,15 +317,15 @@ export function ChannelAudioPlayer({
       </div>
       
       {/* Progress bar with controls */}
-      <div className="px-3 pb-3">
-        <div className="flex items-center gap-2">
+      <div className="px-2.5 pb-2.5">
+        <div className="flex items-center gap-1.5">
           <Button
             size="icon"
             variant="ghost"
-            className="h-6 w-6 text-slate-400 hover:text-white shrink-0"
+            className="h-5 w-5 text-slate-400 hover:text-white shrink-0"
             onClick={skipBackward}
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="h-3 w-3" />
           </Button>
           
           <Slider
@@ -339,10 +339,10 @@ export function ChannelAudioPlayer({
           <Button
             size="icon"
             variant="ghost"
-            className="h-6 w-6 text-slate-400 hover:text-white shrink-0"
+            className="h-5 w-5 text-slate-400 hover:text-white shrink-0"
             onClick={skipForward}
           >
-            <RotateCw className="h-3.5 w-3.5" />
+            <RotateCw className="h-3 w-3" />
           </Button>
         </div>
       </div>
