@@ -351,6 +351,47 @@ export function useConversations() {
     return true;
   };
 
+  const forwardToConversation = async (message: Message, conversationId: string): Promise<boolean> => {
+    if (!user) {
+      console.error('forwardToConversation: No user');
+      return false;
+    }
+
+    const forwardedContent = message.content 
+      ? `📤 Forwarded:\n${message.content}`
+      : '📤 Forwarded message';
+
+    const messageData: any = {
+      conversation_id: conversationId,
+      sender_id: user.id,
+      content: forwardedContent,
+      message_type: message.message_type,
+    };
+
+    if (message.file_url) {
+      messageData.file_url = message.file_url;
+      messageData.file_name = message.file_name;
+      messageData.file_size = message.file_size;
+    }
+
+    const { error } = await supabase
+      .from('messages')
+      .insert(messageData);
+
+    if (error) {
+      console.error('forwardToConversation: Error inserting message:', error);
+      return false;
+    }
+
+    // Update conversation timestamp
+    await supabase
+      .from('conversations')
+      .update({ updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+
+    return true;
+  };
+
   const deleteConversation = async (conversationId: string): Promise<boolean> => {
     if (!user) return false;
 
@@ -416,6 +457,7 @@ export function useConversations() {
     refetch: fetchConversations,
     savedMessagesId,
     getOrCreateSavedMessages,
-    forwardToSavedMessages
+    forwardToSavedMessages,
+    forwardToConversation
   };
 }

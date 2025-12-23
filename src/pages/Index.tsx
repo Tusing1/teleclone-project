@@ -13,6 +13,7 @@ import { ContactsDialog } from '@/components/chat/ContactsDialog';
 import { InviteFriendsDialog } from '@/components/chat/InviteFriendsDialog';
 import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
 import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
+import { ForwardMessageDialog } from '@/components/chat/ForwardMessageDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -34,6 +35,7 @@ export default function Index() {
     getUserRole,
     getOrCreateSavedMessages,
     forwardToSavedMessages,
+    forwardToConversation,
     refetch: refetchConversations
   } = useConversations();
   
@@ -46,6 +48,7 @@ export default function Index() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   
   // Discussion group navigation state
   const [discussionContext, setDiscussionContext] = useState<{
@@ -81,13 +84,30 @@ export default function Index() {
     }
   };
 
-  const handleForwardMessage = async (message: any) => {
-    const success = await forwardToSavedMessages(message);
+  // Forward message - if in Saved Messages, show destination picker; else forward to Saved Messages
+  const handleForwardMessage = async (message: MessageWithSender, fromSavedMessages: boolean = false) => {
+    if (fromSavedMessages) {
+      // From Saved Messages - show forward dialog to pick destination
+      setForwardDialogMessage(message);
+    } else {
+      // Forward to Saved Messages
+      const success = await forwardToSavedMessages(message);
+      if (success) {
+        toast.success('Message forwarded to Saved Messages');
+      } else {
+        toast.error('Failed to forward message');
+      }
+    }
+  };
+
+  const handleForwardToConversation = async (message: MessageWithSender, conversationId: string): Promise<boolean> => {
+    const success = await forwardToConversation(message, conversationId);
     if (success) {
-      toast.success('Message forwarded to Saved Messages');
+      toast.success('Message forwarded');
     } else {
       toast.error('Failed to forward message');
     }
+    return success;
   };
 
   const handleCreateGroup = async (name: string, description: string, memberIds: string[]) => {
@@ -290,6 +310,14 @@ export default function Index() {
         open={showCreateChannel}
         onClose={() => setShowCreateChannel(false)}
         onCreateChannel={handleCreateChannel}
+      />
+
+      <ForwardMessageDialog
+        open={!!forwardDialogMessage}
+        onClose={() => setForwardDialogMessage(null)}
+        message={forwardDialogMessage}
+        conversations={conversations}
+        onForward={handleForwardToConversation}
       />
     </div>
   );
