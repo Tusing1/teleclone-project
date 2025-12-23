@@ -76,6 +76,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   const [showLiveStreamPreview, setShowLiveStreamPreview] = useState(false);
   const [showScheduleCall, setShowScheduleCall] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
+  const [isStreamMinimized, setIsStreamMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -344,8 +345,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     );
   }
 
-  // Show live stream view for channels
-  if (isInStream && activeStream && isChannel) {
+  // Show live stream view for channels (can be minimized)
+  if (isInStream && activeStream && isChannel && !isStreamMinimized) {
     return (
       <LiveStreamView
         channelName={conversation.name || 'Channel'}
@@ -369,6 +370,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         handRaised={handRaised}
         noiseSuppression={noiseSuppression}
         onToggleNoiseSuppression={toggleNoiseSuppression}
+        onMinimize={() => setIsStreamMinimized(prev => !prev)}
+        isMinimized={false}
       />
     );
   }
@@ -396,13 +399,42 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
 
   return (
     <div className={cn(
-      "flex flex-col h-full",
+      "flex flex-col h-full relative",
       isChannel ? "bg-slate-900" : "bg-chat-bg"
     )}>
-      {/* Header */}
+      {/* Minimized Live Stream Bar */}
+      {isInStream && activeStream && isChannel && isStreamMinimized && (
+        <LiveStreamView
+          channelName={conversation.name || 'Channel'}
+          channelAvatar={conversation.avatar_url || undefined}
+          participants={streamParticipants}
+          isAdmin={isAdminOrOwner}
+          isMuted={isStreamMuted}
+          isRecording={isStreamRecording}
+          streamTitle={activeStream.livestream_title || 'Live Stream'}
+          currentUserId={user?.id || ''}
+          onToggleMute={toggleStreamMute}
+          onLeave={leaveStream}
+          onEnd={endStream}
+          onStartRecording={startStreamRecording}
+          onStopRecording={stopStreamRecording}
+          onRaiseHand={raiseHand}
+          onLowerHand={lowerHand}
+          onUnmuteParticipant={unmuteParticipant}
+          onMuteParticipant={muteParticipant}
+          onUpdateTitle={updateStreamTitle}
+          handRaised={handRaised}
+          noiseSuppression={noiseSuppression}
+          onToggleNoiseSuppression={toggleNoiseSuppression}
+          onMinimize={() => setIsStreamMinimized(false)}
+          isMinimized={true}
+        />
+      )}
+      {/* Header - add top margin when minimized stream bar is visible */}
       <div className={cn(
         "flex items-center gap-3 p-3 border-b",
-        isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border"
+        isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border",
+        isStreamMinimized && isInStream && "mt-14"
       )}>
         <Button 
           variant="ghost" 
