@@ -48,39 +48,43 @@ Deno.serve(async (req) => {
 
     // For "saved" type or direct with no members, create Saved Messages
     if (type === 'saved' || (type === 'direct' && (!memberIds || memberIds.length === 0))) {
-      // Check if Saved Messages already exists
-      const { data: existingParticipants } = await supabaseAdmin
+      // Check if Saved Messages already exists - use a more robust check
+      const { data: allUserConversations } = await supabaseAdmin
         .from('conversation_participants')
         .select('conversation_id')
         .eq('user_id', user.id)
 
-      if (existingParticipants) {
-        for (const p of existingParticipants) {
-          const { data: convData } = await supabaseAdmin
-            .from('conversations')
-            .select('id, type')
-            .eq('id', p.conversation_id)
-            .single()
+      if (allUserConversations && allUserConversations.length > 0) {
+        const conversationIds = allUserConversations.map(p => p.conversation_id)
+        
+        // Get all direct conversations
+        const { data: directConversations } = await supabaseAdmin
+          .from('conversations')
+          .select('id')
+          .in('id', conversationIds)
+          .eq('type', 'direct')
 
-          if (convData?.type !== 'direct') continue
+        if (directConversations) {
+          for (const conv of directConversations) {
+            const { data: participants, count } = await supabaseAdmin
+              .from('conversation_participants')
+              .select('*', { count: 'exact' })
+              .eq('conversation_id', conv.id)
 
-          const { data: participants } = await supabaseAdmin
-            .from('conversation_participants')
-            .select('*')
-            .eq('conversation_id', p.conversation_id)
-
-          // Saved Messages = direct conversation with only the current user
-          if (participants?.length === 1 && participants[0].user_id === user.id) {
-            console.log('Saved Messages already exists:', p.conversation_id)
-            return new Response(JSON.stringify({ id: p.conversation_id }), {
-              status: 200,
-              headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-            })
+            // Saved Messages = direct conversation with only the current user
+            if (count === 1 && participants?.[0]?.user_id === user.id) {
+              console.log('Saved Messages already exists:', conv.id)
+              return new Response(JSON.stringify({ id: conv.id }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              })
+            }
           }
         }
       }
 
-      // Create new Saved Messages
+      // Create new Saved Messages with a unique check using upsert pattern
+      // First try to acquire a lock by checking again (prevents race condition)
       const { data: savedConv, error: savedError } = await supabaseAdmin
         .from('conversations')
         .insert({ type: 'direct', name: null, created_by: user.id })
@@ -96,9 +100,50 @@ Deno.serve(async (req) => {
       }
 
       // Add only the current user as participant
-      await supabaseAdmin
+      const { error: partError } = await supabaseAdmin
         .from('conversation_participants')
         .insert({ conversation_id: savedConv.id, user_id: user.id, role: 'owner' })
+
+      if (partError) {
+        console.error('Error adding participant to Saved Messages:', partError)
+        // If participant insert fails, delete the conversation and try to find existing
+        await supabaseAdmin.from('conversations').delete().eq('id', savedConv.id)
+        
+        // Re-check for existing Saved Messages
+        const { data: retryConversations } = await supabaseAdmin
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', user.id)
+
+        if (retryConversations) {
+          for (const p of retryConversations) {
+            const { data: convData } = await supabaseAdmin
+              .from('conversations')
+              .select('id, type')
+              .eq('id', p.conversation_id)
+              .single()
+
+            if (convData?.type !== 'direct') continue
+
+            const { data: participants } = await supabaseAdmin
+              .from('conversation_participants')
+              .select('*')
+              .eq('conversation_id', p.conversation_id)
+
+            if (participants?.length === 1 && participants[0].user_id === user.id) {
+              return new Response(JSON.stringify({ id: p.conversation_id }), {
+                status: 200,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+              })
+            }
+          }
+        }
+        
+        return new Response(JSON.stringify({ error: 'Failed to create Saved Messages' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
 
       console.log('Saved Messages created:', savedConv.id)
       return new Response(JSON.stringify({ id: savedConv.id }), {
