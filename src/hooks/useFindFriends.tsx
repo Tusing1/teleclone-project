@@ -234,9 +234,23 @@ export function useFindFriends() {
           .eq('swiper_id', swipedUser.user_id)
           .eq('swiped_id', user.id)
           .eq('direction', 'right')
-          .single();
+          .maybeSingle();
 
         if (theirSwipe) {
+          // Check if match already exists (prevents duplicate match errors)
+          const { data: existingMatch } = await supabase
+            .from('user_matches')
+            .select('*')
+            .or(`and(user1_id.eq.${user.id},user2_id.eq.${swipedUser.user_id}),and(user1_id.eq.${swipedUser.user_id},user2_id.eq.${user.id})`)
+            .maybeSingle();
+
+          if (existingMatch) {
+            // Match already exists, just return success
+            await fetchMatches();
+            setCurrentIndex(prev => prev + 1);
+            return { matched: true, user: swipedUser, conversationId: existingMatch.conversation_id };
+          }
+
           // It's a match! Create a conversation
           const { data: conversation, error: convError } = await supabase
             .from('conversations')
@@ -250,10 +264,14 @@ export function useFindFriends() {
           if (convError) throw convError;
 
           // Add both participants
-          await supabase.from('conversation_participants').insert([
+          const { error: partError } = await supabase.from('conversation_participants').insert([
             { conversation_id: conversation.id, user_id: user.id, role: 'member' },
             { conversation_id: conversation.id, user_id: swipedUser.user_id, role: 'member' }
           ]);
+
+          if (partError) {
+            console.error('Error adding participants:', partError);
+          }
 
           // Create the match record
           const { error: matchError } = await supabase
@@ -264,7 +282,10 @@ export function useFindFriends() {
               conversation_id: conversation.id
             });
 
-          if (matchError) throw matchError;
+          if (matchError) {
+            console.error('Error creating match:', matchError);
+            // Even if match record fails, conversation was created - still return success
+          }
 
           // Refresh matches
           await fetchMatches();
