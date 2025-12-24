@@ -38,7 +38,14 @@ export default function Auth() {
 
   useEffect(() => {
     if (user) {
-      navigate('/');
+      // Check for pending invite code
+      const pendingInviteCode = sessionStorage.getItem('pendingInviteCode');
+      if (pendingInviteCode) {
+        sessionStorage.removeItem('pendingInviteCode');
+        navigate(`/invite/${pendingInviteCode}`);
+      } else {
+        navigate('/');
+      }
     }
   }, [user, navigate]);
 
