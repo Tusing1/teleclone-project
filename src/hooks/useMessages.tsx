@@ -193,8 +193,48 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
   const uploadFile = async (file: File): Promise<{ url: string; name: string; size: number } | null> => {
     if (!user) return null;
 
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}/${Date.now()}.${fileExt}`;
+    // Define allowed MIME types and their valid extensions
+    const ALLOWED_TYPES: Record<string, string[]> = {
+      'image/jpeg': ['.jpg', '.jpeg'],
+      'image/png': ['.png'],
+      'image/gif': ['.gif'],
+      'image/webp': ['.webp'],
+      'application/pdf': ['.pdf'],
+      'audio/mpeg': ['.mp3'],
+      'audio/webm': ['.webm'],
+      'audio/ogg': ['.ogg'],
+      'audio/wav': ['.wav'],
+      'video/mp4': ['.mp4'],
+      'video/webm': ['.webm'],
+      'text/plain': ['.txt'],
+      'application/msword': ['.doc'],
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+    };
+
+    const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB general limit
+    const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB for images
+
+    // Validate MIME type
+    if (!ALLOWED_TYPES[file.type]) {
+      console.error('File type not allowed:', file.type);
+      return null;
+    }
+
+    // Validate extension matches MIME type
+    const fileExt = `.${file.name.split('.').pop()?.toLowerCase()}`;
+    if (!ALLOWED_TYPES[file.type].includes(fileExt)) {
+      console.error('File extension does not match MIME type:', fileExt, file.type);
+      return null;
+    }
+
+    // Validate file size based on type
+    const maxSize = file.type.startsWith('image/') ? MAX_IMAGE_SIZE : MAX_FILE_SIZE;
+    if (file.size > maxSize) {
+      console.error('File too large:', file.size, 'max:', maxSize);
+      return null;
+    }
+
+    const fileName = `${user.id}/${Date.now()}${fileExt}`;
 
     const { error: uploadError } = await supabase.storage
       .from('chat-media')
