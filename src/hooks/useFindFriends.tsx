@@ -228,7 +228,9 @@ export function useFindFriends() {
 
       // Check for match if swiped right
       if (direction === 'right') {
-        const { data: theirSwipe } = await supabase
+        console.log('Checking for mutual swipe from:', swipedUser.user_id, 'to:', user.id);
+        
+        const { data: theirSwipe, error: swipeCheckError } = await supabase
           .from('user_swipes')
           .select('*')
           .eq('swiper_id', swipedUser.user_id)
@@ -236,15 +238,28 @@ export function useFindFriends() {
           .eq('direction', 'right')
           .maybeSingle();
 
+        if (swipeCheckError) {
+          console.error('Error checking for mutual swipe:', swipeCheckError);
+        }
+
+        console.log('Their swipe result:', theirSwipe);
+
         if (theirSwipe) {
+          console.log('Mutual swipe detected! Creating match...');
+          
           // Check if match already exists (prevents duplicate match errors)
-          const { data: existingMatch } = await supabase
+          const { data: existingMatch, error: existingMatchError } = await supabase
             .from('user_matches')
             .select('*')
             .or(`and(user1_id.eq.${user.id},user2_id.eq.${swipedUser.user_id}),and(user1_id.eq.${swipedUser.user_id},user2_id.eq.${user.id})`)
             .maybeSingle();
 
+          if (existingMatchError) {
+            console.error('Error checking existing match:', existingMatchError);
+          }
+
           if (existingMatch) {
+            console.log('Match already exists:', existingMatch);
             // Match already exists, just return success
             await fetchMatches();
             setCurrentIndex(prev => prev + 1);
@@ -252,6 +267,7 @@ export function useFindFriends() {
           }
 
           // It's a match! Create a conversation
+          console.log('Creating new conversation for match...');
           const { data: conversation, error: convError } = await supabase
             .from('conversations')
             .insert({
@@ -261,7 +277,12 @@ export function useFindFriends() {
             .select()
             .single();
 
-          if (convError) throw convError;
+          if (convError) {
+            console.error('Error creating conversation:', convError);
+            throw convError;
+          }
+
+          console.log('Created conversation:', conversation.id);
 
           // Add both participants
           const { error: partError } = await supabase.from('conversation_participants').insert([
@@ -286,6 +307,8 @@ export function useFindFriends() {
             console.error('Error creating match:', matchError);
             // Even if match record fails, conversation was created - still return success
           }
+
+          console.log('Match created successfully!');
 
           // Refresh matches
           await fetchMatches();
