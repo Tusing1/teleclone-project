@@ -214,7 +214,7 @@ export default function Index() {
   const showChat = !isMobile || selectedConversationId;
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-full h-[100dvh] overflow-hidden bg-background safe-top safe-bottom">
       {/* Sidebar menu */}
       <Sidebar 
         open={showSidebar} 

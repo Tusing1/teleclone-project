@@ -1,4 +1,5 @@
-// Service Worker for Push Notifications
+// Service Worker for StudyGram PWA + Push Notifications
+const CACHE_NAME = 'studygram-v1';
 
 self.addEventListener('install', function(event) {
   console.log('[Service Worker] Installing...');
@@ -10,14 +11,20 @@ self.addEventListener('activate', function(event) {
   event.waitUntil(clients.claim());
 });
 
+// Fetch event - pass through (let vite-plugin-pwa handle caching)
+self.addEventListener('fetch', function(event) {
+  // Skip non-GET requests
+  if (event.request.method !== 'GET') return;
+});
+
 self.addEventListener('push', function(event) {
   console.log('[Service Worker] Push Received.');
   
   let data = {
-    title: 'New Notification',
+    title: 'StudyGram',
     body: 'You have a new update',
-    icon: '/favicon.ico',
-    badge: '/favicon.ico',
+    icon: '/pwa-192x192.png',
+    badge: '/pwa-192x192.png',
     tag: 'notification',
     data: {}
   };
@@ -32,8 +39,8 @@ self.addEventListener('push', function(event) {
 
   const options = {
     body: data.body,
-    icon: data.icon || '/favicon.ico',
-    badge: data.badge || '/favicon.ico',
+    icon: data.icon || '/pwa-192x192.png',
+    badge: data.badge || '/pwa-192x192.png',
     tag: data.tag || 'notification',
     data: data.data || {},
     vibrate: [100, 50, 100, 50, 100],
@@ -44,7 +51,6 @@ self.addEventListener('push', function(event) {
   event.waitUntil(
     self.registration.showNotification(data.title, options)
       .then(() => {
-        // Notify all clients to play notification sound
         return clients.matchAll({ type: 'window', includeUncontrolled: true });
       })
       .then((clientList) => {
@@ -66,7 +72,6 @@ self.addEventListener('notificationclick', function(event) {
   const data = event.notification.data || {};
   let urlToOpen = '/';
 
-  // Navigate based on notification type
   if (data.conversationId) {
     urlToOpen = `/?conversation=${data.conversationId}`;
   } else if (data.type === 'match') {
@@ -78,7 +83,6 @@ self.addEventListener('notificationclick', function(event) {
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true })
       .then(function(clientList) {
-        // If a window is already open, focus it and navigate
         for (let i = 0; i < clientList.length; i++) {
           const client = clientList[i];
           if (client.url.includes(self.location.origin) && 'focus' in client) {
@@ -92,7 +96,6 @@ self.addEventListener('notificationclick', function(event) {
             });
           }
         }
-        // Otherwise open a new window
         if (clients.openWindow) {
           return clients.openWindow(urlToOpen);
         }
