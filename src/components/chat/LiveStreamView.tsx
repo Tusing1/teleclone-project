@@ -425,13 +425,14 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <Button
               variant="outline"
               size="sm"
-              className="hidden md:flex bg-primary/20 hover:bg-primary/30 text-primary border-primary/50 text-[10px] font-bold h-7 animate-pulse"
+              className="flex bg-primary/20 hover:bg-primary/30 text-primary border-primary/50 text-[10px] font-bold h-7 md:h-8 animate-pulse px-2 md:px-3"
               onClick={() => {
                 const audios = document.querySelectorAll('audio');
                 audios.forEach(a => a.play().catch(() => { }));
                 toast.success('Audio system refreshed');
               }}
             >
+              <Volume2 className="h-3 w-3 mr-1" />
               Resume Audio
             </Button>
             <div className="relative">
