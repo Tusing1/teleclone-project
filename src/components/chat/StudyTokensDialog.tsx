@@ -82,6 +82,20 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
       key: 'EXTENDED_AI' as const,
       description: 'Higher AI usage limits'
     },
+    { 
+      name: 'Unlock AI Chat', 
+      cost: TOKEN_COSTS.UNLOCK_AI_CHAT, 
+      icon: Bot, 
+      key: 'UNLOCK_AI_CHAT' as const,
+      description: 'Access the AI assistant'
+    },
+    { 
+      name: 'Longer Calls (2hr)', 
+      cost: TOKEN_COSTS.LONGER_CALLS, 
+      icon: Phone, 
+      key: 'LONGER_CALLS' as const,
+      description: 'Extend call limit to 2 hours'
+    },
   ];
 
   const handleUnlock = async (feature: keyof typeof TOKEN_COSTS) => {
@@ -185,6 +199,44 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
             )}
           </div>
         </div>
+
+        {/* Milestone Progress Tracker */}
+        {streak && (
+          <div className="bg-secondary/30 rounded-lg p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2">Streak Milestones</p>
+            <div className="flex items-center gap-1">
+              {[7, 14, 30].map((milestone, index) => {
+                const isAchieved = streak.current_streak >= milestone;
+                const isNext = !isAchieved && (index === 0 || streak.current_streak >= [7, 14, 30][index - 1]);
+                const progress = isNext ? (streak.current_streak / milestone) * 100 : 0;
+                const bonusTokens = milestone === 7 ? 25 : milestone === 14 ? 50 : 100;
+                
+                return (
+                  <div key={milestone} className="flex-1">
+                    <div className="relative">
+                      <div className={`h-2 rounded-full ${isAchieved ? 'bg-green-500' : 'bg-secondary'}`}>
+                        {isNext && (
+                          <div 
+                            className="h-full bg-yellow-500 rounded-full transition-all"
+                            style={{ width: `${Math.min(progress, 100)}%` }}
+                          />
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-center mt-1">
+                      <p className={`text-[10px] font-medium ${isAchieved ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        {milestone} days
+                      </p>
+                      <p className={`text-[9px] ${isAchieved ? 'text-green-500' : 'text-muted-foreground'}`}>
+                        +{bonusTokens} 🪙
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         <Tabs defaultValue="earn" className="mt-2">
           <TabsList className="grid w-full grid-cols-4">
