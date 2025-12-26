@@ -928,6 +928,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      has_user_relationship: {
+        Args: { _profile_user_id: string; _viewer_id: string }
+        Returns: boolean
+      }
       is_conversation_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
