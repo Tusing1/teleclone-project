@@ -244,9 +244,31 @@ export function useStudyTokens() {
           });
       }
 
+      // Calculate tokens earned (base + milestone bonuses)
+      let baseReward = TOKEN_REWARDS.DAILY_LOGIN;
+      let milestoneBonus = 0;
+      let milestoneMessage = '';
+
+      // Check for milestone bonuses
+      if (newStreak === 7) {
+        milestoneBonus = 25;
+        milestoneMessage = '🎉 7-day streak milestone!';
+      } else if (newStreak === 14) {
+        milestoneBonus = 50;
+        milestoneMessage = '🔥 14-day streak milestone!';
+      } else if (newStreak === 30) {
+        milestoneBonus = 100;
+        milestoneMessage = '🏆 30-day streak milestone!';
+      }
+
+      const totalReward = baseReward + milestoneBonus;
+
       // Award tokens for daily login
-      const baseReward = TOKEN_REWARDS.DAILY_LOGIN;
-      await earnTokens(baseReward, 'daily_login', `Day ${newStreak} streak bonus`);
+      if (milestoneBonus > 0) {
+        await earnTokens(totalReward, 'daily_login', `Day ${newStreak} + ${milestoneMessage}`);
+      } else {
+        await earnTokens(baseReward, 'daily_login', `Day ${newStreak} streak bonus`);
+      }
 
       // Mark as checked for this session
       sessionStorage.setItem(sessionKey, 'true');
@@ -254,7 +276,12 @@ export function useStudyTokens() {
       // Refresh streak data
       await fetchStreak();
 
-      return { streak: newStreak, tokensEarned: baseReward };
+      return { 
+        streak: newStreak, 
+        tokensEarned: totalReward, 
+        milestoneBonus,
+        milestoneMessage 
+      };
     } catch (error) {
       console.error('Error checking daily login:', error);
       return null;
