@@ -538,8 +538,7 @@ export function useCalls(conversationId: string | null) {
     }
 
     // Clean up signals
-    await supabase
-      .from('call_signals')
+    await (supabase.from('call_signals') as any)
       .delete()
       .eq('call_id', activeCall.id)
       .eq('from_user', user.id);
@@ -566,8 +565,7 @@ export function useCalls(conversationId: string | null) {
     }
 
     // Clean up all signals for this call
-    await supabase
-      .from('call_signals')
+    await (supabase.from('call_signals') as any)
       .delete()
       .eq('call_id', activeCall.id);
 
