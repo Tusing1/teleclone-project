@@ -32,21 +32,23 @@ import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Phone, Radio, Bell } from 'lucide-react';
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   // Initialize notification sound listener
   useNotificationSound();
-  
+
   // Study tokens hook for daily login tracking
   const { checkDailyLogin } = useStudyTokens();
-  
+
   // Referrals hook for processing pending referral codes
   const { processReferralCode } = useReferrals();
-  
+
   // Check daily login on app load
   useEffect(() => {
     if (user) {
@@ -62,10 +64,10 @@ export default function Index() {
     }
   }, [user, checkDailyLogin]);
 
-  const { 
-    conversations, 
+  const {
+    conversations,
     archivedConversations,
-    loading: convLoading, 
+    loading: convLoading,
     createConversation,
     createGroup,
     createChannel,
@@ -78,7 +80,7 @@ export default function Index() {
     forwardToConversation,
     refetch: refetchConversations
   } = useConversations();
-  
+
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -101,7 +103,7 @@ export default function Index() {
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
-  
+
   // Discussion group navigation state
   const [discussionContext, setDiscussionContext] = useState<{
     parentChannel: ConversationWithDetails | null;
@@ -140,6 +142,73 @@ export default function Index() {
       });
     }
   }, [user, processReferralCode]);
+
+  // Global call and livestream notifications
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('🔔 Initializing global call listener for user:', user.id);
+
+    // Listen for new calls
+    const callsSubscription = supabase
+      .channel('global-calls')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'calls' },
+        async (payload) => {
+          const newCall = payload.new;
+          if (newCall.started_by === user.id) return;
+
+          // Check if user is participant in this conversation
+          const isParticipant = conversations.some(c => c.id === newCall.conversation_id);
+          if (isParticipant) {
+            const conv = conversations.find(c => c.id === newCall.conversation_id);
+            toast(
+              `Incoming ${newCall.call_type} call from ${conv?.name || 'someone'}`,
+              {
+                icon: <Phone className="h-4 w-4 text-green-500" />,
+                action: {
+                  label: 'Join',
+                  onClick: () => setSelectedConversationId(newCall.conversation_id)
+                },
+                duration: 10000
+              }
+            );
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'livestreams' },
+        async (payload) => {
+          const newStream = payload.new;
+          if (newStream.requested_by === user.id) return;
+
+          // Check if user is participant in this conversation
+          const isParticipant = conversations.some(c => c.id === newStream.conversation_id);
+          if (isParticipant) {
+            const conv = conversations.find(c => c.id === newStream.conversation_id);
+            toast(
+              `Live Stream started in ${conv?.name || 'Channel'}`,
+              {
+                icon: <Radio className="h-4 w-4 text-primary animate-pulse" />,
+                description: newStream.livestream_title || 'Join the live broadcast!',
+                action: {
+                  label: 'View',
+                  onClick: () => setSelectedConversationId(newStream.conversation_id)
+                },
+                duration: 8000
+              }
+            );
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(callsSubscription);
+    };
+  }, [user, conversations]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -259,12 +328,12 @@ export default function Index() {
   const selectedConversation = [...conversations, ...archivedConversations].find(
     c => c.id === selectedConversationId
   );
-  
+
   // Check if current conversation is a discussion group (has a parent channel linking to it)
   const isDiscussionGroup = selectedConversation && conversations.some(
     c => c.type === 'channel' && c.linked_discussion_id === selectedConversation.id
   );
-  
+
   // Get parent channel if in discussion
   const parentChannel = isDiscussionGroup ? conversations.find(
     c => c.type === 'channel' && c.linked_discussion_id === selectedConversation?.id
@@ -288,8 +357,8 @@ export default function Index() {
   return (
     <div className="flex h-full h-[100dvh] overflow-hidden bg-background safe-top safe-bottom">
       {/* Sidebar menu */}
-      <Sidebar 
-        open={showSidebar} 
+      <Sidebar
+        open={showSidebar}
         onClose={() => setShowSidebar(false)}
         onOpenSavedMessages={handleOpenSavedMessages}
         onOpenArchived={() => setShowArchived(true)}
@@ -310,7 +379,7 @@ export default function Index() {
       />
 
       {/* Conversation list */}
-      <div 
+      <div
         className={cn(
           'relative w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 transition-all',
           !showChatList && 'hidden md:block'
@@ -334,7 +403,7 @@ export default function Index() {
       </div>
 
       {/* Chat view */}
-      <div 
+      <div
         className={cn(
           'flex-1 min-w-0 md:p-0',
           !showChat && 'hidden md:block'
@@ -358,7 +427,7 @@ export default function Index() {
               onRefreshConversations={refetchConversations}
             />
           ) : (
-            <ChatView 
+            <ChatView
               conversation={selectedConversation}
               onBack={() => setSelectedConversationId(null)}
               onForwardMessage={handleForwardMessage}
@@ -379,7 +448,7 @@ export default function Index() {
         onClose={() => setShowNewChat(false)}
         onSelectUser={handleSelectUser}
       />
-      
+
       <ArchivedChatsDialog
         open={showArchived}
         onClose={() => setShowArchived(false)}
@@ -387,25 +456,25 @@ export default function Index() {
         onUnarchive={handleUnarchiveConversation}
         onSelectConversation={setSelectedConversationId}
       />
-      
+
       <ContactsDialog
         open={showContacts}
         onClose={() => setShowContacts(false)}
         onSelectUser={handleSelectUser}
         onOpenInvite={() => setShowInviteFriends(true)}
       />
-      
+
       <InviteFriendsDialog
         open={showInviteFriends}
         onClose={() => setShowInviteFriends(false)}
       />
-      
+
       <CreateGroupDialog
         open={showCreateGroup}
         onClose={() => setShowCreateGroup(false)}
         onCreateGroup={handleCreateGroup}
       />
-      
+
       <CreateChannelDialog
         open={showCreateChannel}
         onClose={() => setShowCreateChannel(false)}
