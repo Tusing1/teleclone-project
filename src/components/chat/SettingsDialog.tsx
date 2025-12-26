@@ -1,0 +1,160 @@
+import { useState, useEffect } from 'react';
+import { Download, Moon, Sun, Bell, Shield, HelpCircle, Info, ExternalLink, Smartphone } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
+import { useTheme } from '@/hooks/useTheme';
+import { useNavigate } from 'react-router-dom';
+
+interface SettingsDialogProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
+  const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+
+  useEffect(() => {
+    // Check if already installed
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstalled(true);
+    }
+
+    // Listen for the beforeinstallprompt event
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setIsInstalled(true);
+      }
+      setDeferredPrompt(null);
+    } else {
+      // Navigate to install page for instructions
+      navigate('/install');
+      onClose();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Settings</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Appearance */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Appearance</h3>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                {theme === 'dark' ? (
+                  <Moon className="h-5 w-5 text-muted-foreground" />
+                ) : (
+                  <Sun className="h-5 w-5 text-muted-foreground" />
+                )}
+                <div>
+                  <Label htmlFor="dark-mode">Dark Mode</Label>
+                  <p className="text-xs text-muted-foreground">Switch between light and dark themes</p>
+                </div>
+              </div>
+              <Switch
+                id="dark-mode"
+                checked={theme === 'dark'}
+                onCheckedChange={toggleTheme}
+              />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Install App */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">App</h3>
+            
+            <button
+              onClick={handleInstallApp}
+              disabled={isInstalled}
+              className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                <Smartphone className="h-5 w-5 text-primary" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-medium">{isInstalled ? 'App Installed' : 'Install App'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {isInstalled ? 'The app is already installed on your device' : 'Add to your home screen for quick access'}
+                </p>
+              </div>
+              {!isInstalled && <Download className="h-5 w-5 text-muted-foreground" />}
+            </button>
+          </div>
+
+          <Separator />
+
+          {/* About */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">About</h3>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/30">
+                <div className="flex items-center gap-3">
+                  <Info className="h-5 w-5 text-muted-foreground" />
+                  <span>Version</span>
+                </div>
+                <span className="text-muted-foreground">1.0.0</span>
+              </div>
+
+              <button
+                onClick={() => window.open('https://help.example.com', '_blank')}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
+              >
+                <HelpCircle className="h-5 w-5 text-muted-foreground" />
+                <span className="flex-1 text-left">Help & Support</span>
+                <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              </button>
+
+              <button
+                onClick={() => window.open('https://privacy.example.com', '_blank')}
+                className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
+              >
+                <Shield className="h-5 w-5 text-muted-foreground" />
+                <span className="flex-1 text-left">Privacy Policy</span>
+                <ExternalLink className="h-4 w-4 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+
+          {/* Close Button */}
+          <Button variant="outline" onClick={onClose} className="w-full">
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -1,6 +1,6 @@
 import { 
   LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact, Heart, Bell, Phone, Coins, Search, Shield, Bot 
+  Users, UserPlus, Radio, Contact, Heart, Bell, Phone, Coins, Search, Shield, Bot, Download 
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ interface SidebarProps {
   onOpenAdminPanel?: () => void;
   onOpenAskAI?: () => void;
   onOpenFriendRequests?: () => void;
+  onOpenSettings?: () => void;
 }
 
 export function Sidebar({ 
@@ -50,7 +51,8 @@ export function Sidebar({
   onOpenGlobalSearch,
   onOpenAdminPanel,
   onOpenAskAI,
-  onOpenFriendRequests
+  onOpenFriendRequests,
+  onOpenSettings
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -253,7 +255,10 @@ export function Sidebar({
               <span>Notifications</span>
             </button>
 
-            <button className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors">
+            <button 
+              onClick={() => onOpenSettings && handleMenuClick(onOpenSettings)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
               <Settings className="h-5 w-5 text-muted-foreground" />
               <span>Settings</span>
             </button>
