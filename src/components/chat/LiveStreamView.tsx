@@ -44,6 +44,26 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 
+const WaveVisualizer: React.FC<{ level: number, isMuted: boolean }> = ({ level, isMuted }) => {
+  return (
+    <div className="flex items-center gap-0.5 h-4 w-12">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div
+          key={i}
+          className={cn(
+            "w-1 rounded-full transition-all duration-75 bg-primary",
+            isMuted ? "h-1 opacity-20" : ""
+          )}
+          style={{
+            height: isMuted ? '4px' : `${Math.max(4, level * 20 * (0.5 + Math.random() * 0.5))}px`,
+            opacity: isMuted ? 0.2 : 0.4 + (level * 0.6)
+          }}
+        />
+      ))}
+    </div>
+  );
+};
+
 interface LiveStreamViewProps {
   channelName: string;
   channelAvatar?: string;
@@ -89,7 +109,7 @@ const ParticipantRow: React.FC<ParticipantRowProps> = ({
   onMuteParticipant,
   onUnmuteParticipant
 }) => {
-  const { isSpeaking } = useAudioLevel(stream || null);
+  const { isSpeaking, audioLevel } = useAudioLevel(stream || null);
 
   return (
     <div className={cn(
@@ -125,9 +145,12 @@ const ParticipantRow: React.FC<ParticipantRowProps> = ({
                 <Hand className="h-3 w-3" /> Hand Raised
               </span>
             ) : isSpeaking && !participant.is_muted ? (
-              <span className="text-primary/70 text-[10px] uppercase font-bold tracking-wider animate-pulse">
-                Speaking...
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-primary/70 text-[10px] uppercase font-bold tracking-wider animate-pulse">
+                  Speaking
+                </span>
+                <WaveVisualizer level={audioLevel} isMuted={false} />
+              </div>
             ) : (
               <span className="text-gray-500 text-[10px] uppercase font-bold tracking-wider">
                 Listening
@@ -382,6 +405,19 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-3">
+            {/* Audio Autoplay Fallback */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="hidden md:flex bg-primary/20 hover:bg-primary/30 text-primary border-primary/50 text-[10px] font-bold h-7 animate-pulse"
+              onClick={() => {
+                const audios = document.querySelectorAll('audio');
+                audios.forEach(a => a.play().catch(() => { }));
+                toast.success('Audio system refreshed');
+              }}
+            >
+              Resume Audio
+            </Button>
             <div className="relative">
               <Avatar name={channelName} src={channelAvatar} size="md" className="ring-2 ring-white/10 shadow-xl" />
               <div className="absolute -bottom-1 -right-1 p-1 bg-primary rounded-full border-2 border-[#0a0a1a]">
@@ -734,9 +770,6 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* Hidden Audio Elements */}
-      {renderRemoteAudio()}
     </div>
   );
 };
