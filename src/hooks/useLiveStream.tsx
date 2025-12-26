@@ -135,6 +135,7 @@ export function useLiveStream(conversationId: string | null) {
     // Handle ICE candidates
     pc.onicecandidate = async (event) => {
       if (event.candidate && user) {
+        console.log(`📡 Sending ICE Candidate to ${remoteUserId}`);
         await supabase.from('call_signals').insert({
           call_id: callId,
           from_user: user.id,
@@ -143,6 +144,21 @@ export function useLiveStream(conversationId: string | null) {
           signal_data: event.candidate.toJSON() as any
         });
       }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log(`🌐 ICE connection state with ${remoteUserId}: ${pc.iceConnectionState}`);
+      if (pc.iceConnectionState === 'failed') {
+        pc.restartIce();
+      }
+    };
+
+    pc.onsignalingstatechange = () => {
+      console.log(`🚥 Signaling state with ${remoteUserId}: ${pc.signalingState}`);
+    };
+
+    pc.onconnectionstatechange = () => {
+      console.log(`🔌 Connection state with ${remoteUserId}: ${pc.connectionState}`);
     };
 
     return pc;
@@ -853,6 +869,24 @@ export function useLiveStream(conversationId: string | null) {
       }
     };
   }, [cleanup]);
+
+  // Mute effect
+  useEffect(() => {
+    if (!user || !activeStream || !localStream) return;
+
+    const currentUserParticipant = participants.find(p => p.user_id === user.id);
+    if (currentUserParticipant) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        const shouldBeEnabled = !currentUserParticipant.is_muted;
+        if (audioTrack.enabled !== shouldBeEnabled) {
+          console.log(`🎤 Hardware Sync: Participant state is ${currentUserParticipant.is_muted ? 'MUTED' : 'UNMUTED'}. Adjusting mic...`);
+          audioTrack.enabled = shouldBeEnabled;
+          setIsMuted(currentUserParticipant.is_muted);
+        }
+      }
+    }
+  }, [participants, user, activeStream?.id, localStream]);
 
   return {
     activeStream,
