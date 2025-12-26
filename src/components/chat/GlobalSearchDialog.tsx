@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, AtSign, MessageCircle, UserPlus, Loader2 } from 'lucide-react';
+import { Search, AtSign, MessageCircle, UserPlus, Loader2, Clock, Check } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,9 +10,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Textarea } from '@/components/ui/textarea';
 import { Avatar } from './Avatar';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
+import { useFriendRequests } from '@/hooks/useFriendRequests';
 import { Profile } from '@/types/chat';
 import { toast } from 'sonner';
 
@@ -24,10 +26,14 @@ interface GlobalSearchDialogProps {
 
 export function GlobalSearchDialog({ open, onClose, onSelectUser }: GlobalSearchDialogProps) {
   const { user } = useAuth();
+  const { sendRequest, getRequestStatus, refetch } = useFriendRequests();
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [requestMessage, setRequestMessage] = useState('');
+  const [existingFriends, setExistingFriends] = useState<Set<string>>(new Set());
 
   const handleSearch = async () => {
     if (!search.trim()) return;
@@ -50,9 +56,39 @@ export function GlobalSearchDialog({ open, onClose, onSelectUser }: GlobalSearch
       
       setResults((data || []) as Profile[]);
       
+      // Check which users we already have conversations with
+      if (data && data.length > 0) {
+        const friendSet = new Set<string>();
+        
+        // Get all conversations the current user is in
+        const { data: myConvs } = await supabase
+          .from('conversation_participants')
+          .select('conversation_id')
+          .eq('user_id', user?.id);
+
+        if (myConvs) {
+          for (const conv of myConvs) {
+            const { data: participants } = await supabase
+              .from('conversation_participants')
+              .select('user_id')
+              .eq('conversation_id', conv.conversation_id);
+            
+            if (participants && participants.length === 2) {
+              const other = participants.find(p => p.user_id !== user?.id);
+              if (other) friendSet.add(other.user_id);
+            }
+          }
+        }
+        
+        setExistingFriends(friendSet);
+      }
+      
       if (!data || data.length === 0) {
         toast.info('No users found');
       }
+      
+      // Refresh friend requests to get latest status
+      await refetch();
     } catch (error) {
       console.error('Error searching:', error);
       toast.error('Search failed');
@@ -61,12 +97,17 @@ export function GlobalSearchDialog({ open, onClose, onSelectUser }: GlobalSearch
     }
   };
 
-  const handleSelect = (userId: string) => {
+  const handleSendRequest = async (userId: string) => {
+    const success = await sendRequest(userId, requestMessage || undefined);
+    if (success) {
+      setSendingTo(null);
+      setRequestMessage('');
+    }
+  };
+
+  const handleMessage = (userId: string) => {
     onSelectUser(userId);
-    onClose();
-    setSearch('');
-    setResults([]);
-    setHasSearched(false);
+    handleClose();
   };
 
   const handleClose = () => {
@@ -74,6 +115,57 @@ export function GlobalSearchDialog({ open, onClose, onSelectUser }: GlobalSearch
     setSearch('');
     setResults([]);
     setHasSearched(false);
+    setSendingTo(null);
+    setRequestMessage('');
+  };
+
+  const getButtonForUser = (u: Profile) => {
+    const isFriend = existingFriends.has(u.user_id);
+    const requestStatus = getRequestStatus(u.user_id);
+    
+    if (isFriend || requestStatus === 'friends') {
+      return (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => handleMessage(u.user_id)}
+          className="gap-1"
+        >
+          <MessageCircle className="h-4 w-4" />
+          Message
+        </Button>
+      );
+    }
+    
+    if (requestStatus === 'pending_sent') {
+      return (
+        <Button variant="ghost" size="sm" disabled className="gap-1 text-muted-foreground">
+          <Clock className="h-4 w-4" />
+          Pending
+        </Button>
+      );
+    }
+    
+    if (requestStatus === 'pending_received') {
+      return (
+        <Button variant="ghost" size="sm" disabled className="gap-1 text-green-600">
+          <Check className="h-4 w-4" />
+          Accept in Requests
+        </Button>
+      );
+    }
+    
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setSendingTo(u.user_id)}
+        className="gap-1"
+      >
+        <UserPlus className="h-4 w-4" />
+        Add
+      </Button>
+    );
   };
 
   return (
@@ -114,6 +206,37 @@ export function GlobalSearchDialog({ open, onClose, onSelectUser }: GlobalSearch
           </Button>
         </div>
 
+        {/* Send Request Dialog */}
+        {sendingTo && (
+          <div className="p-4 rounded-lg bg-secondary/50 space-y-3">
+            <p className="font-medium text-sm">Send friend request</p>
+            <Textarea
+              placeholder="Add a message (optional)"
+              value={requestMessage}
+              onChange={(e) => setRequestMessage(e.target.value)}
+              rows={2}
+              maxLength={200}
+            />
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => handleSendRequest(sendingTo)}
+                className="flex-1"
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                Send Request
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setSendingTo(null); setRequestMessage(''); }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Results */}
         <ScrollArea className="max-h-72">
           {loading ? (
@@ -152,14 +275,7 @@ export function GlobalSearchDialog({ open, onClose, onSelectUser }: GlobalSearch
                       <span className="font-medium truncate block">{displayName}</span>
                       <span className="text-sm text-muted-foreground">@{u.username}</span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleSelect(u.user_id)}
-                      title="Start chat"
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </Button>
+                    {getButtonForUser(u)}
                   </div>
                 );
               })}

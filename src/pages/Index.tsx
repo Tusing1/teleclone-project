@@ -26,6 +26,8 @@ import { StudyTokensDialog } from '@/components/chat/StudyTokensDialog';
 import { GlobalSearchDialog } from '@/components/chat/GlobalSearchDialog';
 import { AdminPanelDialog } from '@/components/chat/AdminPanelDialog';
 import { AskAIDialog } from '@/components/chat/AskAIDialog';
+import { FriendRequestsDialog } from '@/components/chat/FriendRequestsDialog';
+import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -92,6 +94,8 @@ export default function Index() {
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [showAskAI, setShowAskAI] = useState(false);
+  const [showFriendRequests, setShowFriendRequests] = useState(false);
+  const [showMessageFriends, setShowMessageFriends] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -299,6 +303,7 @@ export default function Index() {
         onOpenGlobalSearch={() => setShowGlobalSearch(true)}
         onOpenAdminPanel={() => setShowAdminPanel(true)}
         onOpenAskAI={() => setShowAskAI(true)}
+        onOpenFriendRequests={() => setShowFriendRequests(true)}
       />
 
       {/* Conversation list */}
@@ -319,6 +324,9 @@ export default function Index() {
           onDeleteConversation={handleDeleteConversation}
           getUserRole={getUserRole}
           onRefresh={refetchConversations}
+          onOpenAskAI={() => setShowAskAI(true)}
+          onOpenFindFriends={() => setShowFindFriends(true)}
+          onOpenMessageFriends={() => setShowMessageFriends(true)}
         />
       </div>
 
@@ -463,6 +471,24 @@ export default function Index() {
       <AskAIDialog
         open={showAskAI}
         onClose={() => setShowAskAI(false)}
+      />
+
+      <FriendRequestsDialog
+        open={showFriendRequests}
+        onClose={() => setShowFriendRequests(false)}
+        onOpenConversation={(conversationId) => {
+          refetchConversations();
+          setSelectedConversationId(conversationId);
+          setShowFriendRequests(false);
+        }}
+      />
+
+      <MessageFriendsDialog
+        open={showMessageFriends}
+        onClose={() => setShowMessageFriends(false)}
+        onSelectConversation={(conversationId) => {
+          setSelectedConversationId(conversationId);
+        }}
       />
     </div>
   );
