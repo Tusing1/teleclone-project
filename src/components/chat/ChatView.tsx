@@ -61,9 +61,9 @@ interface ChatViewProps {
 }
 
 export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToDiscussion, onRefreshConversations }: ChatViewProps) {
-  const { user, profile: currentUserProfile } = useAuth();
+  const { user } = useAuth();
   const { messages, loading, sendMessage, uploadFile, refetch } = useMessages(
-    conversation.id, 
+    conversation.id,
     conversation.linked_discussion_id
   );
   const { reactions, fetchReactions, toggleReaction } = useReactions(conversation.id);
@@ -99,12 +99,12 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     },
   });
 
-  const isSelfChat = conversation.isSavedMessages || conversation.isSelfChat;
+  const isSavedMessages = conversation.isSavedMessages;
   const isGroup = conversation.type === 'group';
   const isChannel = conversation.type === 'channel';
   const otherParticipant = conversation.participants.find(p => p.user_id !== user?.id);
   const otherProfile = otherParticipant?.profile;
-  
+
   // Check if current user can send messages (owner/admin for channels, anyone for groups/direct)
   const currentUserParticipant = conversation.participants.find(p => p.user_id === user?.id);
   const canSendMessages = !isChannel || currentUserParticipant?.role === 'owner' || currentUserParticipant?.role === 'admin';
@@ -115,9 +115,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     activeCall,
     participants: callParticipants,
     isInCall,
-    localStream,
-    remoteStreams,
-    isRecording,
+    localStream: useCallsLocalStream,
+    remoteStreams: useCallsRemoteStreams,
+    isRecording: isCallRecording,
     connectionStatus,
     isMuted,
     isVideoOff,
@@ -131,13 +131,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     toggleScreenShare,
     startRecording,
     stopRecording
-  } = useCalls(isChannel || isSelfChat ? null : conversation.id); // Don't use for channels or self-chat
+  } = useCalls(isChannel ? null : conversation.id); // Don't use for channels
 
   // Live stream for channels
   const {
     activeStream,
     participants: streamParticipants,
     isInStream,
+    localStream: useLiveStreamLocalStream,
+    remoteStreams,
     isRecording: isStreamRecording,
     handRaised,
     noiseSuppression,
@@ -189,10 +191,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   };
 
   const handleJoinCall = async () => {
-    if (isChannel && activeStream) {
-      await joinStream(activeStream.id, !isAdminOrOwner); // Non-admins start muted
-    } else if (activeCall) {
-      await joinCall(activeCall.id, activeCall.call_type);
+    try {
+      if (isChannel && activeStream) {
+        await joinStream(activeStream.id, !isAdminOrOwner); // Non-admins start muted
+      } else if (activeCall) {
+        await joinCall(activeCall.id, activeCall.call_type);
+      }
+    } catch (error) {
+      console.error('Error in handleJoinCall:', error);
+      toast.error('Failed to join call. Please check your camera/microphone permissions.');
     }
   };
 
@@ -213,7 +220,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
 
   const handleSend = async () => {
     if (!messageText.trim() || sending) return;
-    
+
     setSending(true);
     await sendMessage(messageText.trim());
     setMessageText('');
@@ -243,15 +250,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   // Handle message deletion
   const handleDeleteMessage = async () => {
     if (!messageToDelete) return;
-    
+
     try {
       const { error } = await supabase
         .from('messages')
         .delete()
         .eq('id', messageToDelete.id);
-      
+
       if (error) throw error;
-      
+
       toast.success('Message deleted');
       refetch();
     } catch (error) {
@@ -266,15 +273,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   // Handle message edit
   const handleEditMessage = async () => {
     if (!messageToEdit || !editText.trim()) return;
-    
+
     try {
       const { error } = await supabase
         .from('messages')
         .update({ content: editText.trim() })
         .eq('id', messageToEdit.id);
-      
+
       if (error) throw error;
-      
+
       toast.success('Message updated');
       refetch();
     } catch (error) {
@@ -311,24 +318,23 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   };
 
   // Display name and status for header
-  const selfChatDisplayName = currentUserProfile?.full_name || currentUserProfile?.username || 'You';
-  const displayName = isSelfChat 
-    ? `${selfChatDisplayName} (You)` 
+  const displayName = isSavedMessages
+    ? 'Saved Messages'
     : isGroup || isChannel
       ? conversation.name || 'Unnamed'
       : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
-  
-  const statusText = isSelfChat
-    ? 'Message yourself'
+
+  const statusText = isSavedMessages
+    ? 'Forward messages here for safekeeping'
     : isGroup
       ? `${conversation.participants.length} members`
       : isChannel
         ? `${conversation.participants.length} subscribers`
-        : (otherProfile?.is_online 
-            ? 'online' 
-            : otherProfile?.last_seen 
-              ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
-              : 'offline');
+        : (otherProfile?.is_online
+          ? 'online'
+          : otherProfile?.last_seen
+            ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
+            : 'offline');
 
   // Show connecting screen while starting stream
   if (isStartingStream && isChannel) {
@@ -387,6 +393,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         onToggleNoiseSuppression={toggleNoiseSuppression}
         onMinimize={() => setIsStreamMinimized(prev => !prev)}
         isMinimized={false}
+        remoteStreams={remoteStreams}
+        localStream={useLiveStreamLocalStream}
+        isStreamStarter={activeStream.started_by === user?.id}
       />
     );
   }
@@ -397,8 +406,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       <CallView
         callType={activeCall.call_type}
         participants={callParticipants}
-        localStream={localStream}
-        remoteStreams={remoteStreams}
+        localStream={useCallsLocalStream}
+        remoteStreams={useCallsRemoteStreams}
         isCallStarter={activeCall.started_by === user?.id}
         onLeave={leaveCall}
         onEnd={endCall}
@@ -408,7 +417,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         isMuted={isMuted}
         isVideoOff={isVideoOff}
         isScreenSharing={isScreenSharing}
-        isRecording={isRecording}
+        isRecording={isCallRecording}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
         connectionStatus={connectionStatus}
@@ -447,6 +456,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           onToggleNoiseSuppression={toggleNoiseSuppression}
           onMinimize={() => setIsStreamMinimized(false)}
           isMinimized={true}
+          remoteStreams={remoteStreams}
+          localStream={useLiveStreamLocalStream}
+          isStreamStarter={activeStream.started_by === user?.id}
         />
       )}
       {/* Header - add top margin when minimized stream bar is visible */}
@@ -455,9 +467,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border",
         isStreamMinimized && isInStream && "mt-14"
       )}>
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onBack}
           className={cn(
             "md:hidden shrink-0",
@@ -466,23 +478,20 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        
-        {isSelfChat ? (
-          <Avatar
-            src={currentUserProfile?.avatar_url}
-            name={selfChatDisplayName}
-            size="sm"
-            isOnline={true}
-          />
+
+        {isSavedMessages ? (
+          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
+            <Bookmark className="w-5 h-5 text-primary-foreground" />
+          </div>
         ) : isGroup ? (
-          <button 
+          <button
             onClick={() => isAdminOrOwner && setShowGroupSettings(true)}
             className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
           >
             <Users className="w-5 h-5 text-white" />
           </button>
         ) : isChannel ? (
-          <button 
+          <button
             onClick={() => setShowChannelSettings(true)}
             className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
           >
@@ -498,7 +507,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             />
           </button>
         )}
-        
+
         <div className="flex-1 min-w-0">
           <h2 className={cn(
             "font-semibold truncate",
@@ -506,15 +515,15 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           )}>{displayName}</h2>
           <p className={cn(
             'text-xs truncate',
-            isChannel ? 'text-slate-400' : 
-            (!isSelfChat && !isGroup && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground')
+            isChannel ? 'text-slate-400' :
+              (!isSavedMessages && !isGroup && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground')
           )}>
             {statusText}
           </p>
         </div>
-        
+
         {/* Call button for direct messages */}
-        {!isGroup && !isChannel && !isSelfChat && (
+        {!isGroup && !isChannel && !isSavedMessages && (
           <CallButton
             onStartCall={handleStartCall}
             canStartCall={true}
@@ -522,9 +531,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             onJoinCall={handleJoinCall}
           />
         )}
-        
+
         {/* Call button for groups and channels */}
-        {(isGroup || isChannel) && !isSelfChat && (
+        {(isGroup || isChannel) && !isSavedMessages && (
           <CallButton
             onStartCall={handleStartCall}
             canStartCall={isAdminOrOwner}
@@ -535,8 +544,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
 
         {/* Discussion button for channels with linked discussion */}
         {isChannel && conversation.linked_discussion_id && onNavigateToDiscussion && (
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}
             title="Go to discussion"
@@ -545,12 +554,12 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             <MessageCircle className="h-5 w-5" />
           </Button>
         )}
-        
+
         {/* Menu button */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               size="icon"
               className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : ""}
             >
@@ -559,7 +568,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {/* Call options for direct chats */}
-            {!isGroup && !isChannel && !isSelfChat && (
+            {!isGroup && !isChannel && !isSavedMessages && (
               <>
                 <DropdownMenuItem onClick={() => handleStartCall('voice')}>
                   <Phone className="h-4 w-4 mr-2" />
@@ -606,7 +615,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           group={conversation}
           isOwner={currentUserParticipant?.role === 'owner'}
           isAdmin={currentUserParticipant?.role === 'admin'}
-          onRefresh={onRefreshConversations || (() => {})}
+          onRefresh={onRefreshConversations || (() => { })}
         />
       )}
 
@@ -617,12 +626,12 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           onClose={() => setShowChannelSettings(false)}
           channel={conversation}
           isOwner={currentUserParticipant?.role === 'owner'}
-          onRefresh={onRefreshConversations || (() => {})}
+          onRefresh={onRefreshConversations || (() => { })}
         />
       )}
 
       {/* Edit Profile Dialog for direct chats */}
-      {!isGroup && !isChannel && !isSelfChat && (
+      {!isGroup && !isChannel && !isSavedMessages && (
         <EditProfileDialog
           open={showEditProfile}
           onClose={() => setShowEditProfile(false)}
@@ -637,12 +646,12 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            {isSelfChat ? (
+            {isSavedMessages ? (
               <>
-                <MessageCircle className="w-16 h-16 mb-4 text-primary/30" />
-                <p className="font-medium">Message yourself</p>
+                <Bookmark className="w-16 h-16 mb-4 text-primary/30" />
+                <p className="font-medium">Saved Messages</p>
                 <p className="text-sm text-center max-w-xs mt-1">
-                  Send notes, reminders, or forward messages here.
+                  Forward messages here to save them. Recorded calls will also appear here.
                 </p>
               </>
             ) : (
@@ -655,14 +664,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         ) : (
           <div className="px-3 space-y-4">
             {messages.map((message, index) => {
-              const showAvatar = index === 0 || 
+              const showAvatar = index === 0 ||
                 messages[index - 1].sender_id !== message.sender_id;
-              
+
               // Render system messages (e.g., "Live Stream Started")
               if (message.message_type === 'system') {
                 const hasActiveCallOrStream = isChannel ? !!activeStream : !!activeCall;
                 const isNotInCallOrStream = isChannel ? !isInStream : !isInCall;
-                
+
                 return (
                   <SystemMessage
                     key={message.id}
@@ -674,7 +683,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   />
                 );
               }
-              
+
               // Use ChannelMessageBubble for channels
               if (isChannel) {
                 return (
@@ -697,13 +706,13 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   />
                 );
               }
-              
+
               return (
-                <MessageBubble 
-                  key={message.id} 
+                <MessageBubble
+                  key={message.id}
                   message={message}
                   showAvatar={showAvatar}
-                  onForward={onForwardMessage ? (msg) => onForwardMessage(msg, isSelfChat) : undefined}
+                  onForward={onForwardMessage ? (msg) => onForwardMessage(msg, isSavedMessages) : undefined}
                   isChannelMessage={false}
                   onReply={(msg) => handleReply(msg)}
                   onEdit={(msg) => openEditDialog(msg)}
@@ -719,8 +728,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       </div>
 
       {/* Typing Indicator */}
-      <TypingIndicator 
-        users={typingUsers} 
+      <TypingIndicator
+        users={typingUsers}
         className={isChannel ? "text-slate-400" : ""}
       />
 
@@ -750,8 +759,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                 className="hidden"
                 onChange={(e) => handleFileUpload(e, 'file')}
               />
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={sending || isUploadingVoice}
@@ -759,8 +768,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
               >
                 <ImageIcon className="h-5 w-5" />
               </Button>
-              <Button 
-                variant="ghost" 
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending || isUploadingVoice}
@@ -769,7 +778,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                 <Paperclip className="h-5 w-5" />
               </Button>
               <Input
-                placeholder={isChannel ? "Broadcast..." : isSelfChat ? "Write a note..." : "Message"}
+                placeholder={isChannel ? "Broadcast..." : isSavedMessages ? "Write a note..." : "Message"}
                 value={messageText}
                 onChange={(e) => {
                   setMessageText(e.target.value);
@@ -783,7 +792,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                 )}
               />
               {messageText.trim() ? (
-                <Button 
+                <Button
                   size="icon"
                   onClick={handleSend}
                   disabled={!messageText.trim() || sending || isUploadingVoice}
@@ -803,9 +812,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   )}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" x2="12" y1="19" y2="22"/>
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" x2="12" y1="19" y2="22" />
                   </svg>
                 </Button>
               )}
@@ -814,8 +823,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         </div>
       ) : isChannel && conversation.linked_discussion_id ? (
         <div className="p-3 bg-slate-800 border-t border-slate-700">
-          <Button 
-            variant="secondary" 
+          <Button
+            variant="secondary"
             className="w-full bg-slate-700 hover:bg-slate-600 text-slate-100"
             onClick={() => onNavigateToDiscussion?.(conversation.linked_discussion_id!)}
           >
