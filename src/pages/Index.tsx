@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
@@ -19,14 +19,15 @@ import { FindFriendsDialog } from '@/components/chat/FindFriendsDialog';
 import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
 import { NotificationSettingsDialog } from '@/components/chat/NotificationSettingsDialog';
 import { CallsInboxDialog } from '@/components/chat/CallsInboxDialog';
+import { InviteJoinDialog } from '@/components/chat/InviteJoinDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Initialize notification sound listener
   useNotificationSound();
@@ -62,6 +63,7 @@ export default function Index() {
   const [showCallsInbox, setShowCallsInbox] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
+  const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
   
   // Discussion group navigation state
   const [discussionContext, setDiscussionContext] = useState<{
@@ -74,6 +76,20 @@ export default function Index() {
       navigate('/auth');
     }
   }, [user, authLoading, navigate]);
+
+  // Handle invite code from navigation state
+  useEffect(() => {
+    const state = location.state as { inviteCode?: string; conversationId?: string } | null;
+    if (state?.inviteCode) {
+      setPendingInviteCode(state.inviteCode);
+      // Clear the state
+      window.history.replaceState({}, document.title);
+    }
+    if (state?.conversationId) {
+      setSelectedConversationId(state.conversationId);
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -182,6 +198,12 @@ export default function Index() {
     if (parentChannel) {
       setDiscussionContext({ parentChannel, replyToMessage: replyToMessage || null });
     }
+  };
+
+  const handleInviteJoined = (conversationId: string) => {
+    refetchConversations();
+    setSelectedConversationId(conversationId);
+    setPendingInviteCode(null);
   };
 
   const selectedConversation = [...conversations, ...archivedConversations].find(
@@ -362,6 +384,14 @@ export default function Index() {
         onOpenConversation={(conversationId) => {
           setSelectedConversationId(conversationId);
         }}
+      />
+
+      {/* Invite join dialog */}
+      <InviteJoinDialog
+        open={!!pendingInviteCode}
+        onClose={() => setPendingInviteCode(null)}
+        inviteCode={pendingInviteCode || ''}
+        onJoined={handleInviteJoined}
       />
     </div>
   );

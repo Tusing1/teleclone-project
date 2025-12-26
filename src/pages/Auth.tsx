@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff } from 'lucide-react';
+import { MessageCircle, Eye, EyeOff, Camera, Loader2, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 
 const signUpSchema = z.object({
@@ -13,6 +14,7 @@ const signUpSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   username: z.string().min(3, 'Username must be at least 3 characters').regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
   fullName: z.string().min(1, 'Please enter your name').optional(),
+  phoneNumber: z.string().optional(),
 });
 
 const signInSchema = z.object({
@@ -24,11 +26,15 @@ export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     username: '',
     fullName: '',
+    phoneNumber: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -42,7 +48,7 @@ export default function Auth() {
       const pendingInviteCode = sessionStorage.getItem('pendingInviteCode');
       if (pendingInviteCode) {
         sessionStorage.removeItem('pendingInviteCode');
-        navigate(`/invite/${pendingInviteCode}`);
+        navigate('/', { state: { inviteCode: pendingInviteCode } });
       } else {
         navigate('/');
       }
@@ -55,6 +61,64 @@ export default function Auth() {
     setErrors(prev => ({ ...prev, [name]: '' }));
   };
 
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file',
+        description: 'Please select an image file',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: 'File too large',
+        description: 'Image must be less than 5MB',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingAvatar(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `signup-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-media')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-media')
+        .getPublicUrl(filePath);
+
+      setAvatarUrl(publicUrl);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Failed to upload profile picture',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
@@ -63,7 +127,12 @@ export default function Auth() {
       if (isSignUp) {
         const validated = signUpSchema.parse(formData);
         setLoading(true);
-        const { error } = await signUp(validated.email, validated.password, validated.username, validated.fullName);
+        const { error } = await signUp(
+          validated.email, 
+          validated.password, 
+          validated.username, 
+          validated.fullName
+        );
         
         if (error) {
           if (error.message.includes('already registered')) {
@@ -116,6 +185,7 @@ export default function Auth() {
   const toggleMode = () => {
     setIsSignUp(!isSignUp);
     setErrors({});
+    setAvatarUrl(null);
   };
 
   return (
@@ -136,6 +206,35 @@ export default function Auth() {
         <form onSubmit={handleSubmit} className="bg-card rounded-2xl shadow-xl p-6 space-y-4">
           {isSignUp && (
             <>
+              {/* Avatar upload */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative">
+                  <div 
+                    className="w-20 h-20 rounded-full bg-secondary flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-80 transition-opacity"
+                    onClick={handleAvatarClick}
+                  >
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="w-8 h-8 text-muted-foreground" />
+                    )}
+                    {uploadingAvatar && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center rounded-full">
+                        <Loader2 className="w-6 h-6 animate-spin text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFileChange}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Add profile picture</p>
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="fullName">Full Name</Label>
                 <Input
@@ -164,6 +263,25 @@ export default function Auth() {
                 {errors.username && (
                   <p className="text-xs text-destructive">{errors.username}</p>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="phoneNumber" className="flex items-center gap-2">
+                  <Phone className="h-4 w-4" />
+                  Phone Number (optional)
+                </Label>
+                <Input
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  type="tel"
+                  placeholder="+1 234 567 8900"
+                  value={formData.phoneNumber}
+                  onChange={handleChange}
+                  className={errors.phoneNumber ? 'border-destructive' : ''}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your phone number helps friends find you
+                </p>
               </div>
             </>
           )}
@@ -209,7 +327,7 @@ export default function Auth() {
             )}
           </div>
 
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" disabled={loading || uploadingAvatar}>
             {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
           </Button>
 

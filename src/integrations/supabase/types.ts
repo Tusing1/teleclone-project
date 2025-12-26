@@ -486,6 +486,7 @@ export type Database = {
           interests: string[] | null
           is_online: boolean | null
           last_seen: string | null
+          phone_number: string | null
           updated_at: string
           user_id: string
           username: string
@@ -499,6 +500,7 @@ export type Database = {
           interests?: string[] | null
           is_online?: boolean | null
           last_seen?: string | null
+          phone_number?: string | null
           updated_at?: string
           user_id: string
           username: string
@@ -512,6 +514,7 @@ export type Database = {
           interests?: string[] | null
           is_online?: boolean | null
           last_seen?: string | null
+          phone_number?: string | null
           updated_at?: string
           user_id?: string
           username?: string
