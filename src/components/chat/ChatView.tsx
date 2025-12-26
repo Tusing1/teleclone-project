@@ -509,6 +509,16 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </p>
         </div>
         
+        {/* Call button for direct messages */}
+        {!isGroup && !isChannel && !isSavedMessages && (
+          <CallButton
+            onStartCall={handleStartCall}
+            canStartCall={true}
+            hasActiveCall={!!activeCall && !isInCall}
+            onJoinCall={handleJoinCall}
+          />
+        )}
+        
         {/* Call button for groups and channels */}
         {(isGroup || isChannel) && !isSavedMessages && (
           <CallButton
@@ -547,11 +557,11 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             {/* Call options for direct chats */}
             {!isGroup && !isChannel && !isSavedMessages && (
               <>
-                <DropdownMenuItem onClick={() => startCall('voice')}>
+                <DropdownMenuItem onClick={() => handleStartCall('voice')}>
                   <Phone className="h-4 w-4 mr-2" />
                   Voice Call
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => startCall('video')}>
+                <DropdownMenuItem onClick={() => handleStartCall('video')}>
                   <Video className="h-4 w-4 mr-2" />
                   Video Call
                 </DropdownMenuItem>
