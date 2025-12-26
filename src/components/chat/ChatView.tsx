@@ -116,7 +116,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     participants: callParticipants,
     isInCall,
     localStream,
+    remoteStreams,
     isRecording,
+    connectionStatus,
     startCall,
     joinCall,
     leaveCall,
@@ -391,6 +393,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         callType={activeCall.call_type}
         participants={callParticipants}
         localStream={localStream}
+        remoteStreams={remoteStreams}
         isCallStarter={activeCall.started_by === user?.id}
         onLeave={leaveCall}
         onEnd={endCall}
@@ -401,6 +404,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         isRecording={isRecording}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
+        connectionStatus={connectionStatus}
       />
     );
   }

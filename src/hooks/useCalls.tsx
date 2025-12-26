@@ -34,6 +34,21 @@ export interface CallParticipant {
   };
 }
 
+interface SignalData {
+  type: 'offer' | 'answer' | 'ice-candidate';
+  sdp?: string;
+  candidate?: RTCIceCandidateInit;
+}
+
+// Free STUN servers for NAT traversal
+const ICE_SERVERS: RTCConfiguration = {
+  iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
+  ]
+};
+
 export function useCalls(conversationId: string | null) {
   const { user } = useAuth();
   const [activeCall, setActiveCall] = useState<Call | null>(null);
@@ -42,9 +57,247 @@ export function useCalls(conversationId: string | null) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [isRecording, setIsRecording] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
+  
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
+  const pendingCandidates = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const signalChannel = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Create peer connection for a specific user
+  const createPeerConnection = useCallback((remoteUserId: string, callId: string, isInitiator: boolean) => {
+    if (!user || !localStream) return null;
+
+    console.log(`Creating peer connection for ${remoteUserId}, isInitiator: ${isInitiator}`);
+    
+    const pc = new RTCPeerConnection(ICE_SERVERS);
+    peerConnections.current.set(remoteUserId, pc);
+
+    // Add local tracks to the connection
+    localStream.getTracks().forEach(track => {
+      pc.addTrack(track, localStream);
+    });
+
+    // Handle incoming tracks (remote stream)
+    pc.ontrack = (event) => {
+      console.log(`Received remote track from ${remoteUserId}`);
+      const [remoteStream] = event.streams;
+      setRemoteStreams(prev => new Map(prev).set(remoteUserId, remoteStream));
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = async (event) => {
+      if (event.candidate) {
+        console.log(`Sending ICE candidate to ${remoteUserId}`);
+        await (supabase.from('call_signals') as any).insert({
+          call_id: callId,
+          from_user: user.id,
+          to_user: remoteUserId,
+          signal_type: 'ice-candidate',
+          signal_data: { candidate: event.candidate.toJSON() }
+        });
+      }
+    };
+
+    // Handle connection state changes
+    pc.onconnectionstatechange = () => {
+      console.log(`Connection state with ${remoteUserId}: ${pc.connectionState}`);
+      if (pc.connectionState === 'connected') {
+        setConnectionStatus('connected');
+      } else if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        console.warn(`Connection ${pc.connectionState} with ${remoteUserId}`);
+      }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      console.log(`ICE connection state with ${remoteUserId}: ${pc.iceConnectionState}`);
+    };
+
+    return pc;
+  }, [user, localStream]);
+
+  // Send SDP offer to a remote user
+  const sendOffer = useCallback(async (remoteUserId: string, callId: string) => {
+    if (!user) return;
+
+    const pc = peerConnections.current.get(remoteUserId);
+    if (!pc) return;
+
+    try {
+      console.log(`Creating offer for ${remoteUserId}`);
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      await (supabase.from('call_signals') as any).insert({
+        call_id: callId,
+        from_user: user.id,
+        to_user: remoteUserId,
+        signal_type: 'offer',
+        signal_data: { type: 'offer', sdp: offer.sdp }
+      });
+    } catch (error) {
+      console.error('Error creating offer:', error);
+    }
+  }, [user]);
+
+  // Handle incoming offer
+  const handleOffer = useCallback(async (fromUserId: string, callId: string, sdp: string) => {
+    if (!user || !localStream) return;
+
+    console.log(`Received offer from ${fromUserId}`);
+    
+    let pc = peerConnections.current.get(fromUserId);
+    if (!pc) {
+      pc = createPeerConnection(fromUserId, callId, false);
+      if (!pc) return;
+    }
+
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }));
+      
+      // Add any pending ICE candidates
+      const pending = pendingCandidates.current.get(fromUserId) || [];
+      for (const candidate of pending) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+      pendingCandidates.current.delete(fromUserId);
+
+      const answer = await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+
+      await (supabase.from('call_signals') as any).insert({
+        call_id: callId,
+        from_user: user.id,
+        to_user: fromUserId,
+        signal_type: 'answer',
+        signal_data: { type: 'answer', sdp: answer.sdp }
+      });
+    } catch (error) {
+      console.error('Error handling offer:', error);
+    }
+  }, [user, localStream, createPeerConnection]);
+
+  // Handle incoming answer
+  const handleAnswer = useCallback(async (fromUserId: string, sdp: string) => {
+    console.log(`Received answer from ${fromUserId}`);
+    
+    const pc = peerConnections.current.get(fromUserId);
+    if (!pc) return;
+
+    try {
+      await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp }));
+      
+      // Add any pending ICE candidates
+      const pending = pendingCandidates.current.get(fromUserId) || [];
+      for (const candidate of pending) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+      pendingCandidates.current.delete(fromUserId);
+    } catch (error) {
+      console.error('Error handling answer:', error);
+    }
+  }, []);
+
+  // Handle incoming ICE candidate
+  const handleIceCandidate = useCallback(async (fromUserId: string, candidate: RTCIceCandidateInit) => {
+    console.log(`Received ICE candidate from ${fromUserId}`);
+    
+    const pc = peerConnections.current.get(fromUserId);
+    if (!pc || !pc.remoteDescription) {
+      // Queue the candidate if we don't have a remote description yet
+      const pending = pendingCandidates.current.get(fromUserId) || [];
+      pending.push(candidate);
+      pendingCandidates.current.set(fromUserId, pending);
+      return;
+    }
+
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(candidate));
+    } catch (error) {
+      console.error('Error adding ICE candidate:', error);
+    }
+  }, []);
+
+  // Setup signaling channel for a call
+  const setupSignaling = useCallback((callId: string) => {
+    if (!user || signalChannel.current) return;
+
+    console.log('Setting up signaling channel for call:', callId);
+
+    const channel = supabase
+      .channel(`call-signals-${callId}`)
+      .on(
+        'postgres_changes',
+        { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'call_signals',
+          filter: `call_id=eq.${callId}`
+        },
+        async (payload) => {
+          const signal = payload.new as {
+            from_user: string;
+            to_user: string | null;
+            signal_type: string;
+            signal_data: SignalData;
+          };
+
+          // Ignore our own signals
+          if (signal.from_user === user.id) return;
+          
+          // Ignore signals not meant for us (unless broadcast)
+          if (signal.to_user && signal.to_user !== user.id) return;
+
+          console.log('Received signal:', signal.signal_type, 'from:', signal.from_user);
+
+          switch (signal.signal_type) {
+            case 'offer':
+              if (signal.signal_data.sdp) {
+                await handleOffer(signal.from_user, callId, signal.signal_data.sdp);
+              }
+              break;
+            case 'answer':
+              if (signal.signal_data.sdp) {
+                await handleAnswer(signal.from_user, signal.signal_data.sdp);
+              }
+              break;
+            case 'ice-candidate':
+              if (signal.signal_data.candidate) {
+                await handleIceCandidate(signal.from_user, signal.signal_data.candidate);
+              }
+              break;
+          }
+        }
+      )
+      .subscribe();
+
+    signalChannel.current = channel;
+  }, [user, handleOffer, handleAnswer, handleIceCandidate]);
+
+  // Connect to existing participants
+  const connectToParticipants = useCallback(async (callId: string, currentParticipants: CallParticipant[]) => {
+    if (!user || !localStream) return;
+
+    // Get other participants who are in the call
+    const otherParticipants = currentParticipants.filter(
+      p => p.user_id !== user.id && !p.left_at
+    );
+
+    console.log('Connecting to participants:', otherParticipants.length);
+
+    for (const participant of otherParticipants) {
+      // Only the user with smaller ID initiates to avoid duplicate connections
+      if (user.id < participant.user_id) {
+        if (!peerConnections.current.has(participant.user_id)) {
+          const pc = createPeerConnection(participant.user_id, callId, true);
+          if (pc) {
+            await sendOffer(participant.user_id, callId);
+          }
+        }
+      }
+    }
+  }, [user, localStream, createPeerConnection, sendOffer]);
 
   // Fetch active call for conversation
   const fetchActiveCall = useCallback(async () => {
@@ -118,7 +371,13 @@ export function useCalls(conversationId: string | null) {
       
       // Check if current user is in call
       if (user) {
-        setIsInCall(participantsData.some(p => p.user_id === user.id));
+        const userInCall = participantsData.some(p => p.user_id === user.id);
+        setIsInCall(userInCall);
+        
+        // If we're in the call and have local stream, connect to other participants
+        if (userInCall && localStream && activeCall) {
+          await connectToParticipants(activeCall.id, participantsWithProfiles);
+        }
       }
     }
   };
@@ -175,6 +434,8 @@ export function useCalls(conversationId: string | null) {
   const joinCall = async (callId: string, callType: 'voice' | 'video' = 'video') => {
     if (!user) return;
 
+    setConnectionStatus('connecting');
+
     try {
       // Get media stream
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -182,6 +443,9 @@ export function useCalls(conversationId: string | null) {
         video: callType === 'video'
       });
       setLocalStream(stream);
+
+      // Setup signaling before adding participant
+      setupSignaling(callId);
 
       // Ensure the user has only one active participant row per call.
       const { data: existingParticipant, error: existingParticipantError } = await supabase
@@ -215,8 +479,34 @@ export function useCalls(conversationId: string | null) {
 
       setIsInCall(true);
       await fetchActiveCall();
+
+      // Wait a bit for the participant to be registered, then connect to others
+      setTimeout(async () => {
+        const { data: currentParticipants } = await supabase
+          .from('call_participants')
+          .select('*')
+          .eq('call_id', callId)
+          .is('left_at', null);
+        
+        if (currentParticipants) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('user_id, username, full_name, avatar_url')
+            .in('user_id', currentParticipants.map(p => p.user_id));
+
+          const participantsWithProfiles = currentParticipants.map(p => ({
+            ...p,
+            profile: profiles?.find(pr => pr.user_id === p.user_id)
+          })) as CallParticipant[];
+
+          await connectToParticipants(callId, participantsWithProfiles);
+        }
+      }, 1000);
+
     } catch (error) {
       console.error('Error joining call:', error);
+      setConnectionStatus('disconnected');
+      toast.error('Failed to join call. Please check your camera/microphone permissions.');
     }
   };
 
@@ -238,7 +528,21 @@ export function useCalls(conversationId: string | null) {
     // Close peer connections
     peerConnections.current.forEach(pc => pc.close());
     peerConnections.current.clear();
+    pendingCandidates.current.clear();
     setRemoteStreams(new Map());
+
+    // Remove signaling channel
+    if (signalChannel.current) {
+      supabase.removeChannel(signalChannel.current);
+      signalChannel.current = null;
+    }
+
+    // Clean up signals
+    await supabase
+      .from('call_signals')
+      .delete()
+      .eq('call_id', activeCall.id)
+      .eq('from_user', user.id);
 
     // Update database
     await supabase
@@ -248,6 +552,7 @@ export function useCalls(conversationId: string | null) {
       .eq('user_id', user.id);
 
     setIsInCall(false);
+    setConnectionStatus('disconnected');
     await fetchActiveCall();
   };
 
@@ -259,6 +564,12 @@ export function useCalls(conversationId: string | null) {
     if (activeCall.is_recording && activeCall.recorded_by === user.id) {
       await stopRecording();
     }
+
+    // Clean up all signals for this call
+    await supabase
+      .from('call_signals')
+      .delete()
+      .eq('call_id', activeCall.id);
 
     await supabase
       .from('calls')
@@ -554,6 +865,9 @@ export function useCalls(conversationId: string | null) {
         localStream.getTracks().forEach(track => track.stop());
       }
       peerConnections.current.forEach(pc => pc.close());
+      if (signalChannel.current) {
+        supabase.removeChannel(signalChannel.current);
+      }
       if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
         mediaRecorder.current.stop();
       }
@@ -567,6 +881,7 @@ export function useCalls(conversationId: string | null) {
     localStream,
     remoteStreams,
     isRecording,
+    connectionStatus,
     startCall,
     joinCall,
     leaveCall,
