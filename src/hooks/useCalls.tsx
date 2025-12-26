@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import { RealtimeChannel } from '@supabase/supabase-js';
-import type { Json } from '@/integrations/supabase/types';
-
 export interface Call {
   id: string;
   conversation_id: string;
@@ -67,9 +64,9 @@ export function useCalls(conversationId: string | null) {
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
-  const signalChannel = useRef<RealtimeChannel | null>(null);
+  const unsubscribeCallDoc = useRef<(() => void) | null>(null);
+  const unsubscribeCandidates = useRef<(() => void) | null>(null);
   const originalVideoTrack = useRef<MediaStreamTrack | null>(null);
-  const pendingIceCandidates = useRef<RTCIceCandidate[]>([]);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -81,11 +78,14 @@ export function useCalls(conversationId: string | null) {
       peerConnection.current.close();
       peerConnection.current = null;
     }
-    if (signalChannel.current) {
-      supabase.removeChannel(signalChannel.current);
-      signalChannel.current = null;
+    if (unsubscribeCallDoc.current) {
+      unsubscribeCallDoc.current();
+      unsubscribeCallDoc.current = null;
     }
-    pendingIceCandidates.current = [];
+    if (unsubscribeCandidates.current) {
+      unsubscribeCandidates.current();
+      unsubscribeCandidates.current = null;
+    }
     setRemoteStreams(new Map());
     setConnectionStatus('disconnected');
   }, [localStream]);
@@ -190,12 +190,33 @@ export function useCalls(conversationId: string | null) {
       .maybeSingle();
 
     if (existing) {
-      const existingType: 'voice' | 'video' = existing.call_type === 'voice' ? 'voice' : 'video';
-      await joinCall(existing.id, existingType);
-      return existing.id;
+      // If WE started this existing call, it's likely a ghost from a previous session
+      // End it and start a new one to be safe
+      if (existing.started_by === user.id) {
+        console.log('Ending your own ghost call before starting new one');
+        await supabase
+          .from('calls')
+          .update({ is_active: false, ended_at: new Date().toISOString() })
+          .eq('id', existing.id);
+      } else {
+        // Someone else started it, so join it
+        const existingType: 'voice' | 'video' = existing.call_type === 'voice' ? 'voice' : 'video';
+        console.log('Joining existing call started by someone else:', existing.id);
+        try {
+          await joinCall(existing.id, existingType, false);
+          return existing.id;
+        } catch (err) {
+          console.warn('Failed to join existing call, it might be stale. Ending it and starting fresh:', err);
+          await supabase
+            .from('calls')
+            .update({ is_active: false, ended_at: new Date().toISOString() })
+            .eq('id', existing.id);
+          // Proceed to start a new call below
+        }
+      }
     }
 
-    // Cleanup old calls
+    // Cleanup any other active calls for this conversation started by us
     await supabase
       .from('calls')
       .update({ is_active: false, ended_at: new Date().toISOString() })
@@ -203,6 +224,7 @@ export function useCalls(conversationId: string | null) {
       .eq('is_active', true)
       .eq('started_by', user.id);
 
+    console.log('Creating new call record...');
     const { data, error } = await supabase
       .from('calls')
       .insert({
@@ -218,6 +240,7 @@ export function useCalls(conversationId: string | null) {
       return null;
     }
 
+    console.log('New call created, joining as creator:', data.id);
     await joinCall(data.id, callType, true);
     return data.id;
   };
@@ -236,6 +259,15 @@ export function useCalls(conversationId: string | null) {
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Debug: Log audio track info
+      console.log('🎤 Local stream tracks:', stream.getTracks().map(t => ({
+        kind: t.kind,
+        label: t.label,
+        enabled: t.enabled,
+        readyState: t.readyState
+      })));
+
       setLocalStream(stream);
       setIsVideoOff(callType === 'voice');
 
@@ -250,10 +282,23 @@ export function useCalls(conversationId: string | null) {
 
       // Handle remote stream
       pc.ontrack = (event) => {
-        console.log('Remote track received:', event.streams);
+        console.log('🎵 Remote track received:', {
+          kind: event.track.kind,
+          id: event.track.id,
+          enabled: event.track.enabled
+        });
         const [remoteStream] = event.streams;
+
+        // Debug: Log remote stream info
+        console.log('Remote stream tracks:', remoteStream.getTracks().map(t => ({
+          kind: t.kind,
+          label: t.label,
+          enabled: t.enabled
+        })));
+
         setRemoteStreams(prev => {
           const newMap = new Map(prev);
+          // Use a generic remote ID since we're doing 1:1 calls
           newMap.set('remote', remoteStream);
           return newMap;
         });
@@ -269,176 +314,245 @@ export function useCalls(conversationId: string | null) {
         }
       };
 
-      // ICE candidate handler - send to Supabase
-      pc.onicecandidate = async (event) => {
-        if (event.candidate) {
-          console.log('Sending ICE candidate');
-          await supabase.from('call_signals').insert([{
-            call_id: callId,
-            from_user: user.id,
-            signal_type: 'ice-candidate',
-            signal_data: JSON.parse(JSON.stringify(event.candidate.toJSON())) as Json
-          }]);
-        }
-      };
-
-      // Subscribe to Supabase Realtime for signaling
-      signalChannel.current = supabase
-        .channel(`call-signals-${callId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'call_signals',
-            filter: `call_id=eq.${callId}`
-          },
-          async (payload) => {
-            const signal = payload.new as {
-              from_user: string;
-              signal_type: string;
-              signal_data: RTCSessionDescriptionInit | RTCIceCandidateInit;
-            };
-
-            // Ignore our own signals
-            if (signal.from_user === user.id) return;
-
-            console.log('Received signal:', signal.signal_type);
-
-            if (signal.signal_type === 'offer' && !isCreator) {
-              // We're the joiner receiving an offer
-              const offerDescription = signal.signal_data as RTCSessionDescriptionInit;
-              await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
-
-              // Add any pending ICE candidates
-              for (const candidate of pendingIceCandidates.current) {
-                await pc.addIceCandidate(candidate);
-              }
-              pendingIceCandidates.current = [];
-
-              // Create and send answer
-              const answerDescription = await pc.createAnswer();
-              await pc.setLocalDescription(answerDescription);
-
-              await supabase.from('call_signals').insert([{
-                call_id: callId,
-                from_user: user.id,
-                signal_type: 'answer',
-                signal_data: {
-                  sdp: answerDescription.sdp,
-                  type: answerDescription.type
-                } as Json
-              }]);
-            } else if (signal.signal_type === 'answer' && isCreator) {
-              // We're the creator receiving an answer
-              const answerDescription = signal.signal_data as RTCSessionDescriptionInit;
-              if (!pc.currentRemoteDescription) {
-                await pc.setRemoteDescription(new RTCSessionDescription(answerDescription));
-
-                // Add any pending ICE candidates
-                for (const candidate of pendingIceCandidates.current) {
-                  await pc.addIceCandidate(candidate);
-                }
-                pendingIceCandidates.current = [];
-              }
-            } else if (signal.signal_type === 'ice-candidate') {
-              // ICE candidate
-              const candidateInit = signal.signal_data as RTCIceCandidateInit;
-              const candidate = new RTCIceCandidate(candidateInit);
-
-              if (pc.remoteDescription) {
-                await pc.addIceCandidate(candidate);
-              } else {
-                // Queue candidate until remote description is set
-                pendingIceCandidates.current.push(candidate);
-              }
-            }
-          }
-        )
-        .subscribe();
-
+      // Supabase Realtime signaling
       if (isCreator) {
-        // Creator: create and send offer
+        // Creator: create offer
+        pc.onicecandidate = async (event) => {
+          if (event.candidate) {
+            await supabase.from('call_signals').insert({
+              call_id: callId,
+              from_user: user.id,
+              to_user: null,
+              signal_type: 'ice-candidate',
+              signal_data: event.candidate.toJSON() as any
+            });
+          }
+        };
+
         const offerDescription = await pc.createOffer();
         await pc.setLocalDescription(offerDescription);
 
-        await supabase.from('call_signals').insert([{
+        // Store offer in Supabase
+        await supabase.from('call_signals').insert({
           call_id: callId,
           from_user: user.id,
+          to_user: null,
           signal_type: 'offer',
           signal_data: {
             sdp: offerDescription.sdp,
-            type: offerDescription.type
-          } as Json
-        }]);
-      } else {
-        // Joiner: check for existing offer
-        const { data: existingOffer } = await supabase
+            type: offerDescription.type,
+          } as any
+        });
+
+        console.log('📤 Offer sent, waiting for answer...');
+
+        // CRITICAL FIX: Fetch any existing signals (answer/ICE candidates) before subscribing
+        // This ensures we don't miss anything that happened between offer creation and subscription
+        const { data: existingSignals } = await supabase
           .from('call_signals')
           .select('*')
           .eq('call_id', callId)
-          .eq('signal_type', 'offer')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .neq('from_user', user.id)
+          .in('signal_type', ['answer', 'ice-candidate']);
 
-        if (existingOffer) {
-          const offerDescription = existingOffer.signal_data as unknown as RTCSessionDescriptionInit;
-          await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+        // Process any signals that were already sent
+        for (const signal of existingSignals || []) {
+          try {
+            if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
+              console.log('📥 Processing delayed answer');
+              await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data as any));
+            } else if (signal.signal_type === 'ice-candidate') {
+              console.log('📥 Processing delayed ICE candidate');
+              await pc.addIceCandidate(new RTCIceCandidate(signal.signal_data as any));
+            }
+          } catch (error) {
+            console.error('Error processing existing signal:', error);
+          }
+        }
 
-          // Fetch and add existing ICE candidates
-          const { data: existingCandidates } = await supabase
+        // Listen for answer and ICE candidates via Realtime
+        const channel = supabase
+          .channel(`call-${callId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'call_signals',
+              filter: `call_id=eq.${callId}`
+            },
+            async (payload: any) => {
+              const signal = payload.new;
+
+              // Ignore our own signals
+              if (signal.from_user === user.id) return;
+
+              try {
+                if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
+                  console.log('📥 Received answer via Realtime');
+                  const answerDescription = new RTCSessionDescription(signal.signal_data as any);
+                  await pc.setRemoteDescription(answerDescription);
+                } else if (signal.signal_type === 'ice-candidate') {
+                  console.log('📥 Received ICE candidate via Realtime');
+                  const candidate = new RTCIceCandidate(signal.signal_data as any);
+                  await pc.addIceCandidate(candidate);
+                }
+              } catch (error) {
+                console.error('Error processing realtime signal:', error);
+              }
+            }
+          )
+          .subscribe();
+
+        // Store channel for cleanup
+        unsubscribeCallDoc.current = () => {
+          supabase.removeChannel(channel);
+        };
+      } else {
+        // Joiner: create answer
+        pc.onicecandidate = async (event) => {
+          if (event.candidate) {
+            await supabase.from('call_signals').insert({
+              call_id: callId,
+              from_user: user.id,
+              to_user: null,
+              signal_type: 'ice-candidate',
+              signal_data: event.candidate.toJSON() as any
+            });
+          }
+        };
+
+        // Get the offer from Supabase with retry logic
+        let offerSignal = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        while (retryCount < maxRetries && !offerSignal) {
+          console.log(`📡 Fetching offer (attempt ${retryCount + 1}/${maxRetries})...`);
+          const { data } = await supabase
             .from('call_signals')
             .select('*')
             .eq('call_id', callId)
-            .eq('signal_type', 'ice-candidate')
-            .neq('from_user', user.id);
+            .eq('signal_type', 'offer')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-          if (existingCandidates) {
-            for (const candidateSignal of existingCandidates) {
-              const candidate = new RTCIceCandidate(candidateSignal.signal_data as unknown as RTCIceCandidateInit);
-              await pc.addIceCandidate(candidate);
+          if (data) {
+            offerSignal = data;
+          } else {
+            retryCount++;
+            if (retryCount < maxRetries) {
+              await new Promise(resolve => setTimeout(resolve, 1000));
             }
           }
-
-          // Create and send answer
-          const answerDescription = await pc.createAnswer();
-          await pc.setLocalDescription(answerDescription);
-
-          await supabase.from('call_signals').insert([{
-            call_id: callId,
-            from_user: user.id,
-            signal_type: 'answer',
-            signal_data: {
-              sdp: answerDescription.sdp,
-              type: answerDescription.type
-            } as Json
-          }]);
         }
+
+        if (!offerSignal) {
+          throw new Error('No offer found after multiple attempts');
+        }
+
+        const offerDescription = offerSignal.signal_data;
+        await pc.setRemoteDescription(new RTCSessionDescription(offerDescription as any));
+
+        const answerDescription = await pc.createAnswer();
+        await pc.setLocalDescription(answerDescription);
+
+        // Send answer to Supabase
+        await supabase.from('call_signals').insert({
+          call_id: callId,
+          from_user: user.id,
+          to_user: offerSignal.from_user,
+          signal_type: 'answer',
+          signal_data: {
+            sdp: answerDescription.sdp,
+            type: answerDescription.type,
+          } as any
+        });
+
+        console.log('📤 Answer sent, fetching existing ICE candidates...');
+
+        // CRITICAL FIX: Fetch existing ICE candidates before subscribing
+        const { data: existingCandidates } = await supabase
+          .from('call_signals')
+          .select('*')
+          .eq('call_id', callId)
+          .eq('signal_type', 'ice-candidate')
+          .neq('from_user', user.id);
+
+        // Process existing ICE candidates
+        for (const signal of existingCandidates || []) {
+          try {
+            console.log('📥 Processing delayed ICE candidate');
+            await pc.addIceCandidate(new RTCIceCandidate(signal.signal_data as any));
+          } catch (error) {
+            console.error('Error adding ICE candidate:', error);
+          }
+        }
+
+        // Listen for ICE candidates from offerer via Realtime
+        const channel = supabase
+          .channel(`call-${callId}`)
+          .on(
+            'postgres_changes',
+            {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'call_signals',
+              filter: `call_id=eq.${callId}`
+            },
+            async (payload: any) => {
+              const signal = payload.new;
+
+              // Ignore our own signals
+              if (signal.from_user === user.id) return;
+
+              try {
+                if (signal.signal_type === 'ice-candidate') {
+                  console.log('📥 Received ICE candidate via Realtime');
+                  const candidate = new RTCIceCandidate(signal.signal_data as any);
+                  await pc.addIceCandidate(candidate);
+                }
+              } catch (error) {
+                console.error('Error processing realtime signal:', error);
+              }
+            }
+          )
+          .subscribe();
+
+        // Store channel for cleanup
+        unsubscribeCallDoc.current = () => {
+          supabase.removeChannel(channel);
+        };
       }
 
-      // Add participant to database
+      // Add participant to database - check for ANY existing row for this user/call
       const { data: existingParticipant } = await supabase
         .from('call_participants')
         .select('id')
         .eq('call_id', callId)
         .eq('user_id', user.id)
-        .is('left_at', null)
         .limit(1)
         .maybeSingle();
 
       if (existingParticipant?.id) {
+        console.log('Re-joining: Updating existing participant record');
         await supabase
           .from('call_participants')
-          .update({ is_video_off: callType === 'voice' })
+          .update({
+            is_video_off: callType === 'voice',
+            left_at: null // Clear left_at to mark as active again
+          })
           .eq('id', existingParticipant.id);
       } else {
+        console.log('Joining: Creating new participant record');
         await supabase
           .from('call_participants')
           .insert({
             call_id: callId,
             user_id: user.id,
-            is_video_off: callType === 'voice'
+            is_video_off: callType === 'voice',
+            left_at: null
           });
       }
 
@@ -483,12 +597,6 @@ export function useCalls(conversationId: string | null) {
         .from('calls')
         .update({ is_active: false, ended_at: new Date().toISOString() })
         .eq('id', activeCall.id);
-
-      // Clean up old signals for this call
-      await supabase
-        .from('call_signals')
-        .delete()
-        .eq('call_id', activeCall.id);
     }
 
     setIsInCall(false);
@@ -513,12 +621,6 @@ export function useCalls(conversationId: string | null) {
         ended_at: new Date().toISOString(),
       })
       .eq('id', activeCall.id);
-
-    // Clean up signals for this call
-    await supabase
-      .from('call_signals')
-      .delete()
-      .eq('call_id', activeCall.id);
 
     await leaveCall();
   };
@@ -727,7 +829,7 @@ export function useCalls(conversationId: string | null) {
         });
 
         const screenTrack = screenStream.getVideoTracks()[0];
-        
+
         // Save original video track
         const currentVideoTrack = localStream.getVideoTracks()[0];
         if (currentVideoTrack) {
