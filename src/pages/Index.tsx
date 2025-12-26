@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { useReferrals } from '@/hooks/useReferrals';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { DiscussionView } from '@/components/chat/DiscussionView';
@@ -34,6 +35,9 @@ export default function Index() {
   // Initialize notification sound listener
   useNotificationSound();
   
+  // Referrals hook for processing pending referral codes
+  const { processReferralCode } = useReferrals();
+
   const { 
     conversations, 
     archivedConversations,
@@ -94,6 +98,19 @@ export default function Index() {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  // Process pending referral code after signup
+  useEffect(() => {
+    const pendingRef = sessionStorage.getItem('pendingReferralCode');
+    if (pendingRef && user) {
+      sessionStorage.removeItem('pendingReferralCode');
+      processReferralCode(pendingRef).then((success) => {
+        if (success) {
+          toast.success('Welcome! You joined via a referral link.');
+        }
+      });
+    }
+  }, [user, processReferralCode]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -255,6 +272,8 @@ export default function Index() {
         onOpenEditProfile={() => setShowEditProfile(true)}
         onOpenNotificationSettings={() => setShowNotificationSettings(true)}
         onOpenCallsInbox={() => setShowCallsInbox(true)}
+        onOpenStudyTokens={() => setShowStudyTokens(true)}
+        onOpenGlobalSearch={() => setShowGlobalSearch(true)}
       />
 
       {/* Conversation list */}
