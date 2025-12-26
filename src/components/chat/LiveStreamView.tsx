@@ -46,17 +46,18 @@ import { toast } from 'sonner';
 
 const WaveVisualizer: React.FC<{ level: number, isMuted: boolean }> = ({ level, isMuted }) => {
   return (
-    <div className="flex items-center gap-0.5 h-4 w-12">
-      {[1, 2, 3, 4, 5, 6].map((i) => (
+    <div className="flex items-end gap-[3px] h-6 w-16 mb-1">
+      {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
         <div
           key={i}
           className={cn(
-            "w-1 rounded-full transition-all duration-75 bg-primary",
-            isMuted ? "h-1 opacity-20" : ""
+            "w-[3px] rounded-full transition-all duration-75",
+            isMuted ? "bg-white/10" : "bg-primary animate-pulse"
           )}
           style={{
-            height: isMuted ? '4px' : `${Math.max(4, level * 20 * (0.5 + Math.random() * 0.5))}px`,
-            opacity: isMuted ? 0.2 : 0.4 + (level * 0.6)
+            height: isMuted ? '4px' : `${Math.max(4, level * 24 * (0.4 + Math.random() * 0.6))}px`,
+            opacity: isMuted ? 0.2 : 0.6 + (level * 0.4),
+            boxShadow: !isMuted && level > 0.1 ? `0 0 10px rgba(59, 130, 246, ${level})` : 'none'
           }}
         />
       ))}
@@ -90,6 +91,7 @@ interface LiveStreamViewProps {
   isMinimized?: boolean;
   remoteStreams?: Map<string, MediaStream>;
   localStream?: MediaStream | null;
+  isStreamStarter?: boolean;
 }
 
 interface ParticipantRowProps {
@@ -145,9 +147,9 @@ const ParticipantRow: React.FC<ParticipantRowProps> = ({
                 <Hand className="h-3 w-3" /> Hand Raised
               </span>
             ) : isSpeaking && !participant.is_muted ? (
-              <div className="flex items-center gap-2">
-                <span className="text-primary/70 text-[10px] uppercase font-bold tracking-wider animate-pulse">
-                  Speaking
+              <div className="flex flex-col gap-1 mt-1">
+                <span className="text-primary text-[10px] uppercase font-black tracking-tighter animate-pulse flex items-center gap-1">
+                  <AudioWaveform className="h-3 w-3" /> Speaking
                 </span>
                 <WaveVisualizer level={audioLevel} isMuted={false} />
               </div>
@@ -209,8 +211,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   onStopRecording,
   onRaiseHand,
   onLowerHand,
-  onUnmuteParticipant,
-  onMuteParticipant,
+  onUnmuteParticipant: triggerUnmute,
+  onMuteParticipant: triggerMute,
   onUpdateTitle,
   handRaised,
   noiseSuppression,
@@ -218,14 +220,16 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   onMinimize,
   isMinimized = false,
   remoteStreams = new Map(),
-  localStream = null
+  localStream = null,
+  isStreamStarter = false
 }) => {
+  const [showRecordingDialog, setShowRecordingDialog] = useState(false);
+  const [showTitleDialog, setShowTitleDialog] = useState(false);
+  const [newTitle, setNewTitle] = useState(streamTitle);
+  const [recordingTitle, setRecordingTitle] = useState('');
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [endStreamOnLeave, setEndStreamOnLeave] = useState(false);
   const [showRecordDialog, setShowRecordDialog] = useState(false);
-  const [recordingTitle, setRecordingTitle] = useState('');
-  const [showTitleDialog, setShowTitleDialog] = useState(false);
-  const [newTitle, setNewTitle] = useState(streamTitle);
   const [showScreenShare, setShowScreenShare] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [networkEnhancement, setNetworkEnhancement] = useState(false);
@@ -278,6 +282,18 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   const currentUserParticipant = participants.find(p => p.user_id === currentUserId);
   const otherParticipants = participants.filter(p => p.user_id !== currentUserId);
   const raisedHands = participants.filter(p => p.hand_raised);
+
+  const effectiveAdmin = isAdmin || isStreamStarter;
+
+  const onMuteParticipant = (userId: string) => {
+    if (!effectiveAdmin) return;
+    triggerMute(userId);
+  };
+
+  const onUnmuteParticipant = (userId: string) => {
+    if (!effectiveAdmin) return;
+    triggerUnmute(userId);
+  };
 
   const renderRemoteAudio = () => {
     return Array.from(remoteStreams.entries()).map(([userId, stream]) => (
@@ -636,7 +652,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
 
         {/* Primary Action: Mute/Unmute or Raise Hand */}
         <div className="flex flex-col items-center gap-2 group">
-          {isAdmin ? (
+          {effectiveAdmin || (currentUserParticipant && !currentUserParticipant.is_muted) ? (
             <Button
               variant="ghost"
               size="lg"
@@ -670,7 +686,9 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             </Button>
           )}
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            {isAdmin ? (isMuted ? 'Unmute' : 'Mute') : (handRaised ? 'Lower' : 'Raise')}
+            {effectiveAdmin || (currentUserParticipant && !currentUserParticipant.is_muted)
+              ? (isMuted ? 'Unmute' : 'Mute')
+              : (handRaised ? 'Lower' : 'Raise')}
           </span>
         </div>
 
