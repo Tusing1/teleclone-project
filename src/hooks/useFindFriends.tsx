@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { Profile } from '@/types/chat';
@@ -29,6 +29,7 @@ export function useFindFriends() {
   const [canSeeLikes, setCanSeeLikes] = useState(false);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const swipeInFlightRef = useRef(false);
 
   const fetchPotentialMatches = useCallback(async () => {
     if (!user) return;
@@ -211,6 +212,9 @@ export function useFindFriends() {
 
   const swipe = async (direction: 'left' | 'right') => {
     if (!user || currentIndex >= potentialMatches.length) return null;
+    if (swipeInFlightRef.current) return null;
+
+    swipeInFlightRef.current = true;
 
     const swipedUser = potentialMatches[currentIndex];
 
@@ -239,7 +243,7 @@ export function useFindFriends() {
       // Check for match if swiped right
       if (direction === 'right') {
         console.log('Checking for mutual swipe from:', swipedUser.user_id, 'to:', user.id);
-        
+
         const { data: theirSwipe, error: swipeCheckError } = await supabase
           .from('user_swipes')
           .select('*')
@@ -256,12 +260,14 @@ export function useFindFriends() {
 
         if (theirSwipe) {
           console.log('Mutual swipe detected! Creating match...');
-          
+
           // Check if match already exists (prevents duplicate match errors)
           const { data: existingMatch, error: existingMatchError } = await supabase
             .from('user_matches')
             .select('*')
-            .or(`and(user1_id.eq.${user.id},user2_id.eq.${swipedUser.user_id}),and(user1_id.eq.${swipedUser.user_id},user2_id.eq.${user.id})`)
+            .or(
+              `and(user1_id.eq.${user.id},user2_id.eq.${swipedUser.user_id}),and(user1_id.eq.${swipedUser.user_id},user2_id.eq.${user.id})`
+            )
             .maybeSingle();
 
           if (existingMatchError) {
@@ -270,48 +276,49 @@ export function useFindFriends() {
 
           if (existingMatch) {
             console.log('Match already exists:', existingMatch);
-            // Match already exists, just return success
             await fetchMatches();
             setCurrentIndex(prev => prev + 1);
-            return { matched: true, user: swipedUser, conversationId: existingMatch.conversation_id };
+            return {
+              matched: true,
+              user: swipedUser,
+              conversationId: existingMatch.conversation_id
+            };
           }
 
-          // It's a match! Create a conversation
-          console.log('Creating new conversation for match...');
-          const { data: conversation, error: convError } = await supabase
-            .from('conversations')
-            .insert({
-              type: 'direct',
-              created_by: user.id
-            })
-            .select()
-            .single();
+          // It's a match! Create a conversation.
+          // IMPORTANT: don't request the created row back yet (RLS can block selecting it
+          // before participants are added). We generate the id client-side.
+          const conversationId = crypto.randomUUID();
+          console.log('Creating new conversation for match...', conversationId);
+
+          const { error: convError } = await supabase.from('conversations').insert({
+            id: conversationId,
+            type: 'direct',
+            created_by: user.id
+          });
 
           if (convError) {
             console.error('Error creating conversation:', convError);
             throw convError;
           }
 
-          console.log('Created conversation:', conversation.id);
-
           // Add both participants
           const { error: partError } = await supabase.from('conversation_participants').insert([
-            { conversation_id: conversation.id, user_id: user.id, role: 'member' },
-            { conversation_id: conversation.id, user_id: swipedUser.user_id, role: 'member' }
+            { conversation_id: conversationId, user_id: user.id, role: 'member' },
+            { conversation_id: conversationId, user_id: swipedUser.user_id, role: 'member' }
           ]);
 
           if (partError) {
             console.error('Error adding participants:', partError);
+            throw partError;
           }
 
           // Create the match record
-          const { error: matchError } = await supabase
-            .from('user_matches')
-            .insert({
-              user1_id: user.id,
-              user2_id: swipedUser.user_id,
-              conversation_id: conversation.id
-            });
+          const { error: matchError } = await supabase.from('user_matches').insert({
+            user1_id: user.id,
+            user2_id: swipedUser.user_id,
+            conversation_id: conversationId
+          });
 
           if (matchError) {
             console.error('Error creating match:', matchError);
@@ -320,11 +327,9 @@ export function useFindFriends() {
 
           console.log('Match created successfully!');
 
-          // Refresh matches
           await fetchMatches();
-          
           setCurrentIndex(prev => prev + 1);
-          return { matched: true, user: swipedUser, conversationId: conversation.id };
+          return { matched: true, user: swipedUser, conversationId };
         }
       }
 
@@ -334,6 +339,8 @@ export function useFindFriends() {
       console.error('Error swiping:', error);
       toast.error('Something went wrong');
       return null;
+    } finally {
+      swipeInFlightRef.current = false;
     }
   };
 
