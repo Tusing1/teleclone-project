@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MessageCircle, Eye, EyeOff, Camera, Loader2, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,10 +37,28 @@ export default function Auth() {
     phoneNumber: '',
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
   const { signIn, signUp, user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+
+  // Capture referral code from URL
+  useEffect(() => {
+    const ref = searchParams.get('ref');
+    if (ref) {
+      setReferralCode(ref);
+      // Store in session for after signup
+      sessionStorage.setItem('referralCode', ref);
+    } else {
+      // Check if there's one stored
+      const storedRef = sessionStorage.getItem('referralCode');
+      if (storedRef) {
+        setReferralCode(storedRef);
+      }
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (user) {
@@ -149,6 +167,14 @@ export default function Auth() {
             });
           }
         } else {
+          // Process referral if there's a referral code
+          if (referralCode) {
+            sessionStorage.removeItem('referralCode');
+            // The referral will be processed after the user is created via the useReferrals hook
+            // Store it for processing after auth state updates
+            sessionStorage.setItem('pendingReferralCode', referralCode);
+          }
+          
           toast({
             title: 'Welcome!',
             description: 'Your account has been created successfully.',
