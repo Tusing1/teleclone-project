@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => ({
       manifest: false, // We're using our own manifest.webmanifest
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit for Agora SDK
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/.*\.supabase\.co\/.*/i,
