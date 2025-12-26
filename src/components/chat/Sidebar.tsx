@@ -1,6 +1,6 @@
 import { 
   LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact, Heart, Bell, Phone, Coins, Search 
+  Users, UserPlus, Radio, Contact, Heart, Bell, Phone, Coins, Search, Shield 
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -10,6 +10,7 @@ import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { useStudyTokens } from '@/hooks/useStudyTokens';
+import { useAdmin } from '@/hooks/useAdmin';
 
 interface SidebarProps {
   open: boolean;
@@ -26,6 +27,7 @@ interface SidebarProps {
   onOpenCallsInbox: () => void;
   onOpenStudyTokens?: () => void;
   onOpenGlobalSearch?: () => void;
+  onOpenAdminPanel?: () => void;
 }
 
 export function Sidebar({ 
@@ -42,11 +44,13 @@ export function Sidebar({
   onOpenNotificationSettings,
   onOpenCallsInbox,
   onOpenStudyTokens,
-  onOpenGlobalSearch
+  onOpenGlobalSearch,
+  onOpenAdminPanel
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { balance, streak } = useStudyTokens();
+  const { isAdmin } = useAdmin();
   const darkMode = theme === 'dark';
 
   const handleSignOut = async () => {
@@ -216,6 +220,20 @@ export function Sidebar({
               <Settings className="h-5 w-5 text-muted-foreground" />
               <span>Settings</span>
             </button>
+
+            {/* Admin Panel - only visible to admins */}
+            {isAdmin && onOpenAdminPanel && (
+              <>
+                <Separator className="my-2" />
+                <button 
+                  onClick={() => handleMenuClick(onOpenAdminPanel)}
+                  className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+                >
+                  <Shield className="h-5 w-5 text-orange-500" />
+                  <span className="text-orange-500 font-medium">Admin Panel</span>
+                </button>
+              </>
+            )}
           </div>
 
           {/* Sign out */}

@@ -24,6 +24,7 @@ import { CallsInboxDialog } from '@/components/chat/CallsInboxDialog';
 import { InviteJoinDialog } from '@/components/chat/InviteJoinDialog';
 import { StudyTokensDialog } from '@/components/chat/StudyTokensDialog';
 import { GlobalSearchDialog } from '@/components/chat/GlobalSearchDialog';
+import { AdminPanelDialog } from '@/components/chat/AdminPanelDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -47,7 +48,11 @@ export default function Index() {
     if (user) {
       checkDailyLogin().then((result) => {
         if (result) {
-          toast.success(`🔥 Day ${result.streak} streak! +${result.tokensEarned} tokens`);
+          if (result.milestoneBonus && result.milestoneMessage) {
+            toast.success(`${result.milestoneMessage} +${result.tokensEarned} tokens!`);
+          } else {
+            toast.success(`🔥 Day ${result.streak} streak! +${result.tokensEarned} tokens`);
+          }
         }
       });
     }
@@ -84,6 +89,7 @@ export default function Index() {
   const [showCallsInbox, setShowCallsInbox] = useState(false);
   const [showStudyTokens, setShowStudyTokens] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -289,6 +295,7 @@ export default function Index() {
         onOpenCallsInbox={() => setShowCallsInbox(true)}
         onOpenStudyTokens={() => setShowStudyTokens(true)}
         onOpenGlobalSearch={() => setShowGlobalSearch(true)}
+        onOpenAdminPanel={() => setShowAdminPanel(true)}
       />
 
       {/* Conversation list */}
@@ -443,6 +450,11 @@ export default function Index() {
         open={showGlobalSearch}
         onClose={() => setShowGlobalSearch(false)}
         onSelectUser={handleSelectUser}
+      />
+
+      <AdminPanelDialog
+        open={showAdminPanel}
+        onClose={() => setShowAdminPanel(false)}
       />
     </div>
   );
