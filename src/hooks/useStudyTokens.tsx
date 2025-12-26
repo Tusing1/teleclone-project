@@ -39,6 +39,8 @@ export const TOKEN_COSTS = {
   SEE_WHO_LIKES: 100,
   RECORD_CALLS: 150,
   EXTENDED_AI: 75,
+  UNLOCK_AI_CHAT: 50,
+  LONGER_CALLS: 100,
 } as const;
 
 // Token rewards for activities

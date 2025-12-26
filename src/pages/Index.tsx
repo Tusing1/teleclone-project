@@ -25,6 +25,7 @@ import { InviteJoinDialog } from '@/components/chat/InviteJoinDialog';
 import { StudyTokensDialog } from '@/components/chat/StudyTokensDialog';
 import { GlobalSearchDialog } from '@/components/chat/GlobalSearchDialog';
 import { AdminPanelDialog } from '@/components/chat/AdminPanelDialog';
+import { AskAIDialog } from '@/components/chat/AskAIDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -90,6 +91,7 @@ export default function Index() {
   const [showStudyTokens, setShowStudyTokens] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showAskAI, setShowAskAI] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -296,6 +298,7 @@ export default function Index() {
         onOpenStudyTokens={() => setShowStudyTokens(true)}
         onOpenGlobalSearch={() => setShowGlobalSearch(true)}
         onOpenAdminPanel={() => setShowAdminPanel(true)}
+        onOpenAskAI={() => setShowAskAI(true)}
       />
 
       {/* Conversation list */}
@@ -455,6 +458,11 @@ export default function Index() {
       <AdminPanelDialog
         open={showAdminPanel}
         onClose={() => setShowAdminPanel(false)}
+      />
+
+      <AskAIDialog
+        open={showAskAI}
+        onClose={() => setShowAskAI(false)}
       />
     </div>
   );
