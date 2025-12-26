@@ -23,6 +23,17 @@ export const RemoteAudioPlayer: React.FC<RemoteAudioPlayerProps> = ({ stream }) 
 
             playAudio();
 
+            // Interaction listener to unlock audio on mobile
+            const handleInteraction = () => {
+                console.log('👆 User interaction detected, attempting to unlock audio');
+                playAudio();
+                window.removeEventListener('click', handleInteraction);
+                window.removeEventListener('touchstart', handleInteraction);
+            };
+
+            window.addEventListener('click', handleInteraction);
+            window.addEventListener('touchstart', handleInteraction);
+
             // Ensure we play if tracks are added later
             stream.onaddtrack = () => {
                 console.log('🎵 Track added to remote stream, re-playing audio');
@@ -36,6 +47,8 @@ export const RemoteAudioPlayer: React.FC<RemoteAudioPlayerProps> = ({ stream }) 
             return () => {
                 stream.onaddtrack = null;
                 stream.onremovetrack = null;
+                window.removeEventListener('click', handleInteraction);
+                window.removeEventListener('touchstart', handleInteraction);
             };
         }
     }, [stream]);
