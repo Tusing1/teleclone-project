@@ -270,6 +270,7 @@ export default function Index() {
           onArchiveConversation={handleArchiveConversation}
           onDeleteConversation={handleDeleteConversation}
           getUserRole={getUserRole}
+          onRefresh={refetchConversations}
         />
       </div>
 

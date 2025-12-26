@@ -462,6 +462,7 @@ export function ChannelSettingsDialog({
         open={showSubscribers}
         onClose={() => setShowSubscribers(false)}
         conversationId={channel.id}
+        conversationType="channel"
         participants={channel.participants}
         isOwner={isOwner}
         onRefresh={onRefresh}

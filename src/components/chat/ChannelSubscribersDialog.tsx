@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Users, Shield, ShieldCheck, UserX, Ban, Search } from 'lucide-react';
+import { useState } from 'react';
+import { Users, Shield, ShieldCheck, UserX, Ban, Search, UserPlus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar } from './Avatar';
+import { AddMembersDialog } from './AddMembersDialog';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -28,6 +29,7 @@ interface ChannelSubscribersDialogProps {
   open: boolean;
   onClose: () => void;
   conversationId: string;
+  conversationType?: string;
   participants: (ConversationParticipant & { profile: Profile })[];
   isOwner: boolean;
   onRefresh: () => void;
@@ -37,6 +39,7 @@ export function ChannelSubscribersDialog({
   open,
   onClose,
   conversationId,
+  conversationType = 'channel',
   participants,
   isOwner,
   onRefresh,
@@ -44,6 +47,7 @@ export function ChannelSubscribersDialog({
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showAddMembers, setShowAddMembers] = useState(false);
 
   const filteredParticipants = participants.filter(p => {
     const name = p.profile?.full_name || p.profile?.username || '';
@@ -156,117 +160,142 @@ export function ChannelSubscribersDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-lg bg-slate-800 border-slate-700 text-slate-100">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-100">
-            <Users className="h-5 w-5" />
-            Subscribers ({participants.length})
-          </DialogTitle>
-          <DialogDescription className="text-slate-400">
-            Manage channel subscribers and their roles.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onClose}>
+        <DialogContent className="sm:max-w-lg bg-card border-border text-foreground">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Subscribers ({participants.length})
+              </span>
+              {isOwner && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddMembers(true)}
+                  className="text-xs"
+                >
+                  <UserPlus className="h-4 w-4 mr-1" />
+                  Add Members
+                </Button>
+              )}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              Manage {conversationType === 'channel' ? 'channel' : 'group'} subscribers and their roles.
+            </DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-4 py-2">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search subscribers..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-slate-700 border-slate-600 text-slate-100 placeholder:text-slate-400"
-            />
-          </div>
-
-          {/* Subscribers list */}
-          <ScrollArea className="h-[400px]">
-            <div className="space-y-2">
-              {filteredParticipants.map((participant) => {
-                const isCurrentUser = participant.user_id === user?.id;
-                const canManage = isOwner && !isCurrentUser && participant.role !== 'owner';
-                const isAdmin = participant.role === 'admin';
-
-                return (
-                  <div 
-                    key={participant.id}
-                    className="flex items-center justify-between p-3 rounded-lg bg-slate-700/30 hover:bg-slate-700/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Avatar
-                        src={participant.profile?.avatar_url}
-                        name={participant.profile?.full_name || participant.profile?.username || 'User'}
-                        size="sm"
-                        isOnline={participant.profile?.is_online}
-                      />
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-slate-200">
-                            {participant.profile?.full_name || participant.profile?.username}
-                            {isCurrentUser && <span className="text-slate-400 ml-1">(you)</span>}
-                          </p>
-                          {getRoleBadge(participant.role)}
-                        </div>
-                        <p className="text-xs text-slate-400">
-                          @{participant.profile?.username}
-                        </p>
-                      </div>
-                    </div>
-
-                    {canManage && (
-                      <div className="flex items-center gap-1">
-                        {isAdmin ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDemoteToMember(participant.user_id)}
-                            disabled={loading}
-                            className="text-slate-400 hover:text-slate-200 text-xs"
-                          >
-                            Demote
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handlePromoteToAdmin(participant.user_id)}
-                            disabled={loading}
-                            className="text-blue-400 hover:text-blue-300 text-xs"
-                          >
-                            <Shield className="h-3 w-3 mr-1" />
-                            Admin
-                          </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveUser(participant.user_id)}
-                          disabled={loading}
-                          className="h-8 w-8 text-slate-400 hover:text-slate-200"
-                          title="Remove"
-                        >
-                          <UserX className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleBanUser(participant.user_id)}
-                          disabled={loading}
-                          className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/20"
-                          title="Ban"
-                        >
-                          <Ban className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          <div className="space-y-4 py-2">
+            {/* Search */}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search subscribers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-          </ScrollArea>
-        </div>
-      </DialogContent>
-    </Dialog>
+
+            {/* Subscribers list */}
+            <ScrollArea className="h-[400px]">
+              <div className="space-y-2">
+                {filteredParticipants.map((participant) => {
+                  const isCurrentUser = participant.user_id === user?.id;
+                  const canManage = isOwner && !isCurrentUser && participant.role !== 'owner';
+                  const isAdmin = participant.role === 'admin';
+
+                  return (
+                    <div 
+                      key={participant.id}
+                      className="flex items-center justify-between p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar
+                          src={participant.profile?.avatar_url}
+                          name={participant.profile?.full_name || participant.profile?.username || 'User'}
+                          size="sm"
+                          isOnline={participant.profile?.is_online}
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium">
+                              {participant.profile?.full_name || participant.profile?.username}
+                              {isCurrentUser && <span className="text-muted-foreground ml-1">(you)</span>}
+                            </p>
+                            {getRoleBadge(participant.role)}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            @{participant.profile?.username}
+                          </p>
+                        </div>
+                      </div>
+
+                      {canManage && (
+                        <div className="flex items-center gap-1">
+                          {isAdmin ? (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDemoteToMember(participant.user_id)}
+                              disabled={loading}
+                              className="text-muted-foreground hover:text-foreground text-xs"
+                            >
+                              Demote
+                            </Button>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handlePromoteToAdmin(participant.user_id)}
+                              disabled={loading}
+                              className="text-primary hover:text-primary/80 text-xs"
+                            >
+                              <Shield className="h-3 w-3 mr-1" />
+                              Admin
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleRemoveUser(participant.user_id)}
+                            disabled={loading}
+                            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                            title="Remove"
+                          >
+                            <UserX className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleBanUser(participant.user_id)}
+                            disabled={loading}
+                            className="h-8 w-8 text-destructive hover:text-destructive/80 hover:bg-destructive/20"
+                            title="Ban"
+                          >
+                            <Ban className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Members Dialog */}
+      <AddMembersDialog
+        open={showAddMembers}
+        onClose={() => setShowAddMembers(false)}
+        conversationId={conversationId}
+        conversationType={conversationType}
+        existingParticipantIds={participants.map(p => p.user_id)}
+        onMembersAdded={onRefresh}
+      />
+    </>
   );
 }
