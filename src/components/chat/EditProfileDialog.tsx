@@ -219,6 +219,23 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
 
           {/* Form Fields */}
           <div className="space-y-4">
+            {/* Email (read-only) */}
+            {user?.email && (
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={user.email}
+                  disabled
+                  className="bg-muted text-muted-foreground cursor-not-allowed"
+                />
+                <p className="text-xs text-muted-foreground">
+                  This is the email you used to register
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="fullName">Display Name</Label>
               <Input

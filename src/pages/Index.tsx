@@ -28,6 +28,7 @@ import { AdminPanelDialog } from '@/components/chat/AdminPanelDialog';
 import { AskAIDialog } from '@/components/chat/AskAIDialog';
 import { FriendRequestsDialog } from '@/components/chat/FriendRequestsDialog';
 import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
+import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -96,6 +97,7 @@ export default function Index() {
   const [showAskAI, setShowAskAI] = useState(false);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [showMessageFriends, setShowMessageFriends] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -304,6 +306,7 @@ export default function Index() {
         onOpenAdminPanel={() => setShowAdminPanel(true)}
         onOpenAskAI={() => setShowAskAI(true)}
         onOpenFriendRequests={() => setShowFriendRequests(true)}
+        onOpenSettings={() => setShowSettings(true)}
       />
 
       {/* Conversation list */}
@@ -489,6 +492,11 @@ export default function Index() {
         onSelectConversation={(conversationId) => {
           setSelectedConversationId(conversationId);
         }}
+      />
+
+      <SettingsDialog
+        open={showSettings}
+        onClose={() => setShowSettings(false)}
       />
     </div>
   );
