@@ -285,34 +285,46 @@ export function useFindFriends() {
             };
           }
 
-          // It's a match! Create a conversation.
-          // IMPORTANT: don't request the created row back yet (RLS can block selecting it
-          // before participants are added). We generate the id client-side.
-          const conversationId = crypto.randomUUID();
-          console.log('Creating new conversation for match...', conversationId);
+          // It's a match! Create a direct conversation via backend function (bypasses RLS safely)
+          console.log('Creating new conversation for match (backend function)...');
 
-          const { error: convError } = await supabase.from('conversations').insert({
-            id: conversationId,
-            type: 'direct',
-            created_by: user.id
-          });
+          const { data: convRes, error: convError } = await supabase.functions.invoke(
+            'create-conversation',
+            {
+              body: {
+                type: 'direct',
+                memberIds: [swipedUser.user_id]
+              }
+            }
+          );
 
           if (convError) {
             console.error('Error creating conversation:', convError);
             throw convError;
           }
 
-          // Add both participants
-          const { error: partError } = await supabase.from('conversation_participants').insert([
-            { conversation_id: conversationId, user_id: user.id, role: 'member' },
-            { conversation_id: conversationId, user_id: swipedUser.user_id, role: 'member' }
-          ]);
-
-          if (partError) {
-            console.error('Error adding participants:', partError);
-            throw partError;
+          const conversationId = (convRes as { id?: string })?.id;
+          if (!conversationId) {
+            throw new Error('Conversation creation failed');
           }
 
+          // Create the match record
+          const { error: matchError } = await supabase.from('user_matches').insert({
+            user1_id: user.id,
+            user2_id: swipedUser.user_id,
+            conversation_id: conversationId
+          });
+
+          if (matchError) {
+            console.error('Error creating match:', matchError);
+            // Even if match record fails, conversation was created - still return success
+          }
+
+          console.log('Match created successfully!');
+
+          await fetchMatches();
+          setCurrentIndex(prev => prev + 1);
+          return { matched: true, user: swipedUser, conversationId };
           // Create the match record
           const { error: matchError } = await supabase.from('user_matches').insert({
             user1_id: user.id,
