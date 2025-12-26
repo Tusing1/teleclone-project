@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
 import { useAudioLevel } from '@/hooks/useAudioLevel';
+import { RemoteAudioPlayer } from './RemoteAudioPlayer';
 import {
   Dialog,
   DialogContent,
@@ -42,39 +43,16 @@ const AudioIndicator: React.FC<{ stream: MediaStream | null; showRing?: boolean 
   if (!showRing) return null;
 
   return (
-    <div 
+    <div
       className={cn(
         "absolute inset-0 rounded-xl border-4 transition-all duration-150 pointer-events-none",
-        isSpeaking 
-          ? "border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.5)]" 
+        isSpeaking
+          ? "border-green-500 shadow-[0_0_20px_rgba(34,197,94,0.5)]"
           : "border-transparent"
       )}
       style={{
         transform: isSpeaking ? `scale(${1 + audioLevel * 0.05})` : 'scale(1)',
       }}
-    />
-  );
-};
-
-// Remote audio player component - ensures audio is played
-const RemoteAudioPlayer: React.FC<{ stream: MediaStream }> = ({ stream }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (audioRef.current && stream) {
-      audioRef.current.srcObject = stream;
-      audioRef.current.play().catch(err => {
-        console.log('Audio autoplay blocked, user interaction needed:', err);
-      });
-    }
-  }, [stream]);
-
-  return (
-    <audio 
-      ref={audioRef} 
-      autoPlay 
-      playsInline
-      style={{ display: 'none' }}
     />
   );
 };
@@ -198,16 +176,15 @@ export const CallView: React.FC<CallViewProps> = ({
 
       {/* Participants Grid */}
       <div className="flex-1 p-4 overflow-auto">
-        <div className={`grid gap-4 h-full ${
-          participants.length === 1 ? 'grid-cols-1' :
+        <div className={`grid gap-4 h-full ${participants.length === 1 ? 'grid-cols-1' :
           participants.length <= 4 ? 'grid-cols-2' :
-          'grid-cols-3'
-        }`}>
+            'grid-cols-3'
+          }`}>
           {/* Local video/avatar */}
           <div className="relative bg-muted rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]">
             {/* Audio level indicator ring */}
             <AudioIndicator stream={localStream} showRing={!isMuted} />
-            
+
             {callType === 'video' && !isVideoOff && localStream ? (
               <video
                 ref={localVideoRef}
@@ -230,12 +207,12 @@ export const CallView: React.FC<CallViewProps> = ({
                 <span className="text-sm font-medium">You</span>
               </div>
             )}
-            
+
             {/* Mute indicator with animation */}
             <div className={cn(
               "absolute bottom-2 right-2 rounded-full p-1.5 transition-all duration-300",
-              isMuted 
-                ? "bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" 
+              isMuted
+                ? "bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"
                 : "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]"
             )}>
               {isMuted ? (
@@ -244,7 +221,7 @@ export const CallView: React.FC<CallViewProps> = ({
                 <Mic className="h-4 w-4 text-white" />
               )}
             </div>
-            
+
             <div className="absolute top-2 left-2 bg-black/50 rounded px-2 py-1 text-xs text-white">
               You
             </div>
@@ -256,16 +233,16 @@ export const CallView: React.FC<CallViewProps> = ({
             const showVideo = callType === 'video' && stream;
 
             return (
-              <div 
-                key={streamId} 
+              <div
+                key={streamId}
                 className="relative bg-muted rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]"
               >
                 {/* Audio level indicator ring */}
                 <AudioIndicator stream={stream} showRing={!participant?.is_muted} />
-                
+
                 {/* Hidden audio element to play remote audio */}
                 <RemoteAudioPlayer stream={stream} />
-                
+
                 {showVideo ? (
                   <video
                     ref={setRemoteVideoRef(streamId)}
@@ -275,22 +252,22 @@ export const CallView: React.FC<CallViewProps> = ({
                   />
                 ) : (
                   <div className="flex flex-col items-center gap-2">
-                    <Avatar 
-                      name={participant?.profile?.full_name || participant?.profile?.username || 'Remote'} 
+                    <Avatar
+                      name={participant?.profile?.full_name || participant?.profile?.username || 'Remote'}
                       src={participant?.profile?.avatar_url || undefined}
-                      size="lg" 
+                      size="lg"
                     />
                     <span className="text-sm font-medium">
                       {participant?.profile?.full_name || participant?.profile?.username || 'Remote User'}
                     </span>
                   </div>
                 )}
-                
+
                 {/* Mute indicator with animation */}
                 <div className={cn(
                   "absolute bottom-2 right-2 rounded-full p-1.5 transition-all duration-300",
-                  participant?.is_muted 
-                    ? "bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" 
+                  participant?.is_muted
+                    ? "bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]"
                     : "bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]"
                 )}>
                   {participant?.is_muted ? (
@@ -299,7 +276,7 @@ export const CallView: React.FC<CallViewProps> = ({
                     <Mic className="h-4 w-4 text-white" />
                   )}
                 </div>
-                
+
                 <div className="absolute top-2 left-2 bg-black/50 rounded px-2 py-1 text-xs text-white flex items-center gap-1">
                   {participant?.profile?.username || 'Remote'}
                   <Wifi className="h-3 w-3 text-green-400" />
@@ -310,15 +287,15 @@ export const CallView: React.FC<CallViewProps> = ({
 
           {/* Show avatars for participants without streams yet */}
           {remoteStreams.size === 0 && remoteParticipants.map((participant) => (
-            <div 
-              key={participant.id} 
+            <div
+              key={participant.id}
               className="relative bg-muted rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]"
             >
               <div className="flex flex-col items-center gap-2">
-                <Avatar 
-                  name={participant.profile?.full_name || participant.profile?.username || ''} 
+                <Avatar
+                  name={participant.profile?.full_name || participant.profile?.username || ''}
                   src={participant.profile?.avatar_url || undefined}
-                  size="lg" 
+                  size="lg"
                 />
                 <span className="text-sm font-medium">
                   {participant.profile?.full_name || participant.profile?.username}
@@ -327,12 +304,12 @@ export const CallView: React.FC<CallViewProps> = ({
                   <span className="text-xs text-muted-foreground animate-pulse">Connecting...</span>
                 )}
               </div>
-              
+
               {/* Mute indicator */}
               <div className={cn(
                 "absolute bottom-2 right-2 rounded-full p-1.5 transition-all duration-300",
-                participant.is_muted 
-                  ? "bg-red-500 animate-pulse" 
+                participant.is_muted
+                  ? "bg-red-500 animate-pulse"
                   : "bg-green-500"
               )}>
                 {participant.is_muted ? (
@@ -341,7 +318,7 @@ export const CallView: React.FC<CallViewProps> = ({
                   <Mic className="h-4 w-4 text-white" />
                 )}
               </div>
-              
+
               <div className="absolute top-2 left-2 bg-black/50 rounded px-2 py-1 text-xs text-white">
                 {participant.profile?.username}
               </div>
@@ -358,8 +335,8 @@ export const CallView: React.FC<CallViewProps> = ({
           size="lg"
           className={cn(
             "rounded-full w-14 h-14 transition-all duration-300 border-2",
-            isMuted 
-              ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]" 
+            isMuted
+              ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]"
               : "bg-green-500/20 border-green-500 text-green-500 hover:bg-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
           )}
           onClick={onToggleMute}
@@ -374,8 +351,8 @@ export const CallView: React.FC<CallViewProps> = ({
             size="lg"
             className={cn(
               "rounded-full w-14 h-14 transition-all duration-300 border-2",
-              isVideoOff 
-                ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]" 
+              isVideoOff
+                ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]"
                 : "bg-green-500/20 border-green-500 text-green-500 hover:bg-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
             )}
             onClick={onToggleVideo}
@@ -391,8 +368,8 @@ export const CallView: React.FC<CallViewProps> = ({
             size="lg"
             className={cn(
               "rounded-full w-14 h-14 transition-all duration-300 border-2",
-              isScreenSharing 
-                ? "bg-blue-500/20 border-blue-500 text-blue-500 hover:bg-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.4)]" 
+              isScreenSharing
+                ? "bg-blue-500/20 border-blue-500 text-blue-500 hover:bg-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.4)]"
                 : "bg-secondary border-border text-foreground hover:bg-secondary/80"
             )}
             onClick={onToggleScreenShare}
@@ -408,8 +385,8 @@ export const CallView: React.FC<CallViewProps> = ({
             size="lg"
             className={cn(
               "rounded-full w-14 h-14 transition-all duration-300 border-2",
-              isRecording 
-                ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]" 
+              isRecording
+                ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]"
                 : "bg-secondary border-border text-foreground hover:bg-secondary/80"
             )}
             onClick={isRecording ? onStopRecording : () => setShowRecordDialog(true)}
