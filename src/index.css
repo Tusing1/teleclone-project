@@ -111,9 +111,21 @@
     @apply border-border;
   }
 
-  body {
+  html, body {
     @apply bg-background text-foreground;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-overflow-scrolling: touch;
+    touch-action: manipulation;
+  }
+
+  #root {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
   }
 }
 
@@ -134,5 +146,14 @@
   .scrollbar-thin::-webkit-scrollbar-thumb {
     background-color: hsl(var(--muted-foreground) / 0.3);
     border-radius: 3px;
+  }
+
+  /* Safe area insets for notched devices */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0);
   }
 }
