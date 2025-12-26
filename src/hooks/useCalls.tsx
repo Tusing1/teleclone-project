@@ -145,6 +145,18 @@ export function useCalls(conversationId: string | null) {
       .is('left_at', null);
 
     if (participantsData) {
+      // Auto-end call if no participants for too long
+      if (participantsData.length === 0) {
+        await supabase
+          .from('calls')
+          .update({ is_active: false, ended_at: new Date().toISOString() })
+          .eq('id', callId)
+          .eq('is_active', true);
+        setActiveCall(null);
+        setParticipants([]);
+        return;
+      }
+
       const userIds = participantsData.map(p => p.user_id);
       const { data: profiles } = await supabase
         .from('profiles')
@@ -390,6 +402,21 @@ export function useCalls(conversationId: string | null) {
       .update({ left_at: new Date().toISOString() })
       .eq('call_id', activeCall.id)
       .eq('user_id', user.id);
+
+    // Check if any participants remain - if not, end the call
+    const { data: remainingParticipants } = await supabase
+      .from('call_participants')
+      .select('id')
+      .eq('call_id', activeCall.id)
+      .is('left_at', null);
+
+    if (!remainingParticipants || remainingParticipants.length === 0) {
+      // End the call immediately if no participants remain
+      await supabase
+        .from('calls')
+        .update({ is_active: false, ended_at: new Date().toISOString() })
+        .eq('id', activeCall.id);
+    }
 
     setIsInCall(false);
     setIsMuted(false);
