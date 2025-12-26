@@ -312,6 +312,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
         <MatchCelebration
           matchedUser={matchAnimation.user}
           onClose={() => setMatchAnimation(null)}
+          onKeepSwiping={() => setActiveTab('discover')}
           onSendMessage={() => {
             handleOpenMatch(matchAnimation.conversationId);
             setMatchAnimation(null);

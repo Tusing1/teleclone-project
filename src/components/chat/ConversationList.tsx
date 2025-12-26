@@ -481,52 +481,88 @@ export function ConversationList({
       </div>
 
       {/* Expandable FAB */}
-      <div className="absolute bottom-6 right-6">
+      <div className="absolute bottom-6 right-6 z-50">
+        {/* Backdrop when FAB is open */}
+        {fabOpen && (
+          <div 
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] -z-10 animate-in fade-in duration-200"
+            onClick={() => setFabOpen(false)}
+          />
+        )}
+        
         {/* FAB Options */}
-        <div className={cn(
-          "absolute bottom-16 right-0 flex flex-col gap-2 transition-all duration-300",
-          fabOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
-        )}>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => { onOpenAskAI?.(); setFabOpen(false); }}
-            className="shadow-lg rounded-full px-4 gap-2"
-          >
-            <Bot className="h-4 w-4" />
-            Ask AI
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => { onOpenFindFriends?.(); setFabOpen(false); }}
-            className="shadow-lg rounded-full px-4 gap-2"
-          >
-            <Heart className="h-4 w-4" />
-            Find Friends
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => { onOpenMessageFriends?.(); setFabOpen(false); }}
-            className="shadow-lg rounded-full px-4 gap-2"
-          >
-            <MessageCircle className="h-4 w-4" />
-            Message
-          </Button>
+        <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3">
+          {/* Ask AI Option */}
+          <div className={cn(
+            "flex items-center gap-3 transition-all duration-300",
+            fabOpen 
+              ? "opacity-100 translate-y-0" 
+              : "opacity-0 translate-y-4 pointer-events-none"
+          )} style={{ transitionDelay: fabOpen ? '100ms' : '0ms' }}>
+            <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+              Ask AI
+            </span>
+            <button
+              onClick={() => { onOpenAskAI?.(); setFabOpen(false); }}
+              className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
+            >
+              <Bot className="h-5 w-5 text-white" />
+            </button>
+          </div>
+          
+          {/* Find Friends Option */}
+          <div className={cn(
+            "flex items-center gap-3 transition-all duration-300",
+            fabOpen 
+              ? "opacity-100 translate-y-0" 
+              : "opacity-0 translate-y-4 pointer-events-none"
+          )} style={{ transitionDelay: fabOpen ? '50ms' : '0ms' }}>
+            <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+              Find Friends
+            </span>
+            <button
+              onClick={() => { onOpenFindFriends?.(); setFabOpen(false); }}
+              className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
+            >
+              <Heart className="h-5 w-5 text-white" />
+            </button>
+          </div>
+          
+          {/* Message Friends Option */}
+          <div className={cn(
+            "flex items-center gap-3 transition-all duration-300",
+            fabOpen 
+              ? "opacity-100 translate-y-0" 
+              : "opacity-0 translate-y-4 pointer-events-none"
+          )} style={{ transitionDelay: fabOpen ? '0ms' : '0ms' }}>
+            <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
+              Message
+            </span>
+            <button
+              onClick={() => { onOpenMessageFriends?.(); setFabOpen(false); }}
+              className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
+            >
+              <MessageCircle className="h-5 w-5 text-white" />
+            </button>
+          </div>
         </div>
         
         {/* Main FAB */}
-        <Button
+        <button
           onClick={() => setFabOpen(!fabOpen)}
-          size="icon"
           className={cn(
-            "w-14 h-14 rounded-full shadow-lg transition-transform",
-            fabOpen && "rotate-45"
+            "w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300",
+            fabOpen 
+              ? "bg-muted rotate-45" 
+              : "bg-gradient-to-br from-primary to-primary/80 hover:shadow-primary/25 hover:shadow-2xl"
           )}
         >
-          {fabOpen ? <X className="h-6 w-6" /> : <Edit className="h-6 w-6" />}
-        </Button>
+          {fabOpen ? (
+            <X className="h-6 w-6 text-foreground" />
+          ) : (
+            <Edit className="h-6 w-6 text-primary-foreground" />
+          )}
+        </button>
       </div>
     </div>
   );
