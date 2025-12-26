@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { useStudyTokens } from '@/hooks/useStudyTokens';
 import { useAdmin } from '@/hooks/useAdmin';
+import { useFriendRequests } from '@/hooks/useFriendRequests';
 
 interface SidebarProps {
   open: boolean;
@@ -29,6 +30,7 @@ interface SidebarProps {
   onOpenGlobalSearch?: () => void;
   onOpenAdminPanel?: () => void;
   onOpenAskAI?: () => void;
+  onOpenFriendRequests?: () => void;
 }
 
 export function Sidebar({ 
@@ -47,12 +49,14 @@ export function Sidebar({
   onOpenStudyTokens,
   onOpenGlobalSearch,
   onOpenAdminPanel,
-  onOpenAskAI
+  onOpenAskAI,
+  onOpenFriendRequests
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { balance, streak } = useStudyTokens();
   const { isAdmin } = useAdmin();
+  const { pendingCount } = useFriendRequests();
   const darkMode = theme === 'dark';
 
   const handleSignOut = async () => {
@@ -123,11 +127,10 @@ export function Sidebar({
               {onOpenAskAI && (
                 <button
                   onClick={() => handleMenuClick(onOpenAskAI)}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors relative"
+                  className="flex flex-col items-center gap-1 p-2 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
                 >
                   <Bot className="h-5 w-5 text-cyan-300" />
                   <span className="text-[10px] text-primary-foreground/80">AI</span>
-                  <span className="absolute -top-1 -right-1 text-[8px] bg-orange-500 px-1 rounded">Soon</span>
                 </button>
               )}
 
@@ -195,6 +198,22 @@ export function Sidebar({
               <UserPlus className="h-5 w-5 text-muted-foreground" />
               <span>Invite Friends</span>
             </button>
+
+            {/* Friend Requests */}
+            {onOpenFriendRequests && (
+              <button 
+                onClick={() => handleMenuClick(onOpenFriendRequests)}
+                className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+              >
+                <Heart className="h-5 w-5 text-muted-foreground" />
+                <span className="flex-1 text-left">Friend Requests</span>
+                {pendingCount > 0 && (
+                  <Badge variant="default" className="bg-primary text-primary-foreground text-xs h-5 min-w-5 flex items-center justify-center">
+                    {pendingCount}
+                  </Badge>
+                )}
+              </button>
+            )}
 
             <button 
               onClick={() => handleMenuClick(onOpenCallsInbox)}
