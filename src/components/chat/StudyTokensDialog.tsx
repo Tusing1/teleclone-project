@@ -352,8 +352,8 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                     </a>
                   </div>
                 </div>
-              ) : !paymentMethod ? (
-                <div className="space-y-3">
+              ) : (
+                <div className="space-y-4">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="font-medium">{selectedPackage.label}</p>
@@ -366,81 +366,23 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                     </Button>
                   </div>
 
-                  <p className="text-sm font-medium text-muted-foreground mb-2">Select payment method:</p>
-                  
-                  <button
-                    onClick={() => handlePaymentMethod('mtn')}
-                    disabled={isProcessing}
-                    className="w-full flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 transition-colors"
-                  >
-                    <div className="p-2 rounded-full bg-yellow-500">
-                      <Phone className="h-5 w-5 text-black" />
+                  {/* Mobile Money Coming Soon */}
+                  <div className="p-6 rounded-xl bg-gradient-to-r from-yellow-500/10 to-red-500/10 border border-yellow-500/20 text-center">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-r from-yellow-500/20 to-red-500/20 flex items-center justify-center mx-auto mb-4">
+                      <Phone className="h-8 w-8 text-yellow-600" />
                     </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-medium">MTN Mobile Money</p>
-                      <p className="text-xs text-muted-foreground">Pay with MTN MoMo</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handlePaymentMethod('airtel')}
-                    disabled={isProcessing}
-                    className="w-full flex items-center gap-3 p-4 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-colors"
-                  >
-                    <div className="p-2 rounded-full bg-red-500">
-                      <Phone className="h-5 w-5 text-white" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="font-medium">Airtel Money</p>
-                      <p className="text-xs text-muted-foreground">Pay with Airtel Money</p>
-                    </div>
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-3">
-                      <Smartphone className="h-8 w-8 text-green-500" />
-                    </div>
-                    <p className="font-medium">Payment Initiated!</p>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Complete the payment on your phone
+                    <h3 className="font-semibold mb-2">Mobile Money Coming Soon!</h3>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      MTN MoMo and Airtel Money payments will be available very soon.
                     </p>
+                    <Badge variant="outline" className="text-xs">
+                      Coming Soon
+                    </Badge>
                   </div>
 
-                  <div className="bg-secondary/50 rounded-lg p-4">
-                    <p className="text-xs text-muted-foreground mb-2">Your activation code:</p>
-                    <div className="flex items-center justify-between bg-background rounded-lg p-3">
-                      <span className="font-mono text-lg font-bold tracking-wider">
-                        {activationCode}
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={handleCopyCode}>
-                        <Copy className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      After payment completes, enter this code to activate your tokens
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Enter code here"
-                      value={codeInput}
-                      onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={handleActivateCode}
-                      disabled={isProcessing || !codeInput.trim()}
-                    >
-                      Activate
-                    </Button>
-                  </div>
-
-                  <Button variant="ghost" className="w-full" onClick={resetPurchaseFlow}>
-                    Start Over
-                  </Button>
+                  <p className="text-xs text-center text-muted-foreground">
+                    For now, contact admin to get activation codes manually
+                  </p>
                 </div>
               )}
             </ScrollArea>
