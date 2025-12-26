@@ -20,6 +20,8 @@ import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
 import { NotificationSettingsDialog } from '@/components/chat/NotificationSettingsDialog';
 import { CallsInboxDialog } from '@/components/chat/CallsInboxDialog';
 import { InviteJoinDialog } from '@/components/chat/InviteJoinDialog';
+import { StudyTokensDialog } from '@/components/chat/StudyTokensDialog';
+import { GlobalSearchDialog } from '@/components/chat/GlobalSearchDialog';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -61,6 +63,8 @@ export default function Index() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showCallsInbox, setShowCallsInbox] = useState(false);
+  const [showStudyTokens, setShowStudyTokens] = useState(false);
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -333,6 +337,7 @@ export default function Index() {
         open={showContacts}
         onClose={() => setShowContacts(false)}
         onSelectUser={handleSelectUser}
+        onOpenInvite={() => setShowInviteFriends(true)}
       />
       
       <InviteFriendsDialog
@@ -393,6 +398,17 @@ export default function Index() {
         onClose={() => setPendingInviteCode(null)}
         inviteCode={pendingInviteCode || ''}
         onJoined={handleInviteJoined}
+      />
+
+      <StudyTokensDialog
+        open={showStudyTokens}
+        onClose={() => setShowStudyTokens(false)}
+      />
+
+      <GlobalSearchDialog
+        open={showGlobalSearch}
+        onClose={() => setShowGlobalSearch(false)}
+        onSelectUser={handleSelectUser}
       />
     </div>
   );

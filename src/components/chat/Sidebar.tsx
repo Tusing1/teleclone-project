@@ -1,13 +1,15 @@
 import { 
   LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact, Heart, Bell, Phone 
+  Users, UserPlus, Radio, Contact, Heart, Bell, Phone, Coins, Search 
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
+import { useStudyTokens } from '@/hooks/useStudyTokens';
 
 interface SidebarProps {
   open: boolean;
@@ -22,6 +24,8 @@ interface SidebarProps {
   onOpenEditProfile: () => void;
   onOpenNotificationSettings: () => void;
   onOpenCallsInbox: () => void;
+  onOpenStudyTokens?: () => void;
+  onOpenGlobalSearch?: () => void;
 }
 
 export function Sidebar({ 
@@ -36,10 +40,13 @@ export function Sidebar({
   onOpenFindFriends,
   onOpenEditProfile,
   onOpenNotificationSettings,
-  onOpenCallsInbox
+  onOpenCallsInbox,
+  onOpenStudyTokens,
+  onOpenGlobalSearch
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const { balance } = useStudyTokens();
   const darkMode = theme === 'dark';
 
   const handleSignOut = async () => {
@@ -89,6 +96,18 @@ export function Sidebar({
               <Archive className="h-5 w-5 text-muted-foreground" />
               <span>Archived Chats</span>
             </button>
+
+            <Separator className="my-2" />
+
+            {onOpenGlobalSearch && (
+              <button 
+                onClick={() => handleMenuClick(onOpenGlobalSearch)}
+                className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+              >
+                <Search className="h-5 w-5 text-muted-foreground" />
+                <span>Global Search</span>
+              </button>
+            )}
 
             <Separator className="my-2" />
 
@@ -143,6 +162,21 @@ export function Sidebar({
               <Phone className="h-5 w-5 text-muted-foreground" />
               <span>Calls</span>
             </button>
+
+            <Separator className="my-2" />
+
+            {onOpenStudyTokens && (
+              <button 
+                onClick={() => handleMenuClick(onOpenStudyTokens)}
+                className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+              >
+                <Coins className="h-5 w-5 text-yellow-500" />
+                <span className="flex-1 text-left">Study Tokens</span>
+                <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600">
+                  {balance}
+                </Badge>
+              </button>
+            )}
 
             <Separator className="my-2" />
 
