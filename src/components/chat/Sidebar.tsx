@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
-import { useState, useEffect } from 'react';
+import { useTheme } from '@/hooks/useTheme';
 
 interface SidebarProps {
   open: boolean;
@@ -39,18 +39,8 @@ export function Sidebar({
   onOpenCallsInbox
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
-  const [darkMode, setDarkMode] = useState(false);
-
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains('dark');
-    setDarkMode(isDark);
-  }, []);
-
-  const toggleDarkMode = () => {
-    const newMode = !darkMode;
-    setDarkMode(newMode);
-    document.documentElement.classList.toggle('dark', newMode);
-  };
+  const { theme, toggleTheme } = useTheme();
+  const darkMode = theme === 'dark';
 
   const handleSignOut = async () => {
     await signOut();
@@ -165,7 +155,7 @@ export function Sidebar({
             </button>
 
             <button 
-              onClick={toggleDarkMode}
+              onClick={toggleTheme}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
               {darkMode ? (

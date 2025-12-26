@@ -8,6 +8,7 @@ export interface Profile {
   last_seen: string | null;
   is_online: boolean;
   interests: string[] | null;
+  phone_number: string | null;
   created_at: string;
   updated_at: string;
 }
