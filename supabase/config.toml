@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.streak-reminder]
 verify_jwt = true
+
+[functions.agora-token]
+verify_jwt = false

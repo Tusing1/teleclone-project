@@ -115,8 +115,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     activeCall,
     participants: callParticipants,
     isInCall,
-    localStream,
-    remoteStreams,
+    localAudioTrack,
+    localVideoTrack,
+    remoteUsers,
     isRecording,
     connectionStatus,
     startCall,
@@ -392,8 +393,9 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       <CallView
         callType={activeCall.call_type}
         participants={callParticipants}
-        localStream={localStream}
-        remoteStreams={remoteStreams}
+        localAudioTrack={localAudioTrack}
+        localVideoTrack={localVideoTrack}
+        remoteUsers={remoteUsers}
         isCallStarter={activeCall.started_by === user?.id}
         onLeave={leaveCall}
         onEnd={endCall}
