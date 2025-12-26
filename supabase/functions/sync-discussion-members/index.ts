@@ -12,13 +12,70 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // SECURITY: Verify the request has a valid authorization header
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.error('Missing authorization header')
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Create a client with the user's token to verify authentication
+    const supabaseUser = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    )
+
+    // Verify the user is authenticated
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser()
+    if (userError || !user) {
+      console.error('Invalid user token:', userError)
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    console.log('Authenticated user:', user.id)
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
     const { channelId, userId, action } = await req.json()
-    console.log('Sync discussion members:', { channelId, userId, action })
+    console.log('Sync discussion members:', { channelId, userId, action, requestedBy: user.id })
+
+    // SECURITY: Verify the caller is an admin/owner of the channel
+    const { data: callerRole, error: roleError } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('role')
+      .eq('conversation_id', channelId)
+      .eq('user_id', user.id)
+      .maybeSingle()
+
+    if (roleError) {
+      console.error('Error checking caller role:', roleError)
+      return new Response(JSON.stringify({ error: 'Failed to verify permissions' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Only allow admins/owners to sync members, OR allow a user to add themselves
+    const isAdmin = callerRole?.role === 'admin' || callerRole?.role === 'owner'
+    const isSelfAction = userId === user.id && action === 'add'
+
+    if (!isAdmin && !isSelfAction) {
+      console.error('User not authorized:', { userId: user.id, role: callerRole?.role, action })
+      return new Response(JSON.stringify({ error: 'Forbidden - admin access required' }), {
+        status: 403,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     // Get the channel's linked discussion ID
     const { data: channel, error: channelError } = await supabaseAdmin
@@ -64,6 +121,14 @@ Deno.serve(async (req) => {
         }
       }
     } else if (action === 'remove') {
+      // SECURITY: Only admins can remove users
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: 'Forbidden - only admins can remove users' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
       // Get user's role in channel first
       const { data: channelRole } = await supabaseAdmin
         .from('conversation_participants')
@@ -87,6 +152,14 @@ Deno.serve(async (req) => {
         }
       }
     } else if (action === 'sync_all') {
+      // SECURITY: Only admins can sync all
+      if (!isAdmin) {
+        return new Response(JSON.stringify({ error: 'Forbidden - only admins can sync all users' }), {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
       // Sync all channel members to discussion
       const { data: channelMembers } = await supabaseAdmin
         .from('conversation_participants')
