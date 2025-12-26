@@ -1,12 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import AgoraRTC, { 
-  IAgoraRTCClient, 
-  IMicrophoneAudioTrack, 
-  ICameraVideoTrack,
-  IRemoteAudioTrack,
-  IRemoteVideoTrack,
-  IAgoraRTCRemoteUser
-} from 'agora-rtc-sdk-ng';
+import { firestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc, updateDoc } from '@/lib/firebase';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
@@ -42,113 +35,60 @@ export interface CallParticipant {
   };
 }
 
-export interface RemoteUserTracks {
-  audioTrack?: IRemoteAudioTrack;
-  videoTrack?: IRemoteVideoTrack;
+export interface RemoteStream {
+  oderId: string;
+  stream: MediaStream;
 }
+
+// ICE servers for STUN/TURN
+const servers = {
+  iceServers: [
+    {
+      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+    },
+  ],
+  iceCandidatePoolSize: 10,
+};
 
 export function useCalls(conversationId: string | null) {
   const { user } = useAuth();
   const [activeCall, setActiveCall] = useState<Call | null>(null);
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [isInCall, setIsInCall] = useState(false);
-  const [localAudioTrack, setLocalAudioTrack] = useState<IMicrophoneAudioTrack | null>(null);
-  const [localVideoTrack, setLocalVideoTrack] = useState<ICameraVideoTrack | null>(null);
-  const [remoteUsers, setRemoteUsers] = useState<Map<string, RemoteUserTracks>>(new Map());
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [isRecording, setIsRecording] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
-  
-  const agoraClient = useRef<IAgoraRTCClient | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isVideoOff, setIsVideoOff] = useState(false);
+
+  const peerConnection = useRef<RTCPeerConnection | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
-  const agoraUid = useRef<number>(0);
+  const unsubscribeCallDoc = useRef<(() => void) | null>(null);
+  const unsubscribeCandidates = useRef<(() => void) | null>(null);
 
-  // Initialize Agora client
-  useEffect(() => {
-    if (!agoraClient.current) {
-      agoraClient.current = AgoraRTC.createClient({ 
-        mode: 'rtc', 
-        codec: 'vp8' 
-      });
-
-      // Handle remote user events
-      agoraClient.current.on('user-published', async (remoteUser, mediaType) => {
-        console.log('Remote user published:', remoteUser.uid, mediaType);
-        
-        if (!agoraClient.current) return;
-        
-        await agoraClient.current.subscribe(remoteUser, mediaType);
-        console.log('Subscribed to:', remoteUser.uid, mediaType);
-
-        setRemoteUsers(prev => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(String(remoteUser.uid)) || {};
-          
-          if (mediaType === 'audio') {
-            existing.audioTrack = remoteUser.audioTrack;
-            // Auto-play audio
-            remoteUser.audioTrack?.play();
-          } else if (mediaType === 'video') {
-            existing.videoTrack = remoteUser.videoTrack;
-          }
-          
-          newMap.set(String(remoteUser.uid), existing);
-          return newMap;
-        });
-      });
-
-      agoraClient.current.on('user-unpublished', (remoteUser, mediaType) => {
-        console.log('Remote user unpublished:', remoteUser.uid, mediaType);
-        
-        setRemoteUsers(prev => {
-          const newMap = new Map(prev);
-          const existing = newMap.get(String(remoteUser.uid));
-          
-          if (existing) {
-            if (mediaType === 'audio') {
-              existing.audioTrack = undefined;
-            } else if (mediaType === 'video') {
-              existing.videoTrack = undefined;
-            }
-            
-            if (!existing.audioTrack && !existing.videoTrack) {
-              newMap.delete(String(remoteUser.uid));
-            } else {
-              newMap.set(String(remoteUser.uid), existing);
-            }
-          }
-          
-          return newMap;
-        });
-      });
-
-      agoraClient.current.on('user-left', (remoteUser) => {
-        console.log('Remote user left:', remoteUser.uid);
-        setRemoteUsers(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(String(remoteUser.uid));
-          return newMap;
-        });
-      });
-
-      agoraClient.current.on('connection-state-change', (curState, prevState) => {
-        console.log('Agora connection state:', prevState, '->', curState);
-        if (curState === 'CONNECTED') {
-          setConnectionStatus('connected');
-        } else if (curState === 'CONNECTING' || curState === 'RECONNECTING') {
-          setConnectionStatus('connecting');
-        } else {
-          setConnectionStatus('disconnected');
-        }
-      });
+  // Cleanup function
+  const cleanup = useCallback(() => {
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
     }
-
-    return () => {
-      if (agoraClient.current) {
-        agoraClient.current.removeAllListeners();
-      }
-    };
-  }, []);
+    if (peerConnection.current) {
+      peerConnection.current.close();
+      peerConnection.current = null;
+    }
+    if (unsubscribeCallDoc.current) {
+      unsubscribeCallDoc.current();
+      unsubscribeCallDoc.current = null;
+    }
+    if (unsubscribeCandidates.current) {
+      unsubscribeCandidates.current();
+      unsubscribeCandidates.current = null;
+    }
+    setRemoteStreams(new Map());
+    setConnectionStatus('disconnected');
+  }, [localStream]);
 
   // Fetch active call for conversation
   const fetchActiveCall = useCallback(async () => {
@@ -215,33 +155,11 @@ export function useCalls(conversationId: string | null) {
       })) as CallParticipant[];
 
       setParticipants(participantsWithProfiles);
-      
+
       if (user) {
         const userInCall = participantsData.some(p => p.user_id === user.id);
         setIsInCall(userInCall);
       }
-    }
-  };
-
-  // Get Agora token from edge function
-  const getAgoraToken = async (channelName: string): Promise<{ token: string; appId: string; uid: number } | null> => {
-    try {
-      console.log('Requesting Agora token for channel:', channelName);
-      
-      const { data, error } = await supabase.functions.invoke('agora-token', {
-        body: { channelName, uid: user?.id }
-      });
-
-      if (error) {
-        console.error('Error getting Agora token:', error);
-        return null;
-      }
-
-      console.log('Got Agora token response:', { appId: data.appId, uid: data.uid });
-      return data;
-    } catch (error) {
-      console.error('Error invoking agora-token function:', error);
-      return null;
     }
   };
 
@@ -288,55 +206,135 @@ export function useCalls(conversationId: string | null) {
       return null;
     }
 
-    await joinCall(data.id, callType);
+    await joinCall(data.id, callType, true);
     return data.id;
   };
 
   // Join an existing call
-  const joinCall = async (callId: string, callType: 'voice' | 'video' = 'video') => {
-    if (!user || !agoraClient.current) return;
+  const joinCall = async (callId: string, callType: 'voice' | 'video' = 'video', isCreator: boolean = false) => {
+    if (!user) return;
 
     setConnectionStatus('connecting');
 
     try {
-      // Get Agora token
-      const tokenData = await getAgoraToken(callId);
-      if (!tokenData) {
-        throw new Error('Failed to get Agora token');
-      }
+      // Get local media stream
+      const constraints = {
+        audio: true,
+        video: callType === 'video'
+      };
 
-      const { token, appId, uid } = tokenData;
-      agoraUid.current = uid;
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setLocalStream(stream);
+      setIsVideoOff(callType === 'voice');
 
-      console.log('Joining Agora channel:', callId, 'with uid:', uid);
+      // Create peer connection
+      const pc = new RTCPeerConnection(servers);
+      peerConnection.current = pc;
 
-      // Join the channel
-      await agoraClient.current.join(appId, callId, token, uid);
-      console.log('Joined Agora channel successfully');
+      // Add local tracks to peer connection
+      stream.getTracks().forEach(track => {
+        pc.addTrack(track, stream);
+      });
 
-      // Create local tracks
-      const tracks = await AgoraRTC.createMicrophoneAndCameraTracks(
-        { encoderConfig: 'speech_standard' },
-        { 
-          encoderConfig: '480p_1',
-          optimizationMode: 'detail'
+      // Handle remote stream
+      pc.ontrack = (event) => {
+        console.log('Remote track received:', event.streams);
+        const [remoteStream] = event.streams;
+        setRemoteStreams(prev => {
+          const newMap = new Map(prev);
+          // Use a generic remote ID since we're doing 1:1 calls
+          newMap.set('remote', remoteStream);
+          return newMap;
+        });
+        setConnectionStatus('connected');
+      };
+
+      pc.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', pc.iceConnectionState);
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          setConnectionStatus('connected');
+        } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
+          setConnectionStatus('disconnected');
         }
-      );
+      };
 
-      const [audioTrack, videoTrack] = tracks;
-      setLocalAudioTrack(audioTrack);
-      setLocalVideoTrack(videoTrack);
+      // Firebase Firestore signaling
+      const callDoc = doc(collection(firestore, 'calls'), callId);
+      const offerCandidates = collection(callDoc, 'offerCandidates');
+      const answerCandidates = collection(callDoc, 'answerCandidates');
 
-      // Publish tracks
-      if (callType === 'video') {
-        await agoraClient.current.publish([audioTrack, videoTrack]);
+      if (isCreator) {
+        // Creator: create offer
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            addDoc(offerCandidates, event.candidate.toJSON());
+          }
+        };
+
+        const offerDescription = await pc.createOffer();
+        await pc.setLocalDescription(offerDescription);
+
+        const offer = {
+          sdp: offerDescription.sdp,
+          type: offerDescription.type,
+        };
+
+        await setDoc(callDoc, { offer, createdAt: new Date().toISOString() });
+
+        // Listen for answer
+        unsubscribeCallDoc.current = onSnapshot(callDoc, (snapshot) => {
+          const data = snapshot.data();
+          if (data?.answer && !pc.currentRemoteDescription) {
+            const answerDescription = new RTCSessionDescription(data.answer);
+            pc.setRemoteDescription(answerDescription);
+          }
+        });
+
+        // Listen for ICE candidates from answerer
+        unsubscribeCandidates.current = onSnapshot(answerCandidates, (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const candidate = new RTCIceCandidate(change.doc.data());
+              pc.addIceCandidate(candidate);
+            }
+          });
+        });
       } else {
-        await agoraClient.current.publish([audioTrack]);
-        videoTrack.close();
-        setLocalVideoTrack(null);
-      }
+        // Joiner: create answer
+        pc.onicecandidate = (event) => {
+          if (event.candidate) {
+            addDoc(answerCandidates, event.candidate.toJSON());
+          }
+        };
 
-      console.log('Published local tracks');
+        const callData = (await getDoc(callDoc)).data();
+        if (!callData?.offer) {
+          throw new Error('No offer found');
+        }
+
+        const offerDescription = callData.offer;
+        await pc.setRemoteDescription(new RTCSessionDescription(offerDescription));
+
+        const answerDescription = await pc.createAnswer();
+        await pc.setLocalDescription(answerDescription);
+
+        const answer = {
+          sdp: answerDescription.sdp,
+          type: answerDescription.type,
+        };
+
+        await updateDoc(callDoc, { answer });
+
+        // Listen for ICE candidates from offerer
+        unsubscribeCandidates.current = onSnapshot(offerCandidates, (snapshot) => {
+          snapshot.docChanges().forEach((change) => {
+            if (change.type === 'added') {
+              const candidate = new RTCIceCandidate(change.doc.data());
+              pc.addIceCandidate(candidate);
+            }
+          });
+        });
+      }
 
       // Add participant to database
       const { data: existingParticipant } = await supabase
@@ -364,12 +362,11 @@ export function useCalls(conversationId: string | null) {
       }
 
       setIsInCall(true);
-      setConnectionStatus('connected');
       await fetchActiveCall();
 
     } catch (error) {
       console.error('Error joining call:', error);
-      setConnectionStatus('disconnected');
+      cleanup();
       toast.error('Failed to join call. Please check your camera/microphone permissions.');
     }
   };
@@ -383,24 +380,7 @@ export function useCalls(conversationId: string | null) {
       await stopRecording();
     }
 
-    // Stop and close local tracks
-    if (localAudioTrack) {
-      localAudioTrack.stop();
-      localAudioTrack.close();
-      setLocalAudioTrack(null);
-    }
-    if (localVideoTrack) {
-      localVideoTrack.stop();
-      localVideoTrack.close();
-      setLocalVideoTrack(null);
-    }
-
-    // Leave Agora channel
-    if (agoraClient.current) {
-      await agoraClient.current.leave();
-    }
-
-    setRemoteUsers(new Map());
+    cleanup();
 
     // Update database
     await supabase
@@ -410,7 +390,8 @@ export function useCalls(conversationId: string | null) {
       .eq('user_id', user.id);
 
     setIsInCall(false);
-    setConnectionStatus('disconnected');
+    setIsMuted(false);
+    setIsVideoOff(false);
     await fetchActiveCall();
   };
 
@@ -436,24 +417,20 @@ export function useCalls(conversationId: string | null) {
 
   // Start recording
   const startRecording = async (title: string) => {
-    if (!user || !activeCall || !localAudioTrack) return;
+    if (!user || !activeCall || !localStream) return;
 
     try {
       recordedChunks.current = [];
-
-      // Get the MediaStreamTrack from Agora audio track
-      const mediaStreamTrack = localAudioTrack.getMediaStreamTrack();
-      const stream = new MediaStream([mediaStreamTrack]);
 
       const preferredMimeType = 'audio/webm;codecs=opus';
       let recorder: MediaRecorder;
 
       if (MediaRecorder.isTypeSupported(preferredMimeType)) {
-        recorder = new MediaRecorder(stream, { mimeType: preferredMimeType });
+        recorder = new MediaRecorder(localStream, { mimeType: preferredMimeType });
       } else if (MediaRecorder.isTypeSupported('audio/webm')) {
-        recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+        recorder = new MediaRecorder(localStream, { mimeType: 'audio/webm' });
       } else {
-        recorder = new MediaRecorder(stream);
+        recorder = new MediaRecorder(localStream);
       }
 
       mediaRecorder.current = recorder;
@@ -579,30 +556,36 @@ export function useCalls(conversationId: string | null) {
 
   // Toggle mute
   const toggleMute = async () => {
-    if (!user || !activeCall || !localAudioTrack) return;
+    if (!user || !activeCall || !localStream) return;
 
-    const newMuted = localAudioTrack.enabled;
-    await localAudioTrack.setEnabled(!newMuted);
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setIsMuted(!audioTrack.enabled);
 
-    await supabase
-      .from('call_participants')
-      .update({ is_muted: newMuted })
-      .eq('call_id', activeCall.id)
-      .eq('user_id', user.id);
+      await supabase
+        .from('call_participants')
+        .update({ is_muted: !audioTrack.enabled })
+        .eq('call_id', activeCall.id)
+        .eq('user_id', user.id);
+    }
   };
 
   // Toggle video
   const toggleVideo = async () => {
-    if (!user || !activeCall || !localVideoTrack) return;
+    if (!user || !activeCall || !localStream) return;
 
-    const newVideoOff = localVideoTrack.enabled;
-    await localVideoTrack.setEnabled(!newVideoOff);
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      setIsVideoOff(!videoTrack.enabled);
 
-    await supabase
-      .from('call_participants')
-      .update({ is_video_off: newVideoOff })
-      .eq('call_id', activeCall.id)
-      .eq('user_id', user.id);
+      await supabase
+        .from('call_participants')
+        .update({ is_video_off: !videoTrack.enabled })
+        .eq('call_id', activeCall.id)
+        .eq('user_id', user.id);
+    }
   };
 
   // Subscribe to call changes
@@ -637,17 +620,7 @@ export function useCalls(conversationId: string | null) {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (localAudioTrack) {
-        localAudioTrack.stop();
-        localAudioTrack.close();
-      }
-      if (localVideoTrack) {
-        localVideoTrack.stop();
-        localVideoTrack.close();
-      }
-      if (agoraClient.current) {
-        agoraClient.current.leave();
-      }
+      cleanup();
       if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
         mediaRecorder.current.stop();
       }
@@ -658,11 +631,12 @@ export function useCalls(conversationId: string | null) {
     activeCall,
     participants,
     isInCall,
-    localAudioTrack,
-    localVideoTrack,
-    remoteUsers,
+    localStream,
+    remoteStreams,
     isRecording,
     connectionStatus,
+    isMuted,
+    isVideoOff,
     startCall,
     joinCall,
     leaveCall,
