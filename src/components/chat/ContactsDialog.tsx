@@ -1,15 +1,15 @@
 import { useState } from 'react';
-import { Search, MessageCircle, Contact, Phone } from 'lucide-react';
+import { Phone, UserPlus, Share2, Search, MessageCircle, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
-import { useUsers } from '@/hooks/useUsers';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Profile } from '@/types/chat';
@@ -19,20 +19,14 @@ interface ContactsDialogProps {
   open: boolean;
   onClose: () => void;
   onSelectUser: (userId: string) => void;
+  onOpenInvite: () => void;
 }
 
-export function ContactsDialog({ open, onClose, onSelectUser }: ContactsDialogProps) {
-  const { user } = useAuth();
-  const { users, loading } = useUsers();
-  const [search, setSearch] = useState('');
+export function ContactsDialog({ open, onClose, onSelectUser, onOpenInvite }: ContactsDialogProps) {
+  const { user, profile } = useAuth();
   const [phoneSearch, setPhoneSearch] = useState('');
   const [phoneResults, setPhoneResults] = useState<Profile[]>([]);
   const [searchingPhone, setSearchingPhone] = useState(false);
-
-  const filteredUsers = users.filter(u => {
-    const name = u.full_name || u.username;
-    return name.toLowerCase().includes(search.toLowerCase());
-  });
 
   const handleSelect = (userId: string) => {
     onSelectUser(userId);
@@ -69,53 +63,81 @@ export function ContactsDialog({ open, onClose, onSelectUser }: ContactsDialogPr
     }
   };
 
+  const handleInviteContacts = () => {
+    onClose();
+    onOpenInvite();
+  };
+
+  const handleSyncContacts = () => {
+    toast.info('Contact sync requires the mobile app');
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Contact className="h-5 w-5" />
+            <Phone className="h-5 w-5" />
             Contacts
           </DialogTitle>
+          <DialogDescription>
+            Find friends by phone number or invite them to join
+          </DialogDescription>
         </DialogHeader>
 
-        {/* Name search */}
-        <div className="relative mb-2">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search by name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        {/* Action buttons */}
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <Button 
+            variant="outline" 
+            onClick={handleSyncContacts}
+            className="h-20 flex-col gap-2"
+          >
+            <Phone className="h-6 w-6" />
+            <span className="text-xs">Sync Contacts</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={handleInviteContacts}
+            className="h-20 flex-col gap-2"
+          >
+            <UserPlus className="h-6 w-6" />
+            <span className="text-xs">Invite Friends</span>
+          </Button>
         </div>
 
         {/* Phone number search */}
-        <div className="flex gap-2 mb-4">
-          <div className="relative flex-1">
-            <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by phone number..."
-              value={phoneSearch}
-              onChange={(e) => setPhoneSearch(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handlePhoneSearch()}
-              className="pl-9"
-            />
+        <div className="space-y-2">
+          <p className="text-sm font-medium">Search by phone number</p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="+1 234 567 8900"
+                value={phoneSearch}
+                onChange={(e) => setPhoneSearch(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handlePhoneSearch()}
+                className="pl-9"
+              />
+            </div>
+            <Button 
+              onClick={handlePhoneSearch} 
+              disabled={searchingPhone || !phoneSearch.trim()}
+              size="sm"
+            >
+              {searchingPhone ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </Button>
           </div>
-          <Button 
-            onClick={handlePhoneSearch} 
-            disabled={searchingPhone || !phoneSearch.trim()}
-            size="sm"
-          >
-            {searchingPhone ? 'Searching...' : 'Search'}
-          </Button>
         </div>
 
         {/* Phone search results */}
         {phoneResults.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs text-muted-foreground mb-2">Phone search results:</p>
-            <div className="space-y-1 border rounded-lg p-2 bg-secondary/30">
+          <div className="mt-4">
+            <p className="text-xs text-muted-foreground mb-2">Results:</p>
+            <div className="space-y-1 border rounded-lg p-2 bg-secondary/30 max-h-48 overflow-y-auto">
               {phoneResults.map((u) => {
                 const displayName = u.full_name || u.username;
                 return (
@@ -147,48 +169,14 @@ export function ContactsDialog({ open, onClose, onSelectUser }: ContactsDialogPr
           </div>
         )}
 
-        <div className="max-h-72 overflow-y-auto">
-          {loading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              Loading contacts...
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <Contact className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No contacts found</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {filteredUsers.map((u) => {
-                const displayName = u.full_name || u.username;
-                return (
-                  <div
-                    key={u.id}
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
-                  >
-                    <Avatar
-                      src={u.avatar_url}
-                      name={displayName}
-                      isOnline={u.is_online}
-                      size="md"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium truncate block">{displayName}</span>
-                      <span className="text-sm text-muted-foreground">@{u.username}</span>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleSelect(u.user_id)}
-                    >
-                      <MessageCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
+        {/* Empty state when no results */}
+        {phoneResults.length === 0 && !searchingPhone && (
+          <div className="text-center py-6 text-muted-foreground">
+            <Phone className="h-12 w-12 mx-auto mb-3 opacity-50" />
+            <p className="text-sm">Enter a phone number to find friends</p>
+            <p className="text-xs mt-1">or invite them to join StudyGram</p>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

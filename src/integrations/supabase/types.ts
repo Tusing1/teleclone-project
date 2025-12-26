@@ -525,6 +525,7 @@ export type Database = {
           is_online: boolean | null
           last_seen: string | null
           phone_number: string | null
+          referred_by: string | null
           updated_at: string
           user_id: string
           username: string
@@ -539,6 +540,7 @@ export type Database = {
           is_online?: boolean | null
           last_seen?: string | null
           phone_number?: string | null
+          referred_by?: string | null
           updated_at?: string
           user_id: string
           username: string
@@ -553,11 +555,20 @@ export type Database = {
           is_online?: boolean | null
           last_seen?: string | null
           phone_number?: string | null
+          referred_by?: string | null
           updated_at?: string
           user_id?: string
           username?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_referred_by_fkey"
+            columns: ["referred_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       push_subscriptions: {
         Row: {
@@ -630,6 +641,60 @@ export type Database = {
           },
         ]
       }
+      study_tokens: {
+        Row: {
+          balance: number | null
+          id: string
+          total_earned: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          balance?: number | null
+          id?: string
+          total_earned?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          balance?: number | null
+          id?: string
+          total_earned?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      token_transactions: {
+        Row: {
+          activity_type: string
+          amount: number
+          created_at: string | null
+          description: string | null
+          id: string
+          transaction_type: string
+          user_id: string
+        }
+        Insert: {
+          activity_type: string
+          amount: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          transaction_type: string
+          user_id: string
+        }
+        Update: {
+          activity_type?: string
+          amount?: number
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_matches: {
         Row: {
           conversation_id: string | null
@@ -661,6 +726,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_referrals: {
+        Row: {
+          created_at: string | null
+          id: string
+          referred_id: string
+          referrer_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          referred_id: string
+          referrer_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          referred_id?: string
+          referrer_id?: string
+        }
+        Relationships: []
       }
       user_swipes: {
         Row: {
