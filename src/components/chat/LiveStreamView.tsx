@@ -14,7 +14,8 @@ import {
   Link,
   XCircle,
   AudioWaveform,
-  Wifi
+  Wifi,
+  Radio
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -92,46 +93,70 @@ const ParticipantRow: React.FC<ParticipantRowProps> = ({
 
   return (
     <div className={cn(
-      "flex items-center justify-between p-3 bg-[#2a2a4e] rounded-lg border transition-all duration-300",
-      isSpeaking && !participant.is_muted ? "border-primary shadow-[0_0_10px_rgba(59,130,246,0.3)]" : "border-[#3a3a5e]"
+      "flex items-center justify-between p-4 bg-white/5 backdrop-blur-md rounded-2xl border transition-all duration-500",
+      isSpeaking && !participant.is_muted
+        ? "border-primary/50 shadow-[0_0_20px_rgba(59,130,246,0.2)] bg-white/10"
+        : "border-white/5 shadow-none"
     )}>
-      <div className="flex items-center gap-3">
-        <div className="relative">
+      <div className="flex items-center gap-4">
+        <div className="relative group">
+          <div className={cn(
+            "absolute -inset-1 rounded-full bg-primary/20 opacity-0 transition-opacity duration-300",
+            isSpeaking && !participant.is_muted && "opacity-100 animate-pulse"
+          )} />
           <Avatar
             name={participant.profile?.full_name || participant.profile?.username || 'Participant'}
             src={participant.profile?.avatar_url}
-            size="sm"
+            size="md"
+            className="border-2 border-transparent group-hover:border-primary/30 transition-colors"
           />
           {isSpeaking && !participant.is_muted && (
-            <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-75" />
+            <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-50" />
           )}
         </div>
         <div className="flex flex-col">
-          <span className="text-white font-medium">
+          <span className="text-white font-semibold tracking-tight">
             {participant.profile?.full_name || participant.profile?.username || 'Participant'}
-            {isLocal && " (You)"}
+            {isLocal && <span className="text-primary/70 ml-2 font-normal">(You)</span>}
           </span>
-          {participant.hand_raised && (
-            <span className="text-yellow-500 text-xs flex items-center gap-1">
-              <Hand className="h-3 w-3" /> Raised Hand
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            {participant.hand_raised ? (
+              <span className="text-yellow-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1">
+                <Hand className="h-3 w-3" /> Hand Raised
+              </span>
+            ) : isSpeaking && !participant.is_muted ? (
+              <span className="text-primary/70 text-[10px] uppercase font-bold tracking-wider animate-pulse">
+                Speaking...
+              </span>
+            ) : (
+              <span className="text-gray-500 text-[10px] uppercase font-bold tracking-wider">
+                Listening
+              </span>
+            )}
+          </div>
         </div>
       </div>
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         {participant.is_muted ? (
-          <MicOff className="h-5 w-5 text-gray-500" />
+          <div className="p-2 bg-red-500/10 rounded-full">
+            <MicOff className="h-4 w-4 text-red-400" />
+          </div>
         ) : (
-          <Mic className={cn(
-            "h-5 w-5",
-            isSpeaking ? "text-primary animate-pulse" : "text-primary/70"
-          )} />
+          <div className={cn(
+            "p-2 rounded-full transition-colors",
+            isSpeaking ? "bg-primary/20" : "bg-white/5"
+          )}>
+            <Mic className={cn(
+              "h-4 w-4 transition-all",
+              isSpeaking ? "text-primary scale-110" : "text-primary/50"
+            )} />
+          </div>
         )}
         {isAdmin && !isLocal && (
           <Button
             size="sm"
             variant="ghost"
-            className="text-gray-400 hover:text-white"
+            className="h-8 px-3 text-xs bg-white/5 hover:bg-white/10 text-gray-300 hover:text-white rounded-lg border border-white/5"
             onClick={() => participant.is_muted
               ? onUnmuteParticipant(participant.user_id)
               : onMuteParticipant(participant.user_id)
@@ -335,23 +360,43 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-[#1a1a2e] z-50 flex flex-col">
+    <div className={cn(
+      "fixed inset-0 bg-[#0a0a1a] z-50 flex flex-col overflow-hidden transition-all duration-500",
+      isMinimized && "opacity-0 pointer-events-none"
+    )}>
+      {/* Dynamic Background Glow */}
+      <div className="absolute -top-40 -right-40 w-80 h-80 bg-primary/10 blur-[120px] rounded-full pointer-events-none" />
+      <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/5 blur-[120px] rounded-full pointer-events-none" />
+
       {renderRemoteAudio()}
+
       {/* Header */}
-      <div className="p-4 flex items-center justify-between bg-[#1a1a2e]/80 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
+      <div className="p-4 flex items-center justify-between bg-white/5 backdrop-blur-xl border-b border-white/5 z-10">
+        <div className="flex items-center gap-4">
           <Button
             variant="ghost"
             size="icon"
-            className="text-white hover:bg-white/10"
+            className="rounded-full text-white/70 hover:text-white hover:bg-white/10 transition-all"
             onClick={onMinimize}
           >
             <ArrowLeft className="h-5 w-5" />
           </Button>
-          <Avatar name={channelName} src={channelAvatar} size="md" />
-          <div>
-            <h2 className="font-semibold text-white">{channelName}</h2>
-            <p className="text-xs text-gray-400">{participants.length} listening</p>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Avatar name={channelName} src={channelAvatar} size="md" className="ring-2 ring-white/10 shadow-xl" />
+              <div className="absolute -bottom-1 -right-1 p-1 bg-primary rounded-full border-2 border-[#0a0a1a]">
+                <Radio className="h-3 w-3 text-white" />
+              </div>
+            </div>
+            <div>
+              <h2 className="font-bold text-white tracking-tight leading-none mb-1">{channelName}</h2>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest leading-none">
+                  {participants.length} Active Member{participants.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -528,78 +573,82 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
       </div>
 
       {/* Bottom Controls */}
-      <div className="p-6 flex justify-center gap-4 bg-gradient-to-t from-[#1a1a2e] to-transparent">
-        {/* Speaker */}
-        <div className="flex flex-col items-center gap-1">
+      <div className="p-8 flex justify-center items-center gap-6 bg-gradient-to-t from-[#0a0a1a] via-[#0a0a1a]/80 to-transparent z-10">
+        {/* Speaker Toggle */}
+        <div className="flex flex-col items-center gap-2 group">
           <Button
             variant="ghost"
             size="lg"
-            className="rounded-full w-14 h-14 bg-[#3b82f6] hover:bg-[#3b82f6]/80"
+            className="rounded-full w-14 h-14 bg-white/5 hover:bg-white/10 border border-white/5 shadow-lg transition-transform group-active:scale-95"
           >
-            <Volume2 className="h-6 w-6 text-white" />
+            <Volume2 className="h-6 w-6 text-white/70 group-hover:text-white" />
           </Button>
-          <span className="text-xs text-gray-400">Speaker</span>
+          <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Speaker</span>
         </div>
 
-        {/* Camera/Video Off */}
-        <div className="flex flex-col items-center gap-1">
+        {/* Video Toggle (Disabled for now as it's voice-only focus) */}
+        <div className="flex flex-col items-center gap-2 group opacity-50">
           <Button
             variant="ghost"
             size="lg"
-            className="rounded-full w-14 h-14 bg-[#3b82f6] hover:bg-[#3b82f6]/80"
+            className="rounded-full w-14 h-14 bg-white/5 border border-white/5 cursor-not-allowed"
           >
-            <VideoOff className="h-6 w-6 text-white" />
+            <VideoOff className="h-6 w-6 text-white/40" />
           </Button>
-          <span className="text-xs text-gray-400">Camera</span>
+          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Camera</span>
         </div>
 
-        {/* Mute/Unmute or Raise Hand */}
-        <div className="flex flex-col items-center gap-1">
+        {/* Primary Action: Mute/Unmute or Raise Hand */}
+        <div className="flex flex-col items-center gap-2 group">
           {isAdmin ? (
             <Button
               variant="ghost"
               size="lg"
-              className={`rounded-full w-14 h-14 ${isMuted
-                ? 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
-                : 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
-                }`}
+              className={cn(
+                "rounded-full w-16 h-16 transition-all duration-300 shadow-xl border-2 group-active:scale-90",
+                isMuted
+                  ? "bg-red-500/20 border-red-500/50 hover:bg-red-500/30"
+                  : "bg-primary border-primary hover:bg-primary/90"
+              )}
               onClick={onToggleMute}
             >
               {isMuted ? (
-                <MicOff className="h-6 w-6 text-white" />
+                <MicOff className="h-7 w-7 text-red-500" />
               ) : (
-                <Mic className="h-6 w-6 text-white" />
+                <Mic className="h-7 w-7 text-white" />
               )}
             </Button>
           ) : (
             <Button
               variant="ghost"
               size="lg"
-              className={`rounded-full w-14 h-14 ${handRaised
-                ? 'bg-yellow-500 hover:bg-yellow-500/80'
-                : 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
-                }`}
+              className={cn(
+                "rounded-full w-16 h-16 transition-all duration-300 shadow-xl border-2 group-active:scale-90",
+                handRaised
+                  ? "bg-yellow-500 border-yellow-400 hover:bg-yellow-400"
+                  : "bg-primary border-primary hover:bg-primary/90"
+              )}
               onClick={handRaised ? onLowerHand : onRaiseHand}
             >
-              <Hand className="h-6 w-6 text-white" />
+              <Hand className="h-7 w-7 text-white" />
             </Button>
           )}
-          <span className="text-xs text-gray-400">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
             {isAdmin ? (isMuted ? 'Unmute' : 'Mute') : (handRaised ? 'Lower' : 'Raise')}
           </span>
         </div>
 
-        {/* Leave */}
-        <div className="flex flex-col items-center gap-1">
+        {/* Leave Action */}
+        <div className="flex flex-col items-center gap-2 group">
           <Button
             variant="ghost"
             size="lg"
-            className="rounded-full w-14 h-14 bg-red-500 hover:bg-red-500/80"
+            className="rounded-full w-14 h-14 bg-red-600 border border-red-400/50 hover:bg-red-500 shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all group-active:scale-95"
             onClick={() => setShowLeaveDialog(true)}
           >
             <PhoneOff className="h-6 w-6 text-white" />
           </Button>
-          <span className="text-xs text-gray-400">Leave</span>
+          <span className="text-[10px] font-bold text-red-500/70 uppercase tracking-widest">Leave</span>
         </div>
       </div>
 
@@ -685,6 +734,9 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Hidden Audio Elements */}
+      {renderRemoteAudio()}
     </div>
   );
 };
