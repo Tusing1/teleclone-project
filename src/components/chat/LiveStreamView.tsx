@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Volume2, 
-  VideoOff, 
-  MicOff, 
+import {
+  ArrowLeft,
+  Volume2,
+  VideoOff,
+  MicOff,
   Mic,
-  PhoneOff, 
+  PhoneOff,
   MoreVertical,
   Monitor,
   Hand,
@@ -19,6 +19,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
+import { RemoteAudioPlayer } from './RemoteAudioPlayer';
+import { useAudioLevel } from '@/hooks/useAudioLevel';
+import { cn } from '@/lib/utils';
 import {
   Dialog,
   DialogContent,
@@ -64,7 +67,83 @@ interface LiveStreamViewProps {
   onToggleNoiseSuppression: () => void;
   onMinimize?: () => void;
   isMinimized?: boolean;
+  remoteStreams?: Map<string, MediaStream>;
+  localStream?: MediaStream | null;
 }
+
+interface ParticipantRowProps {
+  participant: CallParticipant;
+  isAdmin: boolean;
+  isLocal: boolean;
+  stream?: MediaStream | null;
+  onMuteParticipant: (userId: string) => void;
+  onUnmuteParticipant: (userId: string) => void;
+}
+
+const ParticipantRow: React.FC<ParticipantRowProps> = ({
+  participant,
+  isAdmin,
+  isLocal,
+  stream,
+  onMuteParticipant,
+  onUnmuteParticipant
+}) => {
+  const { isSpeaking } = useAudioLevel(stream || null);
+
+  return (
+    <div className={cn(
+      "flex items-center justify-between p-3 bg-[#2a2a4e] rounded-lg border transition-all duration-300",
+      isSpeaking && !participant.is_muted ? "border-primary shadow-[0_0_10px_rgba(59,130,246,0.3)]" : "border-[#3a3a5e]"
+    )}>
+      <div className="flex items-center gap-3">
+        <div className="relative">
+          <Avatar
+            name={participant.profile?.full_name || participant.profile?.username || 'Participant'}
+            src={participant.profile?.avatar_url}
+            size="sm"
+          />
+          {isSpeaking && !participant.is_muted && (
+            <div className="absolute inset-0 rounded-full border-2 border-primary animate-ping opacity-75" />
+          )}
+        </div>
+        <div className="flex flex-col">
+          <span className="text-white font-medium">
+            {participant.profile?.full_name || participant.profile?.username || 'Participant'}
+            {isLocal && " (You)"}
+          </span>
+          {participant.hand_raised && (
+            <span className="text-yellow-500 text-xs flex items-center gap-1">
+              <Hand className="h-3 w-3" /> Raised Hand
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        {participant.is_muted ? (
+          <MicOff className="h-5 w-5 text-gray-500" />
+        ) : (
+          <Mic className={cn(
+            "h-5 w-5",
+            isSpeaking ? "text-primary animate-pulse" : "text-primary/70"
+          )} />
+        )}
+        {isAdmin && !isLocal && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-gray-400 hover:text-white"
+            onClick={() => participant.is_muted
+              ? onUnmuteParticipant(participant.user_id)
+              : onMuteParticipant(participant.user_id)
+            }
+          >
+            {participant.is_muted ? 'Unmute' : 'Mute'}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
 
 export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   channelName,
@@ -89,7 +168,9 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   noiseSuppression,
   onToggleNoiseSuppression,
   onMinimize,
-  isMinimized = false
+  isMinimized = false,
+  remoteStreams = new Map(),
+  localStream = null
 }) => {
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [endStreamOnLeave, setEndStreamOnLeave] = useState(false);
@@ -150,6 +231,12 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   const otherParticipants = participants.filter(p => p.user_id !== currentUserId);
   const raisedHands = participants.filter(p => p.hand_raised);
 
+  const renderRemoteAudio = () => {
+    return Array.from(remoteStreams.entries()).map(([userId, stream]) => (
+      <RemoteAudioPlayer key={userId} stream={stream} />
+    ));
+  };
+
   // Minimized view - floating bar at the top
   if (isMinimized) {
     return (
@@ -206,7 +293,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             </Button>
           </div>
         </div>
-        
+
         {/* Leave Dialog for minimized view */}
         <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
           <DialogContent className="bg-[#2a2a4e] border-[#3a3a5e]">
@@ -218,8 +305,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             </DialogHeader>
             {isAdmin && (
               <div className="flex items-center space-x-2 py-4">
-                <Checkbox 
-                  id="end-stream-minimized" 
+                <Checkbox
+                  id="end-stream-minimized"
                   checked={endStreamOnLeave}
                   onCheckedChange={(checked) => setEndStreamOnLeave(checked as boolean)}
                 />
@@ -232,7 +319,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               <Button variant="ghost" onClick={() => setShowLeaveDialog(false)} className="text-white">
                 Cancel
               </Button>
-              <Button 
+              <Button
                 onClick={handleLeave}
                 className={endStreamOnLeave ? 'bg-red-500 hover:bg-red-600' : ''}
               >
@@ -241,12 +328,15 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {renderRemoteAudio()}
       </div>
     );
   }
 
   return (
     <div className="fixed inset-0 bg-[#1a1a2e] z-50 flex flex-col">
+      {renderRemoteAudio()}
       {/* Header */}
       <div className="p-4 flex items-center justify-between bg-[#1a1a2e]/80 backdrop-blur-sm">
         <div className="flex items-center gap-3">
@@ -290,7 +380,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                 </div>
               </DropdownMenuItem>
               <DropdownMenuSeparator className="bg-[#3a3a5e]" />
-              
+
               {/* Audio */}
               <DropdownMenuItem className="flex items-center gap-3 py-3">
                 <Volume2 className="h-5 w-5 text-gray-400" />
@@ -301,7 +391,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               </DropdownMenuItem>
 
               {/* Noise Suppression */}
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="flex items-center justify-between py-3"
                 onSelect={(e) => e.preventDefault()}
               >
@@ -312,14 +402,14 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                     <p className="text-xs text-gray-400">{noiseSuppression ? 'Enabled' : 'Disabled'}</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={noiseSuppression} 
+                <Switch
+                  checked={noiseSuppression}
                   onCheckedChange={onToggleNoiseSuppression}
                 />
               </DropdownMenuItem>
 
               {/* Network Enhancement */}
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="flex items-center justify-between py-3"
                 onSelect={(e) => e.preventDefault()}
               >
@@ -330,8 +420,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                     <p className="text-xs text-gray-400">{networkEnhancement ? 'Enabled' : 'Disabled'}</p>
                   </div>
                 </div>
-                <Switch 
-                  checked={networkEnhancement} 
+                <Switch
+                  checked={networkEnhancement}
                   onCheckedChange={setNetworkEnhancement}
                 />
               </DropdownMenuItem>
@@ -340,7 +430,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
 
               {/* Edit Title - Admin only */}
               {isAdmin && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="flex items-center gap-3 py-3"
                   onSelect={() => setShowTitleDialog(true)}
                 >
@@ -350,7 +440,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               )}
 
               {/* Share Invite Link */}
-              <DropdownMenuItem 
+              <DropdownMenuItem
                 className="flex items-center gap-3 py-3"
                 onSelect={handleCopyInviteLink}
               >
@@ -360,7 +450,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
 
               {/* Screen Share - Admin only */}
               {isAdmin && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="flex items-center gap-3 py-3"
                   onSelect={handleScreenShare}
                 >
@@ -373,7 +463,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
 
               {/* Recording - Admin only */}
               {isAdmin && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   className="flex items-center gap-3 py-3"
                   onSelect={() => isRecording ? onStopRecording() : setShowRecordDialog(true)}
                 >
@@ -388,7 +478,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               {isAdmin && (
                 <>
                   <DropdownMenuSeparator className="bg-[#3a3a5e]" />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="flex items-center gap-3 py-3 text-red-500"
                     onSelect={onEnd}
                   >
@@ -412,96 +502,27 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
         <div className="bg-[#2a2a4e] rounded-xl divide-y divide-[#3a3a5e]">
           {/* Current User */}
           {currentUserParticipant && (
-            <div className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Avatar 
-                  name={currentUserParticipant.profile?.full_name || 'You'} 
-                  src={currentUserParticipant.profile?.avatar_url || undefined}
-                  size="md" 
-                />
-                <div>
-                  <p className="font-medium text-white">
-                    {currentUserParticipant.profile?.full_name || currentUserParticipant.profile?.username}
-                  </p>
-                  <p className="text-xs text-primary">this is you</p>
-                </div>
-              </div>
-              {currentUserParticipant.is_muted && (
-                <MicOff className="h-5 w-5 text-gray-400" />
-              )}
-            </div>
-          )}
-
-          {/* Raised Hands Section */}
-          {raisedHands.length > 0 && isAdmin && (
-            <div className="p-4">
-              <p className="text-xs text-gray-400 mb-2">RAISED HANDS</p>
-              {raisedHands.map((participant) => (
-                <div key={participant.id} className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-3">
-                    <Avatar 
-                      name={participant.profile?.full_name || ''} 
-                      src={participant.profile?.avatar_url || undefined}
-                      size="sm" 
-                    />
-                    <p className="text-white">{participant.profile?.username}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Hand className="h-4 w-4 text-yellow-500" />
-                    <Button 
-                      size="sm" 
-                      variant="ghost"
-                      className="text-primary"
-                      onClick={() => onUnmuteParticipant(participant.user_id)}
-                    >
-                      Unmute
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ParticipantRow
+              participant={currentUserParticipant}
+              isAdmin={isAdmin}
+              isLocal={true}
+              stream={localStream}
+              onMuteParticipant={onMuteParticipant}
+              onUnmuteParticipant={onUnmuteParticipant}
+            />
           )}
 
           {/* Other Participants */}
           {otherParticipants.map((participant) => (
-            <div key={participant.id} className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Avatar 
-                  name={participant.profile?.full_name || ''} 
-                  src={participant.profile?.avatar_url || undefined}
-                  size="md" 
-                />
-                <div>
-                  <p className="font-medium text-white">
-                    {participant.profile?.full_name || participant.profile?.username}
-                  </p>
-                  {participant.hand_raised && (
-                    <p className="text-xs text-yellow-500 flex items-center gap-1">
-                      <Hand className="h-3 w-3" /> Hand raised
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {participant.is_muted ? (
-                  <MicOff className="h-5 w-5 text-gray-400" />
-                ) : (
-                  <Mic className="h-5 w-5 text-primary" />
-                )}
-                {isAdmin && (
-                  <Button 
-                    size="sm" 
-                    variant="ghost"
-                    onClick={() => participant.is_muted 
-                      ? onUnmuteParticipant(participant.user_id) 
-                      : onMuteParticipant(participant.user_id)
-                    }
-                  >
-                    {participant.is_muted ? 'Unmute' : 'Mute'}
-                  </Button>
-                )}
-              </div>
-            </div>
+            <ParticipantRow
+              key={participant.user_id}
+              participant={participant}
+              isAdmin={isAdmin}
+              isLocal={false}
+              stream={remoteStreams.get(participant.user_id)}
+              onMuteParticipant={onMuteParticipant}
+              onUnmuteParticipant={onUnmuteParticipant}
+            />
           ))}
         </div>
       </div>
@@ -538,11 +559,10 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <Button
               variant="ghost"
               size="lg"
-              className={`rounded-full w-14 h-14 ${
-                isMuted 
-                  ? 'bg-[#3b82f6] hover:bg-[#3b82f6]/80' 
-                  : 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
-              }`}
+              className={`rounded-full w-14 h-14 ${isMuted
+                ? 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
+                : 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
+                }`}
               onClick={onToggleMute}
             >
               {isMuted ? (
@@ -555,11 +575,10 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <Button
               variant="ghost"
               size="lg"
-              className={`rounded-full w-14 h-14 ${
-                handRaised 
-                  ? 'bg-yellow-500 hover:bg-yellow-500/80' 
-                  : 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
-              }`}
+              className={`rounded-full w-14 h-14 ${handRaised
+                ? 'bg-yellow-500 hover:bg-yellow-500/80'
+                : 'bg-[#3b82f6] hover:bg-[#3b82f6]/80'
+                }`}
               onClick={handRaised ? onLowerHand : onRaiseHand}
             >
               <Hand className="h-6 w-6 text-white" />
@@ -595,8 +614,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
           </DialogHeader>
           {isAdmin && (
             <div className="flex items-center space-x-2 py-2">
-              <Checkbox 
-                id="end-stream" 
+              <Checkbox
+                id="end-stream"
                 checked={endStreamOnLeave}
                 onCheckedChange={(checked) => setEndStreamOnLeave(checked as boolean)}
               />
