@@ -271,6 +271,39 @@ export function useCalls(conversationId: string | null) {
       setLocalStream(stream);
       setIsVideoOff(callType === 'voice');
 
+      // CRITICAL: Add participant to database BEFORE signaling starts (otherwise RLS rejects signals)
+      const { data: existingParticipant } = await supabase
+        .from('call_participants')
+        .select('id')
+        .eq('call_id', callId)
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (existingParticipant?.id) {
+        console.log('Re-joining: Updating existing participant record before signaling');
+        await supabase
+          .from('call_participants')
+          .update({
+            is_video_off: callType === 'voice',
+            left_at: null
+          })
+          .eq('id', existingParticipant.id);
+      } else {
+        console.log('Joining: Creating new participant record before signaling');
+        await supabase
+          .from('call_participants')
+          .insert({
+            call_id: callId,
+            user_id: user.id,
+            is_video_off: callType === 'voice',
+            left_at: null
+          });
+      }
+
+      setIsInCall(true);
+      await fetchActiveCall();
+
       // Create peer connection
       const pc = new RTCPeerConnection(servers);
       peerConnection.current = pc;
@@ -526,43 +559,13 @@ export function useCalls(conversationId: string | null) {
         };
       }
 
-      // Add participant to database - check for ANY existing row for this user/call
-      const { data: existingParticipant } = await supabase
-        .from('call_participants')
-        .select('id')
-        .eq('call_id', callId)
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (existingParticipant?.id) {
-        console.log('Re-joining: Updating existing participant record');
-        await supabase
-          .from('call_participants')
-          .update({
-            is_video_off: callType === 'voice',
-            left_at: null // Clear left_at to mark as active again
-          })
-          .eq('id', existingParticipant.id);
-      } else {
-        console.log('Joining: Creating new participant record');
-        await supabase
-          .from('call_participants')
-          .insert({
-            call_id: callId,
-            user_id: user.id,
-            is_video_off: callType === 'voice',
-            left_at: null
-          });
-      }
-
-      setIsInCall(true);
-      await fetchActiveCall();
+      console.log('Join process completed successfully');
 
     } catch (error) {
       console.error('Error joining call:', error);
       cleanup();
-      toast.error('Failed to join call. Please check your camera/microphone permissions.');
+      // Re-throw the error so calling functions (like startCall) can handle it
+      throw error;
     }
   };
 
