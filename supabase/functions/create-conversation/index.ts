@@ -46,13 +46,16 @@ Deno.serve(async (req) => {
 
     let discussionId = null
 
-    // For "saved" type or direct with no members, create Saved Messages
+    // For "saved" type or self-chat, create "Message Yourself" conversation
     if (type === 'saved' || (type === 'direct' && (!memberIds || memberIds.length === 0))) {
-      // Check if Saved Messages already exists - use a more robust check
+      // Check if self-chat already exists
       const { data: allUserConversations } = await supabaseAdmin
         .from('conversation_participants')
         .select('conversation_id')
         .eq('user_id', user.id)
+
+      let existingSelfChatId: string | null = null
+      const duplicateSelfChatIds: string[] = []
 
       if (allUserConversations && allUserConversations.length > 0) {
         const conversationIds = allUserConversations.map(p => p.conversation_id)
@@ -60,9 +63,10 @@ Deno.serve(async (req) => {
         // Get all direct conversations
         const { data: directConversations } = await supabaseAdmin
           .from('conversations')
-          .select('id')
+          .select('id, created_at')
           .in('id', conversationIds)
           .eq('type', 'direct')
+          .order('created_at', { ascending: true })
 
         if (directConversations) {
           for (const conv of directConversations) {
@@ -71,29 +75,54 @@ Deno.serve(async (req) => {
               .select('*', { count: 'exact' })
               .eq('conversation_id', conv.id)
 
-            // Saved Messages = direct conversation with only the current user
+            // Self-chat = direct conversation with only the current user
             if (count === 1 && participants?.[0]?.user_id === user.id) {
-              console.log('Saved Messages already exists:', conv.id)
-              return new Response(JSON.stringify({ id: conv.id }), {
-                status: 200,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              })
+              if (!existingSelfChatId) {
+                existingSelfChatId = conv.id
+              } else {
+                // This is a duplicate - mark for cleanup
+                duplicateSelfChatIds.push(conv.id)
+              }
             }
           }
         }
       }
 
-      // Create new Saved Messages with a unique check using upsert pattern
-      // First try to acquire a lock by checking again (prevents race condition)
-      const { data: savedConv, error: savedError } = await supabaseAdmin
+      // Clean up duplicates if any exist
+      if (duplicateSelfChatIds.length > 0) {
+        console.log('Cleaning up duplicate self-chats:', duplicateSelfChatIds)
+        for (const dupId of duplicateSelfChatIds) {
+          // Move messages to the main self-chat
+          if (existingSelfChatId) {
+            await supabaseAdmin
+              .from('messages')
+              .update({ conversation_id: existingSelfChatId })
+              .eq('conversation_id', dupId)
+          }
+          // Delete participants and conversation
+          await supabaseAdmin.from('conversation_participants').delete().eq('conversation_id', dupId)
+          await supabaseAdmin.from('conversations').delete().eq('id', dupId)
+        }
+      }
+
+      if (existingSelfChatId) {
+        console.log('Self-chat already exists:', existingSelfChatId)
+        return new Response(JSON.stringify({ id: existingSelfChatId }), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Create new self-chat conversation
+      const { data: selfChat, error: selfChatError } = await supabaseAdmin
         .from('conversations')
         .insert({ type: 'direct', name: null, created_by: user.id })
         .select()
         .single()
 
-      if (savedError) {
-        console.error('Saved Messages creation error:', savedError)
-        return new Response(JSON.stringify({ error: savedError.message }), {
+      if (selfChatError) {
+        console.error('Self-chat creation error:', selfChatError)
+        return new Response(JSON.stringify({ error: selfChatError.message }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
@@ -102,51 +131,19 @@ Deno.serve(async (req) => {
       // Add only the current user as participant
       const { error: partError } = await supabaseAdmin
         .from('conversation_participants')
-        .insert({ conversation_id: savedConv.id, user_id: user.id, role: 'owner' })
+        .insert({ conversation_id: selfChat.id, user_id: user.id, role: 'owner' })
 
       if (partError) {
-        console.error('Error adding participant to Saved Messages:', partError)
-        // If participant insert fails, delete the conversation and try to find existing
-        await supabaseAdmin.from('conversations').delete().eq('id', savedConv.id)
-        
-        // Re-check for existing Saved Messages
-        const { data: retryConversations } = await supabaseAdmin
-          .from('conversation_participants')
-          .select('conversation_id')
-          .eq('user_id', user.id)
-
-        if (retryConversations) {
-          for (const p of retryConversations) {
-            const { data: convData } = await supabaseAdmin
-              .from('conversations')
-              .select('id, type')
-              .eq('id', p.conversation_id)
-              .single()
-
-            if (convData?.type !== 'direct') continue
-
-            const { data: participants } = await supabaseAdmin
-              .from('conversation_participants')
-              .select('*')
-              .eq('conversation_id', p.conversation_id)
-
-            if (participants?.length === 1 && participants[0].user_id === user.id) {
-              return new Response(JSON.stringify({ id: p.conversation_id }), {
-                status: 200,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              })
-            }
-          }
-        }
-        
-        return new Response(JSON.stringify({ error: 'Failed to create Saved Messages' }), {
+        console.error('Error adding participant to self-chat:', partError)
+        await supabaseAdmin.from('conversations').delete().eq('id', selfChat.id)
+        return new Response(JSON.stringify({ error: 'Failed to create self-chat' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         })
       }
 
-      console.log('Saved Messages created:', savedConv.id)
-      return new Response(JSON.stringify({ id: savedConv.id }), {
+      console.log('Self-chat created:', selfChat.id)
+      return new Response(JSON.stringify({ id: selfChat.id }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })

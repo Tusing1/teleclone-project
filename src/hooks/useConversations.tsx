@@ -71,32 +71,31 @@ export function useConversations() {
       const convMessages = lastMessages?.filter(m => m.conversation_id === conv.id) || [];
       const lastMessage = convMessages[0] as Message | undefined;
 
-      // Check if this is a Saved Messages conversation (only one participant, it's the current user, and it's a direct type)
-      const isSavedMessages = conv.type === 'direct' && convParticipants.length === 1 && convParticipants[0].user_id === user.id;
+      // Check if this is a self-chat conversation (only one participant, it's the current user, and it's a direct type)
+      const isSelfChat = conv.type === 'direct' && convParticipants.length === 1 && convParticipants[0].user_id === user.id;
 
       return {
         ...conv,
         participants: participantsWithProfiles,
         lastMessage,
-        isSavedMessages,
+        isSavedMessages: isSelfChat, // Keep this for backwards compatibility
+        isSelfChat,
         is_archived: conv.is_archived || false,
       };
     });
 
-    // Find and store saved messages ID
-    const savedConv = conversationsWithDetails.find(c => c.isSavedMessages);
-    if (savedConv) {
-      setSavedMessagesId(savedConv.id);
+    // Find and store self-chat ID (only one should exist now)
+    const selfChatConv = conversationsWithDetails.find(c => c.isSelfChat || c.isSavedMessages);
+    if (selfChatConv) {
+      setSavedMessagesId(selfChatConv.id);
     }
 
     // Separate archived and active conversations
     const active = conversationsWithDetails.filter(c => !c.is_archived);
     const archived = conversationsWithDetails.filter(c => c.is_archived);
 
-    // Sort: Saved Messages first, then by last message time
+    // Sort by last message time (self-chat treated like any other conversation now)
     const sortFn = (a: ConversationWithDetails, b: ConversationWithDetails) => {
-      if (a.isSavedMessages) return -1;
-      if (b.isSavedMessages) return 1;
       const aTime = a.lastMessage?.created_at || a.updated_at;
       const bTime = b.lastMessage?.created_at || b.updated_at;
       return new Date(bTime).getTime() - new Date(aTime).getTime();

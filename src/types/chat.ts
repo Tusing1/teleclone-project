@@ -68,5 +68,6 @@ export interface ConversationWithDetails extends Conversation {
   lastMessage?: Message;
   unreadCount?: number;
   isSavedMessages?: boolean;
+  isSelfChat?: boolean;
   is_archived?: boolean;
 }
