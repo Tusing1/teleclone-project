@@ -146,10 +146,11 @@ export function ConversationList({
   };
 
   const renderConversationItem = (conv: ConversationWithDetails) => {
-    // Saved Messages special rendering
-    if (conv.isSavedMessages) {
+    // Self-chat / "Message Yourself" - show user's own profile like WhatsApp
+    if (conv.isSavedMessages || conv.isSelfChat) {
       const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
       const lastMessageText = conv.lastMessage?.content || 'No messages yet';
+      const displayName = profile?.full_name || profile?.username || 'You';
 
       return (
         <div
@@ -160,12 +161,14 @@ export function ConversationList({
             selectedId === conv.id && 'bg-primary/10'
           )}
         >
-          <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-            <Bookmark className="w-6 h-6 text-primary-foreground" />
-          </div>
+          <Avatar
+            src={profile?.avatar_url}
+            name={displayName}
+            isOnline={true}
+          />
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <span className="font-medium truncate">Saved Messages</span>
+              <span className="font-medium truncate">{displayName} (You)</span>
               {conv.lastMessage && (
                 <span className="text-xs text-muted-foreground">
                   {formatTime(lastMessageTime)}
@@ -386,8 +389,8 @@ export function ConversationList({
     );
   };
 
-  // Check if Saved Messages exists in conversations
-  const hasSavedMessages = conversations.some(c => c.isSavedMessages);
+  // Check if self-chat exists in conversations
+  const hasSelfChat = conversations.some(c => c.isSavedMessages || c.isSelfChat);
 
   return (
     <div className="flex flex-col h-full bg-card">
@@ -447,23 +450,25 @@ export function ConversationList({
 
         {/* Content with pull offset */}
         <div style={{ transform: `translateY(${pullDistance}px)` }}>
-          {/* Saved Messages shortcut if it doesn't exist yet */}
-          {!hasSavedMessages && !search && (
+          {/* Self-chat shortcut if it doesn't exist yet */}
+          {!hasSelfChat && !search && (
             <div
               onClick={onOpenSavedMessages}
               className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 border-b border-border/50"
             >
-              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-                <Bookmark className="w-6 h-6 text-primary-foreground" />
-              </div>
+              <Avatar
+                src={profile?.avatar_url}
+                name={profile?.full_name || profile?.username || 'You'}
+                isOnline={true}
+              />
               <div className="flex-1 min-w-0">
-                <span className="font-medium">Saved Messages</span>
-                <p className="text-sm text-muted-foreground">Save messages here</p>
+                <span className="font-medium">{profile?.full_name || profile?.username || 'You'} (You)</span>
+                <p className="text-sm text-muted-foreground">Message yourself</p>
               </div>
             </div>
           )}
 
-          {filteredConversations.length === 0 && hasSavedMessages ? (
+          {filteredConversations.length === 0 && hasSelfChat ? (
             <div className="p-4 text-center text-muted-foreground">
               <p>No conversations yet</p>
               <Button 
