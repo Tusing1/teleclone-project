@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
+import { useStudyTokens } from '@/hooks/useStudyTokens';
 import { useReferrals } from '@/hooks/useReferrals';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
@@ -35,8 +36,22 @@ export default function Index() {
   // Initialize notification sound listener
   useNotificationSound();
   
+  // Study tokens hook for daily login tracking
+  const { checkDailyLogin } = useStudyTokens();
+  
   // Referrals hook for processing pending referral codes
   const { processReferralCode } = useReferrals();
+  
+  // Check daily login on app load
+  useEffect(() => {
+    if (user) {
+      checkDailyLogin().then((result) => {
+        if (result) {
+          toast.success(`🔥 Day ${result.streak} streak! +${result.tokensEarned} tokens`);
+        }
+      });
+    }
+  }, [user, checkDailyLogin]);
 
   const { 
     conversations, 
