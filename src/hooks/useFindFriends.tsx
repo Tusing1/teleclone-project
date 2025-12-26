@@ -325,23 +325,6 @@ export function useFindFriends() {
           await fetchMatches();
           setCurrentIndex(prev => prev + 1);
           return { matched: true, user: swipedUser, conversationId };
-          // Create the match record
-          const { error: matchError } = await supabase.from('user_matches').insert({
-            user1_id: user.id,
-            user2_id: swipedUser.user_id,
-            conversation_id: conversationId
-          });
-
-          if (matchError) {
-            console.error('Error creating match:', matchError);
-            // Even if match record fails, conversation was created - still return success
-          }
-
-          console.log('Match created successfully!');
-
-          await fetchMatches();
-          setCurrentIndex(prev => prev + 1);
-          return { matched: true, user: swipedUser, conversationId };
         }
       }
 
