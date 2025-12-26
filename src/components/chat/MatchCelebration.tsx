@@ -8,6 +8,7 @@ interface MatchCelebrationProps {
   matchedUser: Profile;
   onClose: () => void;
   onSendMessage: () => void;
+  onKeepSwiping?: () => void;
 }
 
 interface Confetti {
@@ -24,7 +25,7 @@ interface FloatingHeart {
   delay: number;
 }
 
-export function MatchCelebration({ matchedUser, onClose, onSendMessage }: MatchCelebrationProps) {
+export function MatchCelebration({ matchedUser, onClose, onSendMessage, onKeepSwiping }: MatchCelebrationProps) {
   const [confetti, setConfetti] = useState<Confetti[]>([]);
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const [showContent, setShowContent] = useState(false);
@@ -178,7 +179,10 @@ export function MatchCelebration({ matchedUser, onClose, onSendMessage }: MatchC
             type="button"
             variant="outline"
             className="flex-1 border-white/30 text-foreground"
-            onClick={onClose}
+            onClick={() => {
+              onClose();
+              onKeepSwiping?.();
+            }}
           >
             Keep Swiping
           </Button>
