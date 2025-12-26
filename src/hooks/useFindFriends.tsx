@@ -215,16 +215,26 @@ export function useFindFriends() {
     const swipedUser = potentialMatches[currentIndex];
 
     try {
-      // Record the swipe
-      const { error: swipeError } = await supabase
+      // Check if swipe already exists
+      const { data: existingSwipe } = await supabase
         .from('user_swipes')
-        .insert({
-          swiper_id: user.id,
-          swiped_id: swipedUser.user_id,
-          direction
-        });
+        .select('id')
+        .eq('swiper_id', user.id)
+        .eq('swiped_id', swipedUser.user_id)
+        .maybeSingle();
 
-      if (swipeError) throw swipeError;
+      // Only insert if swipe doesn't exist
+      if (!existingSwipe) {
+        const { error: swipeError } = await supabase
+          .from('user_swipes')
+          .insert({
+            swiper_id: user.id,
+            swiped_id: swipedUser.user_id,
+            direction
+          });
+
+        if (swipeError) throw swipeError;
+      }
 
       // Check for match if swiped right
       if (direction === 'right') {
