@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio, Trash2, RefreshCw, Bot, Heart, MessageCircle, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -24,6 +24,9 @@ interface ConversationListProps {
   onDeleteConversation?: (conversationId: string) => void;
   getUserRole?: (conversationId: string) => string | null;
   onRefresh?: () => Promise<void>;
+  onOpenAskAI?: () => void;
+  onOpenFindFriends?: () => void;
+  onOpenMessageFriends?: () => void;
 }
 
 export function ConversationList({ 
@@ -36,10 +39,14 @@ export function ConversationList({
   onArchiveConversation,
   onDeleteConversation,
   getUserRole,
-  onRefresh
+  onRefresh,
+  onOpenAskAI,
+  onOpenFindFriends,
+  onOpenMessageFriends
 }: ConversationListProps) {
   const { user, profile } = useAuth();
   const [search, setSearch] = useState('');
+  const [fabOpen, setFabOpen] = useState(false);
   
   // Pull to refresh state
   const [isPulling, setIsPulling] = useState(false);
@@ -473,14 +480,54 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* New chat FAB */}
-      <Button
-        onClick={onNewChat}
-        size="icon"
-        className="absolute bottom-6 right-6 w-14 h-14 rounded-full shadow-lg"
-      >
-        <Edit className="h-6 w-6" />
-      </Button>
+      {/* Expandable FAB */}
+      <div className="absolute bottom-6 right-6">
+        {/* FAB Options */}
+        <div className={cn(
+          "absolute bottom-16 right-0 flex flex-col gap-2 transition-all duration-300",
+          fabOpen ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none"
+        )}>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => { onOpenAskAI?.(); setFabOpen(false); }}
+            className="shadow-lg rounded-full px-4 gap-2"
+          >
+            <Bot className="h-4 w-4" />
+            Ask AI
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => { onOpenFindFriends?.(); setFabOpen(false); }}
+            className="shadow-lg rounded-full px-4 gap-2"
+          >
+            <Heart className="h-4 w-4" />
+            Find Friends
+          </Button>
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => { onOpenMessageFriends?.(); setFabOpen(false); }}
+            className="shadow-lg rounded-full px-4 gap-2"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Message
+          </Button>
+        </div>
+        
+        {/* Main FAB */}
+        <Button
+          onClick={() => setFabOpen(!fabOpen)}
+          size="icon"
+          className={cn(
+            "w-14 h-14 rounded-full shadow-lg transition-transform",
+            fabOpen && "rotate-45"
+          )}
+        >
+          {fabOpen ? <X className="h-6 w-6" /> : <Edit className="h-6 w-6" />}
+        </Button>
+      </div>
     </div>
   );
 }
