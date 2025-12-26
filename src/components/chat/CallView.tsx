@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Circle } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Circle, Wifi, WifiOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
@@ -17,6 +17,7 @@ interface CallViewProps {
   callType: 'voice' | 'video';
   participants: CallParticipant[];
   localStream: MediaStream | null;
+  remoteStreams: Map<string, MediaStream>;
   isCallStarter: boolean;
   onLeave: () => void;
   onEnd: () => void;
@@ -27,12 +28,14 @@ interface CallViewProps {
   isRecording: boolean;
   onStartRecording: (title: string) => void;
   onStopRecording: () => void;
+  connectionStatus: 'connecting' | 'connected' | 'disconnected';
 }
 
 export const CallView: React.FC<CallViewProps> = ({
   callType,
   participants,
   localStream,
+  remoteStreams,
   isCallStarter,
   onLeave,
   onEnd,
@@ -42,9 +45,11 @@ export const CallView: React.FC<CallViewProps> = ({
   isVideoOff,
   isRecording,
   onStartRecording,
-  onStopRecording
+  onStopRecording,
+  connectionStatus
 }) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRefs = useRef<Map<string, HTMLVideoElement>>(new Map());
   const [showRecordDialog, setShowRecordDialog] = useState(false);
   const [recordingTitle, setRecordingTitle] = useState('');
 
@@ -54,11 +59,63 @@ export const CallView: React.FC<CallViewProps> = ({
     }
   }, [localStream]);
 
+  // Update remote video elements when streams change
+  useEffect(() => {
+    remoteStreams.forEach((stream, oderId) => {
+      const videoEl = remoteVideoRefs.current.get(oderId);
+      if (videoEl && videoEl.srcObject !== stream) {
+        videoEl.srcObject = stream;
+      }
+    });
+  }, [remoteStreams]);
+
   const handleStartRecording = () => {
     onStartRecording(recordingTitle);
     setShowRecordDialog(false);
     setRecordingTitle('');
   };
+
+  const setRemoteVideoRef = (userId: string) => (el: HTMLVideoElement | null) => {
+    if (el) {
+      remoteVideoRefs.current.set(userId, el);
+      // Set stream if already available
+      const stream = remoteStreams.get(userId);
+      if (stream && el.srcObject !== stream) {
+        el.srcObject = stream;
+      }
+    } else {
+      remoteVideoRefs.current.delete(userId);
+    }
+  };
+
+  const getConnectionStatusDisplay = () => {
+    switch (connectionStatus) {
+      case 'connecting':
+        return (
+          <div className="flex items-center gap-2 text-yellow-500">
+            <Wifi className="h-4 w-4 animate-pulse" />
+            <span className="text-sm">Connecting...</span>
+          </div>
+        );
+      case 'connected':
+        return (
+          <div className="flex items-center gap-2 text-green-500">
+            <Wifi className="h-4 w-4" />
+            <span className="text-sm">Connected</span>
+          </div>
+        );
+      case 'disconnected':
+        return (
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <WifiOff className="h-4 w-4" />
+            <span className="text-sm">Waiting for peers</span>
+          </div>
+        );
+    }
+  };
+
+  // Get participants excluding current user for remote display
+  const remoteParticipants = participants.filter(p => p.profile);
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex flex-col">
@@ -68,7 +125,8 @@ export const CallView: React.FC<CallViewProps> = ({
           <Users className="h-5 w-5" />
           <span className="font-medium">{participants.length} participant(s)</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          {getConnectionStatusDisplay()}
           {isRecording && (
             <div className="flex items-center gap-1 text-red-500">
               <Circle className="h-3 w-3 fill-red-500 animate-pulse" />
@@ -115,32 +173,50 @@ export const CallView: React.FC<CallViewProps> = ({
             </div>
           </div>
 
-          {/* Other participants */}
-          {participants.filter(p => p.profile).map((participant) => (
-            <div 
-              key={participant.id} 
-              className="relative bg-muted rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]"
-            >
-              <div className="flex flex-col items-center gap-2">
-                <Avatar 
-                  name={participant.profile?.full_name || participant.profile?.username || ''} 
-                  src={participant.profile?.avatar_url || undefined}
-                  size="lg" 
-                />
-                <span className="text-sm font-medium">
-                  {participant.profile?.full_name || participant.profile?.username}
-                </span>
-              </div>
-              {participant.is_muted && (
-                <div className="absolute bottom-2 right-2 bg-red-500 rounded-full p-1">
-                  <MicOff className="h-4 w-4 text-white" />
+          {/* Remote participants */}
+          {remoteParticipants.map((participant) => {
+            const hasRemoteStream = remoteStreams.has(participant.user_id);
+            const showVideo = callType === 'video' && !participant.is_video_off && hasRemoteStream;
+
+            return (
+              <div 
+                key={participant.id} 
+                className="relative bg-muted rounded-xl overflow-hidden flex items-center justify-center min-h-[200px]"
+              >
+                {showVideo ? (
+                  <video
+                    ref={setRemoteVideoRef(participant.user_id)}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="flex flex-col items-center gap-2">
+                    <Avatar 
+                      name={participant.profile?.full_name || participant.profile?.username || ''} 
+                      src={participant.profile?.avatar_url || undefined}
+                      size="lg" 
+                    />
+                    <span className="text-sm font-medium">
+                      {participant.profile?.full_name || participant.profile?.username}
+                    </span>
+                    {!hasRemoteStream && connectionStatus === 'connecting' && (
+                      <span className="text-xs text-muted-foreground">Connecting...</span>
+                    )}
+                  </div>
+                )}
+                {participant.is_muted && (
+                  <div className="absolute bottom-2 right-2 bg-red-500 rounded-full p-1">
+                    <MicOff className="h-4 w-4 text-white" />
+                  </div>
+                )}
+                <div className="absolute top-2 left-2 bg-black/50 rounded px-2 py-1 text-xs text-white flex items-center gap-1">
+                  {participant.profile?.username}
+                  {hasRemoteStream && <Wifi className="h-3 w-3 text-green-400" />}
                 </div>
-              )}
-              <div className="absolute top-2 left-2 bg-black/50 rounded px-2 py-1 text-xs text-white">
-                {participant.profile?.username}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

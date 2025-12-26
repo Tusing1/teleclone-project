@@ -58,6 +58,44 @@ export type Database = {
           },
         ]
       }
+      call_signals: {
+        Row: {
+          call_id: string
+          created_at: string
+          from_user: string
+          id: string
+          signal_data: Json
+          signal_type: string
+          to_user: string | null
+        }
+        Insert: {
+          call_id: string
+          created_at?: string
+          from_user: string
+          id?: string
+          signal_data: Json
+          signal_type: string
+          to_user?: string | null
+        }
+        Update: {
+          call_id?: string
+          created_at?: string
+          from_user?: string
+          id?: string
+          signal_data?: Json
+          signal_type?: string
+          to_user?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_signals_call_id_fkey"
+            columns: ["call_id"]
+            isOneToOne: false
+            referencedRelation: "calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           call_type: string
