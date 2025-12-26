@@ -25,12 +25,29 @@ export function useLiveStream(conversationId: string | null) {
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
   const [isInStream, setIsInStream] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const [isRecording, setIsRecording] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
   const [noiseSuppression, setNoiseSuppression] = useState(true);
   const [isMuted, setIsMuted] = useState(true); // Non-admins start muted
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
+  const signalingChannel = useRef<any>(null);
+
+  const cleanup = useCallback(() => {
+    peerConnections.current.forEach(pc => pc.close());
+    peerConnections.current.clear();
+    setRemoteStreams(new Map());
+    if (localStream) {
+      localStream.getTracks().forEach(track => track.stop());
+      setLocalStream(null);
+    }
+    if (signalingChannel.current) {
+      supabase.removeChannel(signalingChannel.current);
+      signalingChannel.current = null;
+    }
+  }, [localStream]);
 
   // Fetch active stream
   const fetchActiveStream = useCallback(async () => {
@@ -79,6 +96,57 @@ export function useLiveStream(conversationId: string | null) {
     setParticipants([]);
     setIsRecording(false);
   }, [conversationId, user]);
+
+  // ICE servers for STUN/STUN
+  const servers = {
+    iceServers: [
+      {
+        urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+      },
+    ],
+    iceCandidatePoolSize: 10,
+  };
+
+  const getOrCreatePC = useCallback((remoteUserId: string, stream: MediaStream, callId: string) => {
+    if (peerConnections.current.has(remoteUserId)) {
+      return peerConnections.current.get(remoteUserId)!;
+    }
+
+    console.log(`📡 Creating PeerConnection for user: ${remoteUserId}`);
+    const pc = new RTCPeerConnection(servers);
+    peerConnections.current.set(remoteUserId, pc);
+
+    // Add local tracks
+    stream.getTracks().forEach(track => {
+      pc.addTrack(track, stream);
+    });
+
+    // Handle remote track
+    pc.ontrack = (event) => {
+      console.log(`🎵 Remote track received from ${remoteUserId}:`, event.track.kind);
+      const [remoteStream] = event.streams;
+      setRemoteStreams(prev => {
+        const newMap = new Map(prev);
+        newMap.set(remoteUserId, remoteStream);
+        return newMap;
+      });
+    };
+
+    // Handle ICE candidates
+    pc.onicecandidate = async (event) => {
+      if (event.candidate && user) {
+        await supabase.from('call_signals').insert({
+          call_id: callId,
+          from_user: user.id,
+          to_user: remoteUserId,
+          signal_type: 'ice-candidate',
+          signal_data: event.candidate.toJSON() as any
+        });
+      }
+    };
+
+    return pc;
+  }, [user]);
 
   // Fetch participants
   const fetchParticipants = async (callId: string) => {
@@ -190,6 +258,15 @@ export function useLiveStream(conversationId: string | null) {
     console.log('Joining stream...', { callId, startMuted });
 
     try {
+      // Refresh current participants to know who to connect to
+      const { data: participantsData } = await supabase
+        .from('call_participants')
+        .select('user_id')
+        .eq('call_id', callId)
+        .is('left_at', null);
+
+      const otherUserIds = participantsData?.map(p => p.user_id).filter(id => id !== user.id) || [];
+
       // Request audio permission
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -209,37 +286,31 @@ export function useLiveStream(conversationId: string | null) {
       setLocalStream(stream);
       setIsMuted(startMuted);
 
-      // Ensure the user has only one active participant row per call.
-      const { data: existingParticipant, error: existingParticipantError } = await supabase
+      // CRITICAL: Ensure the user has only one active participant row per call - check for ANY existing row
+      // We do this BEFORE any signaling starts so that RLS doesn't block OUR signals.
+      const { data: existingParticipant } = await supabase
         .from('call_participants')
         .select('id')
         .eq('call_id', callId)
         .eq('user_id', user.id)
-        .is('left_at', null)
         .limit(1)
         .maybeSingle();
 
-      if (existingParticipantError) {
-        console.warn('Error checking existing participant:', existingParticipantError);
-      }
-
       if (existingParticipant?.id) {
-        const { error: updateError } = await supabase
+        console.log('Re-joining stream: Updating existing participant record before signaling');
+        await supabase
           .from('call_participants')
           .update({
             is_muted: startMuted,
             is_video_off: true,
             hand_raised: false,
-            noise_suppression: noiseSuppression
+            noise_suppression: noiseSuppression,
+            left_at: null // Clear left_at
           })
           .eq('id', existingParticipant.id);
-
-        if (updateError) {
-          console.error('Error updating participant:', updateError);
-          return;
-        }
       } else {
-        const { error: participantError } = await supabase
+        console.log('Joining stream: Creating new participant record before signaling');
+        await supabase
           .from('call_participants')
           .insert({
             call_id: callId,
@@ -247,23 +318,81 @@ export function useLiveStream(conversationId: string | null) {
             is_muted: startMuted,
             is_video_off: true,
             hand_raised: false,
-            noise_suppression: noiseSuppression
+            noise_suppression: noiseSuppression,
+            left_at: null
           });
-
-        if (participantError) {
-          console.error('Error adding participant:', participantError);
-          return;
-        }
       }
 
-      console.log('Participant ensured, setting isInStream to true');
       setIsInStream(true);
-
-      // Fetch the active stream to update state
       await fetchActiveStream();
-      console.log('Stream joined successfully');
+
+      // Setup signaling channel
+      const channel = supabase
+        .channel(`livestream-signal-${callId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'call_signals',
+            filter: `call_id=eq.${callId}`
+          },
+          async (payload: any) => {
+            const signal = payload.new;
+            if (signal.from_user === user.id) return;
+            // If the signal is targeted at someone else, ignore it (unless it's a broadcast)
+            if (signal.to_user && signal.to_user !== user.id) return;
+
+            console.log(`📥 Received signal ${signal.signal_type} from ${signal.from_user}`);
+
+            const pc = getOrCreatePC(signal.from_user, stream, callId);
+
+            try {
+              if (signal.signal_type === 'offer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data));
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+                await supabase.from('call_signals').insert({
+                  call_id: callId,
+                  from_user: user.id,
+                  to_user: signal.from_user,
+                  signal_type: 'answer',
+                  signal_data: answer as any
+                });
+              } else if (signal.signal_type === 'answer') {
+                await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data));
+              } else if (signal.signal_type === 'ice-candidate') {
+                await pc.addIceCandidate(new RTCIceCandidate(signal.signal_data));
+              }
+            } catch (err) {
+              console.error('Error handling signal:', err);
+            }
+          }
+        )
+        .subscribe();
+
+      signalingChannel.current = channel;
+
+      // Initiate connections to existing participants
+      for (const remoteUserId of otherUserIds) {
+        const pc = getOrCreatePC(remoteUserId, stream, callId);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        await supabase.from('call_signals').insert({
+          call_id: callId,
+          from_user: user.id,
+          to_user: remoteUserId,
+          signal_type: 'offer',
+          signal_data: offer as any
+        });
+      }
+
+      console.log('Join process completed successfully');
+      console.log('Stream joined successfully with WebRTC signaling');
     } catch (error) {
       console.error('Error joining stream:', error);
+      // Re-throw the error
+      throw error;
     }
   };
 
@@ -677,23 +806,40 @@ export function useLiveStream(conversationId: string | null) {
     };
   }, [conversationId, fetchActiveStream, activeStream?.id]);
 
-  // Cleanup
+  // Handle participant cleanup (close PeerConnections for those who left)
+  useEffect(() => {
+    const participantUserIds = new Set(participants.map(p => p.user_id));
+
+    peerConnections.current.forEach((pc, userId) => {
+      if (!participantUserIds.has(userId)) {
+        console.log(`📡 Closing PeerConnection for user who left: ${userId}`);
+        pc.close();
+        peerConnections.current.delete(userId);
+        setRemoteStreams(prev => {
+          const newMap = new Map(prev);
+          newMap.delete(userId);
+          return newMap;
+        });
+      }
+    });
+  }, [participants]);
+
+  // Thorough cleanup on unmount
   useEffect(() => {
     return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
+      cleanup();
       if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
         mediaRecorder.current.stop();
       }
     };
-  }, []);
+  }, [cleanup]);
 
   return {
     activeStream,
     participants,
     isInStream,
     localStream,
+    remoteStreams,
     isRecording,
     handRaised,
     noiseSuppression,
