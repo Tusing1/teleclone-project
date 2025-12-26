@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio, Trash2 } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio, Trash2, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -23,6 +23,7 @@ interface ConversationListProps {
   onArchiveConversation?: (conversationId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
   getUserRole?: (conversationId: string) => string | null;
+  onRefresh?: () => Promise<void>;
 }
 
 export function ConversationList({ 
@@ -34,10 +35,61 @@ export function ConversationList({
   onOpenSavedMessages,
   onArchiveConversation,
   onDeleteConversation,
-  getUserRole
+  getUserRole,
+  onRefresh
 }: ConversationListProps) {
   const { user, profile } = useAuth();
   const [search, setSearch] = useState('');
+  
+  // Pull to refresh state
+  const [isPulling, setIsPulling] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const threshold = 80;
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (isRefreshing) return;
+    const container = containerRef.current;
+    if (!container || container.scrollTop > 0) return;
+    startY.current = e.touches[0].clientY;
+    setIsPulling(true);
+  }, [isRefreshing]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isPulling || isRefreshing) return;
+    const container = containerRef.current;
+    if (!container || container.scrollTop > 0) {
+      setIsPulling(false);
+      setPullDistance(0);
+      return;
+    }
+    const currentY = e.touches[0].clientY;
+    const distance = Math.max(0, currentY - startY.current);
+    const adjustedDistance = Math.min(distance * 0.5, threshold * 1.5);
+    setPullDistance(adjustedDistance);
+  }, [isPulling, isRefreshing, threshold]);
+
+  const handleTouchEnd = useCallback(async () => {
+    if (!isPulling) return;
+    setIsPulling(false);
+    
+    if (pullDistance >= threshold && !isRefreshing && onRefresh) {
+      setIsRefreshing(true);
+      setPullDistance(threshold);
+      try {
+        await onRefresh();
+      } finally {
+        setIsRefreshing(false);
+        setPullDistance(0);
+      }
+    } else {
+      setPullDistance(0);
+    }
+  }, [isPulling, pullDistance, threshold, isRefreshing, onRefresh]);
+
+  const progress = Math.min(pullDistance / threshold, 1);
 
   const filteredConversations = conversations.filter(conv => {
     // Always show Saved Messages if search matches
@@ -355,38 +407,70 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin">
-        {/* Saved Messages shortcut if it doesn't exist yet */}
-        {!hasSavedMessages && !search && (
-          <div
-            onClick={onOpenSavedMessages}
-            className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 border-b border-border/50"
+      {/* Conversation list with pull-to-refresh */}
+      <div 
+        ref={containerRef}
+        className="flex-1 overflow-y-auto scrollbar-thin relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Pull to refresh indicator */}
+        {(pullDistance > 10 || isRefreshing) && (
+          <div 
+            className="absolute left-0 right-0 flex justify-center pointer-events-none z-50"
+            style={{ 
+              top: Math.min(pullDistance - 40, threshold - 20),
+              opacity: progress 
+            }}
           >
-            <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
-              <Bookmark className="w-6 h-6 text-primary-foreground" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="font-medium">Saved Messages</span>
-              <p className="text-sm text-muted-foreground">Save messages here</p>
+            <div className={cn(
+              "w-10 h-10 rounded-full bg-card border border-border shadow-lg flex items-center justify-center",
+              isRefreshing && "animate-spin"
+            )}>
+              <RefreshCw 
+                className="h-5 w-5 text-primary"
+                style={{ 
+                  transform: isRefreshing ? undefined : `rotate(${progress * 360}deg)` 
+                }}
+              />
             </div>
           </div>
         )}
 
-        {filteredConversations.length === 0 && hasSavedMessages ? (
-          <div className="p-4 text-center text-muted-foreground">
-            <p>No conversations yet</p>
-            <Button 
-              variant="link" 
-              onClick={onNewChat}
-              className="text-primary"
+        {/* Content with pull offset */}
+        <div style={{ transform: `translateY(${pullDistance}px)` }}>
+          {/* Saved Messages shortcut if it doesn't exist yet */}
+          {!hasSavedMessages && !search && (
+            <div
+              onClick={onOpenSavedMessages}
+              className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 border-b border-border/50"
             >
-              Start a new chat
-            </Button>
-          </div>
-        ) : (
-          filteredConversations.map(renderConversationItem)
-        )}
+              <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+                <Bookmark className="w-6 h-6 text-primary-foreground" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="font-medium">Saved Messages</span>
+                <p className="text-sm text-muted-foreground">Save messages here</p>
+              </div>
+            </div>
+          )}
+
+          {filteredConversations.length === 0 && hasSavedMessages ? (
+            <div className="p-4 text-center text-muted-foreground">
+              <p>No conversations yet</p>
+              <Button 
+                variant="link" 
+                onClick={onNewChat}
+                className="text-primary"
+              >
+                Start a new chat
+              </Button>
+            </div>
+          ) : (
+            filteredConversations.map(renderConversationItem)
+          )}
+        </div>
       </div>
 
       {/* New chat FAB */}

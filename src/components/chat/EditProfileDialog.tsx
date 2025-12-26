@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Camera, Loader2, Check, X } from 'lucide-react';
+import { Camera, Loader2, Check, X, Phone } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,7 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [availableInterests, setAvailableInterests] = useState<InterestCategory[]>([]);
@@ -47,6 +48,7 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
       setFullName(profile.full_name || '');
       setUsername(profile.username || '');
       setBio(profile.bio || '');
+      setPhoneNumber((profile as any).phone_number || '');
       setAvatarUrl(profile.avatar_url);
       setInterests(profile.interests || []);
     }
@@ -149,6 +151,7 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
           full_name: fullName.trim() || null,
           username: username.trim(),
           bio: bio.trim() || null,
+          phone_number: phoneNumber.trim() || null,
           avatar_url: avatarUrl,
           interests: interests
         })
@@ -240,6 +243,23 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
                   maxLength={30}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phoneNumber" className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Phone Number
+              </Label>
+              <Input
+                id="phoneNumber"
+                type="tel"
+                placeholder="+1 234 567 8900"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Your phone number helps friends find you
+              </p>
             </div>
 
             <div className="space-y-2">
