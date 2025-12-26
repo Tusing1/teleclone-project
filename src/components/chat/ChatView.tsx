@@ -121,12 +121,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     connectionStatus,
     isMuted,
     isVideoOff,
+    isScreenSharing,
     startCall,
     joinCall,
     leaveCall,
     endCall,
     toggleMute,
     toggleVideo,
+    toggleScreenShare,
     startRecording,
     stopRecording
   } = useCalls(isChannel ? null : conversation.id); // Don't use for channels
@@ -401,8 +403,10 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         onEnd={endCall}
         onToggleMute={toggleMute}
         onToggleVideo={toggleVideo}
+        onToggleScreenShare={activeCall.call_type === 'video' ? toggleScreenShare : undefined}
         isMuted={isMuted}
         isVideoOff={isVideoOff}
+        isScreenSharing={isScreenSharing}
         isRecording={isRecording}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}

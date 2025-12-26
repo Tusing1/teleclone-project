@@ -61,12 +61,14 @@ export function useCalls(conversationId: string | null) {
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
 
   const peerConnection = useRef<RTCPeerConnection | null>(null);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
   const unsubscribeCallDoc = useRef<(() => void) | null>(null);
   const unsubscribeCandidates = useRef<(() => void) | null>(null);
+  const originalVideoTrack = useRef<MediaStreamTrack | null>(null);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -588,6 +590,72 @@ export function useCalls(conversationId: string | null) {
     }
   };
 
+  // Toggle screen sharing
+  const toggleScreenShare = async () => {
+    if (!user || !activeCall || !localStream || !peerConnection.current) return;
+
+    try {
+      if (isScreenSharing) {
+        // Stop screen sharing, restore camera
+        if (originalVideoTrack.current) {
+          const sender = peerConnection.current.getSenders().find(s => s.track?.kind === 'video');
+          if (sender) {
+            await sender.replaceTrack(originalVideoTrack.current);
+          }
+          // Update local stream
+          const oldVideoTrack = localStream.getVideoTracks()[0];
+          if (oldVideoTrack) {
+            oldVideoTrack.stop();
+            localStream.removeTrack(oldVideoTrack);
+          }
+          localStream.addTrack(originalVideoTrack.current);
+          originalVideoTrack.current = null;
+        }
+        setIsScreenSharing(false);
+        toast.success('Screen sharing stopped');
+      } else {
+        // Start screen sharing
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+
+        const screenTrack = screenStream.getVideoTracks()[0];
+        
+        // Save original video track
+        const currentVideoTrack = localStream.getVideoTracks()[0];
+        if (currentVideoTrack) {
+          originalVideoTrack.current = currentVideoTrack.clone();
+        }
+
+        // Replace track in peer connection
+        const sender = peerConnection.current.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(screenTrack);
+        }
+
+        // Update local stream
+        if (currentVideoTrack) {
+          localStream.removeTrack(currentVideoTrack);
+        }
+        localStream.addTrack(screenTrack);
+
+        // Handle when user stops sharing via browser UI
+        screenTrack.onended = () => {
+          toggleScreenShare();
+        };
+
+        setIsScreenSharing(true);
+        toast.success('Screen sharing started');
+      }
+    } catch (error) {
+      console.error('Error toggling screen share:', error);
+      if ((error as Error).name !== 'NotAllowedError') {
+        toast.error('Failed to share screen');
+      }
+    }
+  };
+
   // Subscribe to call changes
   useEffect(() => {
     if (!conversationId) return;
@@ -637,12 +705,14 @@ export function useCalls(conversationId: string | null) {
     connectionStatus,
     isMuted,
     isVideoOff,
+    isScreenSharing,
     startCall,
     joinCall,
     leaveCall,
     endCall,
     toggleMute,
     toggleVideo,
+    toggleScreenShare,
     startRecording,
     stopRecording
   };
