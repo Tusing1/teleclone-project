@@ -101,7 +101,13 @@ export function useLiveStream(conversationId: string | null) {
   const servers = {
     iceServers: [
       {
-        urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
+        urls: [
+          'stun:stun1.l.google.com:19302',
+          'stun:stun2.l.google.com:19302',
+          'stun:stun3.l.google.com:19302',
+          'stun:stun4.l.google.com:19302',
+          'stun:stun.l.google.com:19302',
+        ],
       },
     ],
     iceCandidatePoolSize: 10,
@@ -159,6 +165,13 @@ export function useLiveStream(conversationId: string | null) {
 
     pc.onconnectionstatechange = () => {
       console.log(`🔌 Connection state with ${remoteUserId}: ${pc.connectionState}`);
+      if (pc.connectionState === 'connected') {
+        toast.success(`Connected to participant`);
+      }
+      if (pc.connectionState === 'failed') {
+        console.warn(`Connection failed with ${remoteUserId}, attempting ICE restart...`);
+        pc.restartIce();
+      }
     };
 
     return pc;
