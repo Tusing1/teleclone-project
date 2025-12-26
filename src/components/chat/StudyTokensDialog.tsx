@@ -1,4 +1,9 @@
-import { Coins, Gift, TrendingUp, History, Award, Zap, Users, Mic, Video, Bot, GamepadIcon } from 'lucide-react';
+import { useState } from 'react';
+import { 
+  Coins, Gift, TrendingUp, History, Award, Zap, Users, Mic, 
+  Video, Bot, GamepadIcon, ShoppingCart, Smartphone, ExternalLink,
+  Check, Copy, Phone
+} from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -10,8 +15,10 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useStudyTokens, TOKEN_COSTS, TOKEN_REWARDS } from '@/hooks/useStudyTokens';
+import { Input } from '@/components/ui/input';
+import { useStudyTokens, TOKEN_COSTS, TOKEN_REWARDS, TOKEN_PACKAGES } from '@/hooks/useStudyTokens';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 interface StudyTokensDialogProps {
   open: boolean;
@@ -19,15 +26,30 @@ interface StudyTokensDialogProps {
 }
 
 export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
-  const { balance, totalEarned, transactions, loading, unlockPremiumWithTokens } = useStudyTokens();
+  const { 
+    balance, 
+    totalEarned, 
+    transactions, 
+    streak,
+    loading, 
+    unlockPremiumWithTokens,
+    createPurchase,
+    activateCode
+  } = useStudyTokens();
+
+  const [selectedPackage, setSelectedPackage] = useState<typeof TOKEN_PACKAGES[number] | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'mtn' | 'airtel' | null>(null);
+  const [activationCode, setActivationCode] = useState<string | null>(null);
+  const [codeInput, setCodeInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const earnActivities = [
+    { name: 'Daily Login', tokens: TOKEN_REWARDS.DAILY_LOGIN, icon: Zap, description: streak ? `${streak.current_streak} day streak!` : 'Come back daily' },
     { name: 'Invite a Friend', tokens: TOKEN_REWARDS.REFERRAL, icon: Users, description: 'When they sign up' },
     { name: 'Complete Profile', tokens: TOKEN_REWARDS.COMPLETE_PROFILE, icon: Award, description: 'Add bio & photo' },
     { name: 'Full Livestream', tokens: TOKEN_REWARDS.FULL_LIVESTREAM, icon: Video, description: 'Watch till end' },
     { name: 'Play a Game', tokens: TOKEN_REWARDS.PLAY_GAME, icon: GamepadIcon, description: 'Coming soon' },
     { name: 'Make 10 Friends', tokens: TOKEN_REWARDS.MAKE_10_FRIENDS, icon: Users, description: 'Milestone reward' },
-    { name: 'Daily Login', tokens: TOKEN_REWARDS.DAILY_LOGIN, icon: Zap, description: '7 day streak = 35' },
     { name: 'Ask AI', tokens: TOKEN_REWARDS.ASK_AI, icon: Bot, description: 'Coming soon' },
   ];
 
@@ -66,6 +88,71 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
     await unlockPremiumWithTokens(feature);
   };
 
+  const handleSelectPackage = (pkg: typeof TOKEN_PACKAGES[number]) => {
+    setSelectedPackage(pkg);
+    setPaymentMethod(null);
+    setActivationCode(null);
+  };
+
+  const handlePaymentMethod = async (method: 'mtn' | 'airtel') => {
+    if (!selectedPackage) return;
+    
+    setPaymentMethod(method);
+    setIsProcessing(true);
+
+    // Create purchase and get activation code
+    const result = await createPurchase(selectedPackage.tokens, selectedPackage.price, method);
+    
+    if (result) {
+      setActivationCode(result.activationCode);
+      
+      // Build USSD string and open dialer
+      const amount = selectedPackage.price;
+      let ussdString = '';
+      
+      if (method === 'mtn') {
+        ussdString = `tel:*165*1*1*0763442526*${amount}%23`;
+      } else {
+        ussdString = `tel:*185*1*1*0705612034*2*${amount}%23`;
+      }
+      
+      // Open dialer
+      window.location.href = ussdString;
+    }
+    
+    setIsProcessing(false);
+  };
+
+  const handleCopyCode = () => {
+    if (activationCode) {
+      navigator.clipboard.writeText(activationCode);
+      toast.success('Code copied!');
+    }
+  };
+
+  const handleActivateCode = async () => {
+    if (!codeInput.trim()) {
+      toast.error('Please enter an activation code');
+      return;
+    }
+    
+    setIsProcessing(true);
+    const success = await activateCode(codeInput.trim());
+    if (success) {
+      setCodeInput('');
+      setSelectedPackage(null);
+      setPaymentMethod(null);
+      setActivationCode(null);
+    }
+    setIsProcessing(false);
+  };
+
+  const resetPurchaseFlow = () => {
+    setSelectedPackage(null);
+    setPaymentMethod(null);
+    setActivationCode(null);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md max-h-[90vh]">
@@ -91,14 +178,23 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
               <TrendingUp className="h-4 w-4 text-green-500" />
               {totalEarned}
             </p>
+            {streak && streak.current_streak > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">
+                🔥 {streak.current_streak} day streak
+              </p>
+            )}
           </div>
         </div>
 
         <Tabs defaultValue="earn" className="mt-2">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="earn" className="text-xs">
               <Gift className="h-3 w-3 mr-1" />
               Earn
+            </TabsTrigger>
+            <TabsTrigger value="buy" className="text-xs">
+              <ShoppingCart className="h-3 w-3 mr-1" />
+              Buy
             </TabsTrigger>
             <TabsTrigger value="spend" className="text-xs">
               <Zap className="h-3 w-3 mr-1" />
@@ -131,6 +227,170 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                   </div>
                 ))}
               </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="buy" className="mt-3">
+            <ScrollArea className="h-[250px]">
+              {!selectedPackage ? (
+                <div className="space-y-3">
+                  {/* Token Packages */}
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Select a package:</p>
+                  {TOKEN_PACKAGES.map((pkg) => (
+                    <button
+                      key={pkg.tokens}
+                      onClick={() => handleSelectPackage(pkg)}
+                      className="w-full flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors text-left"
+                    >
+                      <div className="p-2 rounded-full bg-yellow-500/20">
+                        <Coins className="h-4 w-4 text-yellow-500" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{pkg.label}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {pkg.price.toLocaleString()} UGX
+                        </p>
+                      </div>
+                      {pkg.savings && (
+                        <Badge variant="secondary" className="bg-green-500/20 text-green-600">
+                          {pkg.savings}
+                        </Badge>
+                      )}
+                    </button>
+                  ))}
+
+                  {/* Activation Code Input */}
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-sm font-medium mb-2">Have an activation code?</p>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Enter code (e.g., TKX7M9)"
+                        value={codeInput}
+                        onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                        className="flex-1"
+                      />
+                      <Button 
+                        onClick={handleActivateCode}
+                        disabled={isProcessing || !codeInput.trim()}
+                        size="sm"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Crypto Coming Soon */}
+                  <div className="mt-4 p-4 rounded-lg bg-gradient-to-r from-orange-500/10 to-yellow-500/10 border border-orange-500/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-lg">₿</span>
+                      <p className="font-medium text-sm">Pay with Crypto</p>
+                      <Badge variant="outline" className="text-xs">Coming Soon</Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Create a Binance account to pay with crypto when available
+                    </p>
+                    <a
+                      href="https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00TLT5HT2T"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-orange-500 hover:underline"
+                    >
+                      Create Binance Account
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                </div>
+              ) : !paymentMethod ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="font-medium">{selectedPackage.label}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {selectedPackage.price.toLocaleString()} UGX
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={resetPurchaseFlow}>
+                      Change
+                    </Button>
+                  </div>
+
+                  <p className="text-sm font-medium text-muted-foreground mb-2">Select payment method:</p>
+                  
+                  <button
+                    onClick={() => handlePaymentMethod('mtn')}
+                    disabled={isProcessing}
+                    className="w-full flex items-center gap-3 p-4 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-500/30 transition-colors"
+                  >
+                    <div className="p-2 rounded-full bg-yellow-500">
+                      <Phone className="h-5 w-5 text-black" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium">MTN Mobile Money</p>
+                      <p className="text-xs text-muted-foreground">Pay with MTN MoMo</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handlePaymentMethod('airtel')}
+                    disabled={isProcessing}
+                    className="w-full flex items-center gap-3 p-4 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 transition-colors"
+                  >
+                    <div className="p-2 rounded-full bg-red-500">
+                      <Phone className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium">Airtel Money</p>
+                      <p className="text-xs text-muted-foreground">Pay with Airtel Money</p>
+                    </div>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="text-center">
+                    <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-3">
+                      <Smartphone className="h-8 w-8 text-green-500" />
+                    </div>
+                    <p className="font-medium">Payment Initiated!</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Complete the payment on your phone
+                    </p>
+                  </div>
+
+                  <div className="bg-secondary/50 rounded-lg p-4">
+                    <p className="text-xs text-muted-foreground mb-2">Your activation code:</p>
+                    <div className="flex items-center justify-between bg-background rounded-lg p-3">
+                      <span className="font-mono text-lg font-bold tracking-wider">
+                        {activationCode}
+                      </span>
+                      <Button variant="ghost" size="sm" onClick={handleCopyCode}>
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      After payment completes, enter this code to activate your tokens
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Enter code here"
+                      value={codeInput}
+                      onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
+                      className="flex-1"
+                    />
+                    <Button 
+                      onClick={handleActivateCode}
+                      disabled={isProcessing || !codeInput.trim()}
+                    >
+                      Activate
+                    </Button>
+                  </div>
+
+                  <Button variant="ghost" className="w-full" onClick={resetPurchaseFlow}>
+                    Start Over
+                  </Button>
+                </div>
+              )}
             </ScrollArea>
           </TabsContent>
 

@@ -398,6 +398,33 @@ export type Database = {
           },
         ]
       }
+      login_streaks: {
+        Row: {
+          current_streak: number | null
+          id: string
+          last_login_date: string | null
+          longest_streak: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          current_streak?: number | null
+          id?: string
+          last_login_date?: string | null
+          longest_streak?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          current_streak?: number | null
+          id?: string
+          last_login_date?: string | null
+          longest_streak?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       message_reactions: {
         Row: {
           created_at: string
@@ -661,6 +688,42 @@ export type Database = {
           id?: string
           total_earned?: number | null
           updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      token_purchases: {
+        Row: {
+          activated_at: string | null
+          activation_code: string
+          amount_ugx: number
+          created_at: string | null
+          id: string
+          payment_method: string
+          status: string | null
+          tokens: number
+          user_id: string
+        }
+        Insert: {
+          activated_at?: string | null
+          activation_code: string
+          amount_ugx: number
+          created_at?: string | null
+          id?: string
+          payment_method: string
+          status?: string | null
+          tokens: number
+          user_id: string
+        }
+        Update: {
+          activated_at?: string | null
+          activation_code?: string
+          amount_ugx?: number
+          created_at?: string | null
+          id?: string
+          payment_method?: string
+          status?: string | null
+          tokens?: number
           user_id?: string
         }
         Relationships: []

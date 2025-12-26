@@ -46,7 +46,7 @@ export function Sidebar({
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const { balance } = useStudyTokens();
+  const { balance, streak } = useStudyTokens();
   const darkMode = theme === 'dark';
 
   const handleSignOut = async () => {
@@ -65,18 +65,37 @@ export function Sidebar({
     <Sheet open={open} onOpenChange={() => onClose()}>
       <SheetContent side="left" className="w-72 p-0">
         <div className="flex flex-col h-full">
-          {/* Header with user info */}
+          {/* Header with user info and token balance */}
           <div className="p-6 bg-primary text-primary-foreground">
-            <Avatar
-              src={profile?.avatar_url}
-              name={displayName}
-              size="lg"
-              className="mb-3"
-            />
+            <div className="flex items-start justify-between">
+              <Avatar
+                src={profile?.avatar_url}
+                name={displayName}
+                size="lg"
+                className="mb-3"
+              />
+              {/* Token balance badge - clickable */}
+              {onOpenStudyTokens && (
+                <button
+                  onClick={() => handleMenuClick(onOpenStudyTokens)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-full bg-yellow-500/20 hover:bg-yellow-500/30 transition-colors"
+                >
+                  <span className="text-lg">🪙</span>
+                  <span className="font-semibold text-yellow-300">{balance}</span>
+                </button>
+              )}
+            </div>
             <h2 className="font-semibold text-lg">{displayName}</h2>
             <p className="text-sm text-primary-foreground/80">
               @{profile?.username}
             </p>
+            {/* Streak indicator */}
+            {streak && streak.current_streak > 0 && (
+              <div className="mt-2 flex items-center gap-1 text-xs text-primary-foreground/70">
+                <span>🔥</span>
+                <span>{streak.current_streak} day streak</span>
+              </div>
+            )}
           </div>
 
           {/* Menu items */}
@@ -162,21 +181,6 @@ export function Sidebar({
               <Phone className="h-5 w-5 text-muted-foreground" />
               <span>Calls</span>
             </button>
-
-            <Separator className="my-2" />
-
-            {onOpenStudyTokens && (
-              <button 
-                onClick={() => handleMenuClick(onOpenStudyTokens)}
-                className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
-              >
-                <Coins className="h-5 w-5 text-yellow-500" />
-                <span className="flex-1 text-left">Study Tokens</span>
-                <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600">
-                  {balance}
-                </Badge>
-              </button>
-            )}
 
             <Separator className="my-2" />
 
