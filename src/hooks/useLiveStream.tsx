@@ -234,14 +234,19 @@ export function useLiveStream(conversationId: string | null) {
     console.log('Stream created:', data);
 
     // Send a system message to notify channel members
-    await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: `🔴 Live Stream Started: "${title}"`,
-        message_type: 'system'
-      });
+    try {
+      const { error: msgErr } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversationId,
+          sender_id: user.id,
+          content: `🔴 Live Stream Started: "${title}"`,
+          message_type: 'text'
+        });
+      if (msgErr) console.error('🔴 System message failed (400?):', msgErr);
+    } catch (err) {
+      console.error('🔴 System message exception:', err);
+    }
 
     // Join the stream immediately
     await joinStream(data.id, false); // Admin starts unmuted
@@ -823,6 +828,21 @@ export function useLiveStream(conversationId: string | null) {
       }
     });
   }, [participants]);
+
+  // Sync hardware mute state with database state
+  useEffect(() => {
+    if (!user || !activeStream || !localStream) return;
+
+    const currentUserParticipant = participants.find(p => p.user_id === user.id);
+    if (currentUserParticipant) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack && audioTrack.enabled === currentUserParticipant.is_muted) {
+        console.log(`🎤 Hardware Sync: Database says ${currentUserParticipant.is_muted ? 'MUTED' : 'UNMUTED'}. Toggling hardware...`);
+        audioTrack.enabled = !currentUserParticipant.is_muted;
+        setIsMuted(currentUserParticipant.is_muted);
+      }
+    }
+  }, [participants, user, activeStream?.id, localStream]);
 
   // Thorough cleanup on unmount
   useEffect(() => {
