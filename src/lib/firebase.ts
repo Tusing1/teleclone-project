@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc, updateDoc, DocumentData } from "firebase/firestore";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyCsxkmz9dZzvielbMYCVM_48NlHKT2O880",
@@ -15,5 +16,4 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const firestore = getFirestore(app);
 
-export { firestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc, updateDoc };
-export type { DocumentData };
+export { firestore };

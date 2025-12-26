@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { firestore, collection, doc, setDoc, getDoc, onSnapshot, addDoc, updateDoc } from '@/lib/firebase';
+import { firestore } from '@/lib/firebase';
+import { collection, doc, setDoc, getDoc, onSnapshot, addDoc, updateDoc } from 'firebase/firestore';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-
 export interface Call {
   id: string;
   conversation_id: string;

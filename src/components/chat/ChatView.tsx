@@ -115,11 +115,12 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     activeCall,
     participants: callParticipants,
     isInCall,
-    localAudioTrack,
-    localVideoTrack,
-    remoteUsers,
+    localStream,
+    remoteStreams,
     isRecording,
     connectionStatus,
+    isMuted,
+    isVideoOff,
     startCall,
     joinCall,
     leaveCall,
@@ -194,8 +195,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   };
 
   const currentParticipant = callParticipants.find(p => p.user_id === user?.id);
-  const isMuted = currentParticipant?.is_muted ?? false;
-  const isVideoOff = currentParticipant?.is_video_off ?? false;
+  const participantMuted = currentParticipant?.is_muted ?? isMuted;
+  const participantVideoOff = currentParticipant?.is_video_off ?? isVideoOff;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -393,9 +394,8 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       <CallView
         callType={activeCall.call_type}
         participants={callParticipants}
-        localAudioTrack={localAudioTrack}
-        localVideoTrack={localVideoTrack}
-        remoteUsers={remoteUsers}
+        localStream={localStream}
+        remoteStreams={remoteStreams}
         isCallStarter={activeCall.started_by === user?.id}
         onLeave={leaveCall}
         onEnd={endCall}
