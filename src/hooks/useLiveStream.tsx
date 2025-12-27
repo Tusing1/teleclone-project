@@ -211,6 +211,59 @@ export function useLiveStream(conversationId: string | null) {
     }
   };
 
+
+  // Listen for participant updates (e.g. being unmuted by admin)
+  useEffect(() => {
+    if (!activeStream?.id || !user?.id || !localStream) return;
+
+    const channel = supabase
+      .channel(`participant-updates-${user.id}-${activeStream.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'call_participants',
+          filter: `call_id=eq.${activeStream.id}`
+        },
+        (payload: any) => {
+          const newParticipant = payload.new;
+          // Only care about updates to OUR record
+          if (newParticipant.user_id !== user.id) return;
+
+          console.log('🔔 Received participant update for self:', newParticipant);
+
+          // Sync mute state
+          const audioTrack = localStream.getAudioTracks()[0];
+          if (audioTrack) {
+            const shouldBeMuted = newParticipant.is_muted;
+            // Note: audioTrack.enabled = true means UNMUTED
+            if (audioTrack.enabled === shouldBeMuted) {
+              console.log('🔄 Syncing mute state to:', shouldBeMuted);
+              audioTrack.enabled = !shouldBeMuted;
+              setIsMuted(shouldBeMuted);
+
+              if (!shouldBeMuted) {
+                toast.success('You have been unmuted by the host');
+              } else {
+                toast.info('You have been muted by the host');
+              }
+            }
+          }
+
+          // Sync hand raise state
+          if (newParticipant.hand_raised !== handRaised) {
+            setHandRaised(newParticipant.hand_raised);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [activeStream?.id, user?.id, localStream, handRaised]);
+
   // Start a new live stream
   const startStream = async (title: string = 'Live Stream'): Promise<string | null> => {
     if (!user || !conversationId) {
