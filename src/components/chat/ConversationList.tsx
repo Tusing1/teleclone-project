@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Edit, Menu, Bookmark, Archive, MoreVertical, Users, Radio, Trash2, RefreshCw, Bot, Heart, MessageCircle, X } from 'lucide-react';
+import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, Bot, Heart, MessageCircle, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -19,8 +19,6 @@ interface ConversationListProps {
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onMenuClick: () => void;
-  onOpenSavedMessages: () => void;
-  onArchiveConversation?: (conversationId: string) => void;
   onDeleteConversation?: (conversationId: string) => void;
   getUserRole?: (conversationId: string) => string | null;
   onRefresh?: () => Promise<void>;
@@ -29,14 +27,12 @@ interface ConversationListProps {
   onOpenMessageFriends?: () => void;
 }
 
-export function ConversationList({ 
-  conversations, 
-  selectedId, 
-  onSelect, 
+export function ConversationList({
+  conversations,
+  selectedId,
+  onSelect,
   onNewChat,
   onMenuClick,
-  onOpenSavedMessages,
-  onArchiveConversation,
   onDeleteConversation,
   getUserRole,
   onRefresh,
@@ -44,10 +40,10 @@ export function ConversationList({
   onOpenFindFriends,
   onOpenMessageFriends
 }: ConversationListProps) {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [fabOpen, setFabOpen] = useState(false);
-  
+
   // Pull to refresh state
   const [isPulling, setIsPulling] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -81,7 +77,7 @@ export function ConversationList({
   const handleTouchEnd = useCallback(async () => {
     if (!isPulling) return;
     setIsPulling(false);
-    
+
     if (pullDistance >= threshold && !isRefreshing && onRefresh) {
       setIsRefreshing(true);
       setPullDistance(threshold);
@@ -99,20 +95,15 @@ export function ConversationList({
   const progress = Math.min(pullDistance / threshold, 1);
 
   const filteredConversations = conversations.filter(conv => {
-    // Always show Saved Messages if search matches
-    if (conv.isSavedMessages) {
-      return 'saved messages'.includes(search.toLowerCase());
-    }
-    
     // Groups and channels use their name
     if (conv.type === 'group' || conv.type === 'channel') {
       return conv.name?.toLowerCase().includes(search.toLowerCase()) ?? false;
     }
-    
+
     // Direct messages use other participant's name
     const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
     if (!otherParticipant?.profile) return false;
-    
+
     const name = otherParticipant.profile.full_name || otherParticipant.profile.username;
     return name.toLowerCase().includes(search.toLowerCase());
   });
@@ -130,11 +121,6 @@ export function ConversationList({
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
   };
 
-  const handleArchive = (e: React.MouseEvent, conversationId: string) => {
-    e.stopPropagation();
-    onArchiveConversation?.(conversationId);
-  };
-
   const handleDelete = (e: React.MouseEvent, conversationId: string) => {
     e.stopPropagation();
     onDeleteConversation?.(conversationId);
@@ -146,45 +132,6 @@ export function ConversationList({
   };
 
   const renderConversationItem = (conv: ConversationWithDetails) => {
-    // Self-chat / "Message Yourself" - show user's own profile like WhatsApp
-    if (conv.isSavedMessages || conv.isSelfChat) {
-      const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
-      const lastMessageText = conv.lastMessage?.content || 'No messages yet';
-      const displayName = profile?.full_name || profile?.username || 'You';
-
-      return (
-        <div
-          key={conv.id}
-          onClick={() => onSelect(conv.id)}
-          className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50',
-            selectedId === conv.id && 'bg-primary/10'
-          )}
-        >
-          <Avatar
-            src={profile?.avatar_url}
-            name={displayName}
-            isOnline={true}
-          />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="font-medium truncate">{displayName} (You)</span>
-              {conv.lastMessage && (
-                <span className="text-xs text-muted-foreground">
-                  {formatTime(lastMessageTime)}
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-muted-foreground truncate">
-              {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
-               conv.lastMessage?.message_type === 'file' ? '📎 File' :
-               lastMessageText}
-            </p>
-          </div>
-        </div>
-      );
-    }
-
     // Group conversation rendering
     if (conv.type === 'group') {
       const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
@@ -201,9 +148,9 @@ export function ConversationList({
           )}
         >
           {conv.avatar_url ? (
-            <img 
-              src={conv.avatar_url} 
-              alt={conv.name || 'Group'} 
+            <img
+              src={conv.avatar_url}
+              alt={conv.name || 'Group'}
               className="w-12 h-12 rounded-full object-cover"
             />
           ) : (
@@ -229,12 +176,8 @@ export function ConversationList({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => handleArchive(e, conv.id)}>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Archive
-                    </DropdownMenuItem>
                     {isAdmin(conv.id) && (
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={(e) => handleDelete(e, conv.id)}
                         className="text-destructive focus:text-destructive"
                       >
@@ -248,8 +191,8 @@ export function ConversationList({
             </div>
             <p className="text-sm text-muted-foreground truncate">
               {memberCount} members • {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
-               conv.lastMessage?.message_type === 'file' ? '📎 File' :
-               lastMessageText}
+                conv.lastMessage?.message_type === 'file' ? '📎 File' :
+                  lastMessageText}
             </p>
           </div>
         </div>
@@ -272,9 +215,9 @@ export function ConversationList({
           )}
         >
           {conv.avatar_url ? (
-            <img 
-              src={conv.avatar_url} 
-              alt={conv.name || 'Channel'} 
+            <img
+              src={conv.avatar_url}
+              alt={conv.name || 'Channel'}
               className="w-12 h-12 rounded-full object-cover"
             />
           ) : (
@@ -300,12 +243,8 @@ export function ConversationList({
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={(e) => handleArchive(e, conv.id)}>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Archive
-                    </DropdownMenuItem>
                     {isAdmin(conv.id) && (
-                      <DropdownMenuItem 
+                      <DropdownMenuItem
                         onClick={(e) => handleDelete(e, conv.id)}
                         className="text-destructive focus:text-destructive"
                       >
@@ -319,8 +258,8 @@ export function ConversationList({
             </div>
             <p className="text-sm text-muted-foreground truncate">
               {subscriberCount} subscribers • {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
-               conv.lastMessage?.message_type === 'file' ? '📎 File' :
-               lastMessageText}
+                conv.lastMessage?.message_type === 'file' ? '📎 File' :
+                  lastMessageText}
             </p>
           </div>
         </div>
@@ -368,9 +307,12 @@ export function ConversationList({
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={(e) => handleArchive(e, conv.id)}>
-                    <Archive className="h-4 w-4 mr-2" />
-                    Archive
+                  <DropdownMenuItem
+                    onClick={(e) => handleDelete(e, conv.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Chat
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -381,24 +323,21 @@ export function ConversationList({
               <span className="text-primary">You: </span>
             )}
             {conv.lastMessage?.message_type === 'image' ? '📷 Photo' :
-             conv.lastMessage?.message_type === 'file' ? '📎 File' :
-             lastMessageText}
+              conv.lastMessage?.message_type === 'file' ? '📎 File' :
+                lastMessageText}
           </p>
         </div>
       </div>
     );
   };
 
-  // Check if self-chat exists in conversations
-  const hasSelfChat = conversations.some(c => c.isSavedMessages || c.isSelfChat);
-
   return (
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
       <div className="p-3 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
-          <Button 
-            variant="ghost" 
+          <Button
+            variant="ghost"
             size="icon"
             onClick={onMenuClick}
             className="shrink-0"
@@ -418,7 +357,7 @@ export function ConversationList({
       </div>
 
       {/* Conversation list with pull-to-refresh */}
-      <div 
+      <div
         ref={containerRef}
         className="flex-1 overflow-y-auto scrollbar-thin relative"
         onTouchStart={handleTouchStart}
@@ -427,21 +366,21 @@ export function ConversationList({
       >
         {/* Pull to refresh indicator */}
         {(pullDistance > 10 || isRefreshing) && (
-          <div 
+          <div
             className="absolute left-0 right-0 flex justify-center pointer-events-none z-50"
-            style={{ 
+            style={{
               top: Math.min(pullDistance - 40, threshold - 20),
-              opacity: progress 
+              opacity: progress
             }}
           >
             <div className={cn(
               "w-10 h-10 rounded-full bg-card border border-border shadow-lg flex items-center justify-center",
               isRefreshing && "animate-spin"
             )}>
-              <RefreshCw 
+              <RefreshCw
                 className="h-5 w-5 text-primary"
-                style={{ 
-                  transform: isRefreshing ? undefined : `rotate(${progress * 360}deg)` 
+                style={{
+                  transform: isRefreshing ? undefined : `rotate(${progress * 360}deg)`
                 }}
               />
             </div>
@@ -450,29 +389,11 @@ export function ConversationList({
 
         {/* Content with pull offset */}
         <div style={{ transform: `translateY(${pullDistance}px)` }}>
-          {/* Self-chat shortcut if it doesn't exist yet */}
-          {!hasSelfChat && !search && (
-            <div
-              onClick={onOpenSavedMessages}
-              className="flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 border-b border-border/50"
-            >
-              <Avatar
-                src={profile?.avatar_url}
-                name={profile?.full_name || profile?.username || 'You'}
-                isOnline={true}
-              />
-              <div className="flex-1 min-w-0">
-                <span className="font-medium">{profile?.full_name || profile?.username || 'You'} (You)</span>
-                <p className="text-sm text-muted-foreground">Message yourself</p>
-              </div>
-            </div>
-          )}
-
-          {filteredConversations.length === 0 && hasSelfChat ? (
+          {filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground">
               <p>No conversations yet</p>
-              <Button 
-                variant="link" 
+              <Button
+                variant="link"
                 onClick={onNewChat}
                 className="text-primary"
               >
@@ -489,19 +410,19 @@ export function ConversationList({
       <div className="absolute bottom-6 right-6 z-50">
         {/* Backdrop when FAB is open */}
         {fabOpen && (
-          <div 
+          <div
             className="fixed inset-0 bg-black/20 backdrop-blur-[2px] -z-10 animate-in fade-in duration-200"
             onClick={() => setFabOpen(false)}
           />
         )}
-        
+
         {/* FAB Options */}
         <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3">
           {/* Ask AI Option */}
           <div className={cn(
             "flex items-center gap-3 transition-all duration-300",
-            fabOpen 
-              ? "opacity-100 translate-y-0" 
+            fabOpen
+              ? "opacity-100 translate-y-0"
               : "opacity-0 translate-y-4 pointer-events-none"
           )} style={{ transitionDelay: fabOpen ? '100ms' : '0ms' }}>
             <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
@@ -514,12 +435,12 @@ export function ConversationList({
               <Bot className="h-5 w-5 text-white" />
             </button>
           </div>
-          
+
           {/* Find Friends Option */}
           <div className={cn(
             "flex items-center gap-3 transition-all duration-300",
-            fabOpen 
-              ? "opacity-100 translate-y-0" 
+            fabOpen
+              ? "opacity-100 translate-y-0"
               : "opacity-0 translate-y-4 pointer-events-none"
           )} style={{ transitionDelay: fabOpen ? '50ms' : '0ms' }}>
             <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
@@ -532,12 +453,12 @@ export function ConversationList({
               <Heart className="h-5 w-5 text-white" />
             </button>
           </div>
-          
+
           {/* Message Friends Option */}
           <div className={cn(
             "flex items-center gap-3 transition-all duration-300",
-            fabOpen 
-              ? "opacity-100 translate-y-0" 
+            fabOpen
+              ? "opacity-100 translate-y-0"
               : "opacity-0 translate-y-4 pointer-events-none"
           )} style={{ transitionDelay: fabOpen ? '0ms' : '0ms' }}>
             <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
@@ -551,14 +472,14 @@ export function ConversationList({
             </button>
           </div>
         </div>
-        
+
         {/* Main FAB */}
         <button
           onClick={() => setFabOpen(!fabOpen)}
           className={cn(
             "w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300",
-            fabOpen 
-              ? "bg-muted rotate-45" 
+            fabOpen
+              ? "bg-muted rotate-45"
               : "bg-gradient-to-br from-primary to-primary/80 hover:shadow-primary/25 hover:shadow-2xl"
           )}
         >
