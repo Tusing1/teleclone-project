@@ -32,6 +32,8 @@ interface ChannelMessageBubbleProps {
   onDelete?: () => void;
   isAdmin?: boolean;
   onOpenBrowser?: (url: string) => void;
+  onJoinStream?: (callId: string) => void;
+  activeStreamId?: string | null;
 }
 
 // Only positive emojis - removed 👎 and 😢
@@ -51,7 +53,9 @@ export function ChannelMessageBubble({
   onEdit,
   onDelete,
   isAdmin = false,
-  onOpenBrowser
+  onOpenBrowser,
+  onJoinStream,
+  activeStreamId
 }: ChannelMessageBubbleProps) {
   const { user } = useAuth();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -216,6 +220,49 @@ export function ChannelMessageBubble({
     return null;
   };
 
+  // Detect system messages
+  const isSystemMessage = message.content?.startsWith('🔴 Live Stream Started') || message.content?.startsWith('⚫ Live Stream Ended');
+  const isStreamStarted = message.content?.startsWith('🔴 Live Stream Started');
+
+  if (isSystemMessage) {
+    // Extract stream title
+    const streamTitle = message.content?.split('"')[1] || 'Live Stream';
+
+    // Check if this specific stream is currently active (if activeStreamId is passed)
+    // Note: This is a simplification. Ideally, the message should contain the CALL ID to be robust.
+    // For now, we assume if A stream is active and this is a "Started" message, we act on it.
+    // Or simpler: Just check if ANY stream is active in this channel.
+    const showJoinButton = isStreamStarted && activeStreamId && onJoinStream;
+
+    return (
+      <div className="flex justify-center my-4 w-full">
+        <div className="bg-black/40 backdrop-blur-sm text-white px-4 py-1.5 rounded-full flex items-center gap-2 text-sm shadow-sm border border-white/5 mx-auto max-w-[90%]">
+          {isStreamStarted ? (
+            <>
+              <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />
+              <span className="truncate">Live Stream Started: "{streamTitle}"</span>
+              {showJoinButton && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="h-6 px-3 ml-2 text-xs font-semibold bg-green-500 hover:bg-green-600 text-white border-none rounded-full"
+                  onClick={() => onJoinStream && activeStreamId && onJoinStream(activeStreamId)}
+                >
+                  JOIN
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              <span className="w-2 h-2 rounded-full bg-gray-500 shrink-0" />
+              <span className="truncate opacity-80">Live Stream Ended: "{streamTitle}"</span>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // Format view count nicely
   const formatViewCount = (count: number) => {
     if (count >= 1000) {
@@ -294,8 +341,8 @@ export function ChannelMessageBubble({
                 key={reaction.emoji}
                 onClick={() => onToggleReaction(reaction.emoji)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-sm transition-all ${reaction.userReacted
-                    ? 'bg-sky-500/30 text-sky-300 border border-sky-500/40'
-                    : 'bg-slate-700/50 hover:bg-slate-600/50 text-slate-200'
+                  ? 'bg-sky-500/30 text-sky-300 border border-sky-500/40'
+                  : 'bg-slate-700/50 hover:bg-slate-600/50 text-slate-200'
                   }`}
               >
                 <span>{reaction.emoji}</span>
