@@ -28,20 +28,22 @@ interface MessageBubbleProps {
   onPin?: (message: MessageWithSender) => void;
   isAdmin?: boolean;
   discussionMode?: boolean;
+  onOpenBrowser?: (url: string) => void;
 }
 
-export function MessageBubble({ 
-  message, 
-  showAvatar, 
-  onForward, 
-  isChannelMessage, 
+export function MessageBubble({
+  message,
+  showAvatar,
+  onForward,
+  isChannelMessage,
   onOpenComments,
   onReply,
   onEdit,
   onDelete,
   onPin,
   isAdmin = false,
-  discussionMode = false
+  discussionMode = false,
+  onOpenBrowser
 }: MessageBubbleProps) {
   const { user } = useAuth();
   const isOwn = message.sender_id === user?.id;
@@ -55,9 +57,9 @@ export function MessageBubble({
   }, [message.content, message.message_type]);
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    return new Date(dateString).toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
 
@@ -122,7 +124,7 @@ export function MessageBubble({
     // Video with thumbnail and play button
     if (message.file_url && isVideoFile(message.file_url, message.message_type)) {
       return (
-        <div 
+        <div
           className="mb-1 relative rounded-lg overflow-hidden cursor-pointer group"
           onClick={() => window.open(message.file_url!, '_blank')}
         >
@@ -224,22 +226,49 @@ export function MessageBubble({
       <div
         className={cn(
           'max-w-[80%] rounded-2xl px-3 py-2 shadow-sm relative',
-          isOwn 
-            ? 'bg-message-out text-message-out-foreground rounded-tr-sm' 
+          isOwn
+            ? 'bg-message-out text-message-out-foreground rounded-tr-sm'
             : 'bg-message-in text-message-in-foreground rounded-tl-sm'
         )}
       >
         {renderFileContent()}
 
         {message.content && (
-          <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
+          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+            {message.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
+              if (part.match(/^https?:\/\//)) {
+                return (
+                  <a
+                    key={i}
+                    href={part}
+                    onClick={(e) => {
+                      if (onOpenBrowser) {
+                        e.preventDefault();
+                        onOpenBrowser(part);
+                      }
+                    }}
+                    className="text-sky-400 hover:underline break-all"
+                    target={onOpenBrowser ? undefined : "_blank"}
+                    rel="noopener noreferrer"
+                  >
+                    {part}
+                  </a>
+                );
+              }
+              return part;
+            })}
+          </p>
         )}
 
         {/* Link previews */}
         {urls.length > 0 && (
           <div className="mt-2 space-y-2">
             {urls.slice(0, 2).map((url, idx) => (
-              <LinkPreview key={idx} url={url} />
+              <LinkPreview
+                key={idx}
+                url={url}
+                onOpenBrowser={onOpenBrowser}
+              />
             ))}
           </div>
         )}
