@@ -58,9 +58,17 @@ interface ChatViewProps {
   onForwardMessage?: (message: MessageWithSender) => void;
   onNavigateToDiscussion?: (discussionId: string, replyToMessage?: MessageWithSender) => void;
   onRefreshConversations?: () => void;
+  onOpenBrowser?: (url: string) => void;
 }
 
-export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToDiscussion, onRefreshConversations }: ChatViewProps) {
+export function ChatView({
+  conversation,
+  onBack,
+  onForwardMessage,
+  onNavigateToDiscussion,
+  onRefreshConversations,
+  onOpenBrowser
+}: ChatViewProps) {
   const { user } = useAuth();
   const { messages, loading, sendMessage, uploadFile, refetch } = useMessages(
     conversation.id,
@@ -682,6 +690,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                     onEdit={() => openEditDialog(message)}
                     onDelete={() => openDeleteDialog(message)}
                     isAdmin={isAdminOrOwner}
+                    onOpenBrowser={onOpenBrowser}
                   />
                 );
               }
@@ -698,6 +707,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   onDelete={(msg) => openDeleteDialog(msg)}
                   onPin={(msg) => handlePinMessage(msg)}
                   isAdmin={isAdminOrOwner}
+                  onOpenBrowser={onOpenBrowser}
                 />
               );
             })}
