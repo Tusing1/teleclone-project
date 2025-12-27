@@ -221,6 +221,7 @@ export type Database = {
           id: string
           is_active: boolean
           max_uses: number | null
+          name: string | null
           uses_count: number
         }
         Insert: {
@@ -232,6 +233,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_uses?: number | null
+          name?: string | null
           uses_count?: number
         }
         Update: {
@@ -243,6 +245,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           max_uses?: number | null
+          name?: string | null
           uses_count?: number
         }
         Relationships: [
@@ -921,6 +924,27 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_invite_by_code: {
+        Args: { invite_code: string }
+        Returns: {
+          code: string
+          conversation_id: string
+          created_at: string
+          created_by: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          max_uses: number | null
+          name: string | null
+          uses_count: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "channel_invite_links"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -935,6 +959,10 @@ export type Database = {
       is_conversation_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
+      }
+      join_channel_with_invite_code: {
+        Args: { invite_code: string }
+        Returns: Json
       }
     }
     Enums: {
