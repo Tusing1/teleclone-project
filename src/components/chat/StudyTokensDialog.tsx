@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { 
-  Coins, Gift, TrendingUp, History, Award, Zap, Users, Mic, 
+import {
+  Coins, Gift, TrendingUp, History, Award, Zap, Users, Mic,
   Video, Bot, GamepadIcon, ShoppingCart, Smartphone, ExternalLink,
   Check, Copy, Phone
 } from 'lucide-react';
@@ -23,15 +23,16 @@ import { toast } from 'sonner';
 interface StudyTokensDialogProps {
   open: boolean;
   onClose: () => void;
+  onOpenBrowser?: (url: string) => void;
 }
 
-export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
-  const { 
-    balance, 
-    totalEarned, 
-    transactions, 
+export function StudyTokensDialog({ open, onClose, onOpenBrowser }: StudyTokensDialogProps) {
+  const {
+    balance,
+    totalEarned,
+    transactions,
     streak,
-    loading, 
+    loading,
     unlockPremiumWithTokens,
     createPurchase,
     activateCode
@@ -54,45 +55,45 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
   ];
 
   const premiumFeatures = [
-    { 
-      name: 'See Who Likes You', 
-      cost: TOKEN_COSTS.SEE_WHO_LIKES, 
-      icon: Users, 
+    {
+      name: 'See Who Likes You',
+      cost: TOKEN_COSTS.SEE_WHO_LIKES,
+      icon: Users,
       key: 'SEE_WHO_LIKES' as const,
       description: 'View profiles of people who liked you'
     },
-    { 
-      name: '1 Week Premium', 
-      cost: TOKEN_COSTS.ONE_WEEK_PREMIUM, 
-      icon: Award, 
+    {
+      name: '1 Week Premium',
+      cost: TOKEN_COSTS.ONE_WEEK_PREMIUM,
+      icon: Award,
       key: 'ONE_WEEK_PREMIUM' as const,
       description: 'All premium features for 7 days'
     },
-    { 
-      name: 'Record Calls', 
-      cost: TOKEN_COSTS.RECORD_CALLS, 
-      icon: Mic, 
+    {
+      name: 'Record Calls',
+      cost: TOKEN_COSTS.RECORD_CALLS,
+      icon: Mic,
       key: 'RECORD_CALLS' as const,
       description: 'Save personal call recordings'
     },
-    { 
-      name: 'Extended AI Usage', 
-      cost: TOKEN_COSTS.EXTENDED_AI, 
-      icon: Bot, 
+    {
+      name: 'Extended AI Usage',
+      cost: TOKEN_COSTS.EXTENDED_AI,
+      icon: Bot,
       key: 'EXTENDED_AI' as const,
       description: 'Higher AI usage limits'
     },
-    { 
-      name: 'Unlock AI Chat', 
-      cost: TOKEN_COSTS.UNLOCK_AI_CHAT, 
-      icon: Bot, 
+    {
+      name: 'Unlock AI Chat',
+      cost: TOKEN_COSTS.UNLOCK_AI_CHAT,
+      icon: Bot,
       key: 'UNLOCK_AI_CHAT' as const,
       description: 'Access the AI assistant'
     },
-    { 
-      name: 'Longer Calls (2hr)', 
-      cost: TOKEN_COSTS.LONGER_CALLS, 
-      icon: Phone, 
+    {
+      name: 'Longer Calls (2hr)',
+      cost: TOKEN_COSTS.LONGER_CALLS,
+      icon: Phone,
       key: 'LONGER_CALLS' as const,
       description: 'Extend call limit to 2 hours'
     },
@@ -110,30 +111,30 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
 
   const handlePaymentMethod = async (method: 'mtn' | 'airtel') => {
     if (!selectedPackage) return;
-    
+
     setPaymentMethod(method);
     setIsProcessing(true);
 
     // Create purchase and get activation code
     const result = await createPurchase(selectedPackage.tokens, selectedPackage.price, method);
-    
+
     if (result) {
       setActivationCode(result.activationCode);
-      
+
       // Build USSD string and open dialer
       const amount = selectedPackage.price;
       let ussdString = '';
-      
+
       if (method === 'mtn') {
         ussdString = `tel:*165*1*1*0763442526*${amount}%23`;
       } else {
         ussdString = `tel:*185*1*1*0705612034*2*${amount}%23`;
       }
-      
+
       // Open dialer
       window.location.href = ussdString;
     }
-    
+
     setIsProcessing(false);
   };
 
@@ -149,7 +150,7 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
       toast.error('Please enter an activation code');
       return;
     }
-    
+
     setIsProcessing(true);
     const success = await activateCode(codeInput.trim());
     if (success) {
@@ -210,13 +211,13 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                 const isNext = !isAchieved && (index === 0 || streak.current_streak >= [7, 14, 30][index - 1]);
                 const progress = isNext ? (streak.current_streak / milestone) * 100 : 0;
                 const bonusTokens = milestone === 7 ? 25 : milestone === 14 ? 50 : 100;
-                
+
                 return (
                   <div key={milestone} className="flex-1">
                     <div className="relative">
                       <div className={`h-2 rounded-full ${isAchieved ? 'bg-green-500' : 'bg-secondary'}`}>
                         {isNext && (
-                          <div 
+                          <div
                             className="h-full bg-yellow-500 rounded-full transition-all"
                             style={{ width: `${Math.min(progress, 100)}%` }}
                           />
@@ -262,7 +263,7 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
             <ScrollArea className="h-[250px]">
               <div className="space-y-2">
                 {earnActivities.map((activity) => (
-                  <div 
+                  <div
                     key={activity.name}
                     className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors"
                   >
@@ -321,7 +322,7 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                         onChange={(e) => setCodeInput(e.target.value.toUpperCase())}
                         className="flex-1"
                       />
-                      <Button 
+                      <Button
                         onClick={handleActivateCode}
                         disabled={isProcessing || !codeInput.trim()}
                         size="sm"
@@ -343,8 +344,14 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                     </p>
                     <a
                       href="https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00TLT5HT2T"
-                      target="_blank"
+                      target={onOpenBrowser ? undefined : "_blank"}
                       rel="noopener noreferrer"
+                      onClick={(e) => {
+                        if (onOpenBrowser) {
+                          e.preventDefault();
+                          onOpenBrowser("https://www.binance.com/activity/referral-entry/CPA?ref=CPA_00TLT5HT2T");
+                        }
+                      }}
                       className="inline-flex items-center gap-1 text-xs text-orange-500 hover:underline"
                     >
                       Create Binance Account
@@ -392,7 +399,7 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
             <ScrollArea className="h-[250px]">
               <div className="space-y-2">
                 {premiumFeatures.map((feature) => (
-                  <div 
+                  <div
                     key={feature.name}
                     className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30"
                   >
@@ -433,15 +440,14 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
               ) : (
                 <div className="space-y-2">
                   {transactions.map((tx) => (
-                    <div 
+                    <div
                       key={tx.id}
                       className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30"
                     >
-                      <div className={`p-2 rounded-full ${
-                        tx.transaction_type === 'earn' 
-                          ? 'bg-green-500/20' 
+                      <div className={`p-2 rounded-full ${tx.transaction_type === 'earn'
+                          ? 'bg-green-500/20'
                           : 'bg-red-500/20'
-                      }`}>
+                        }`}>
                         {tx.transaction_type === 'earn' ? (
                           <TrendingUp className="h-4 w-4 text-green-500" />
                         ) : (
@@ -456,11 +462,10 @@ export function StudyTokensDialog({ open, onClose }: StudyTokensDialogProps) {
                           {format(new Date(tx.created_at), 'MMM d, h:mm a')}
                         </p>
                       </div>
-                      <span className={`font-semibold ${
-                        tx.transaction_type === 'earn' 
-                          ? 'text-green-500' 
+                      <span className={`font-semibold ${tx.transaction_type === 'earn'
+                          ? 'text-green-500'
                           : 'text-red-500'
-                      }`}>
+                        }`}>
                         {tx.transaction_type === 'earn' ? '+' : ''}{tx.amount}
                       </span>
                     </div>
