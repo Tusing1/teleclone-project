@@ -21,16 +21,17 @@ export default function Invite() {
 
   useEffect(() => {
     if (authLoading) return;
-    
+
     if (!user) {
       // Store invite code and redirect to auth
+      console.log('🔗 No user found, storing invite code in session:', code);
       sessionStorage.setItem('pendingInviteCode', code || '');
       navigate('/auth');
       return;
     }
 
     validateInvite();
-  }, [code, user, authLoading]);
+  }, [code, user, authLoading, navigate]);
 
   const validateInvite = async () => {
     if (!code) {
@@ -39,32 +40,50 @@ export default function Invite() {
       return;
     }
 
+    console.log('🔗 Validating invite code:', code);
+    setLoading(true);
+
     try {
       // Find the invite link
       const { data: inviteLink, error: linkError } = await supabase
         .from('channel_invite_links')
-        .select('id, conversation_id, is_active, max_uses, uses_count, expires_at')
+        .select('*') // Get all fields for debugging
         .eq('code', code)
         .maybeSingle();
 
-      if (linkError || !inviteLink) {
-        setError('This invite link is invalid or has been deleted');
+      if (linkError) {
+        console.error('❌ Database error fetching invite:', linkError);
+        setError('Database error validating invite link');
         setLoading(false);
         return;
       }
 
+      if (!inviteLink) {
+        console.warn('⚠️ Invite link not found in database:', code);
+        setError('This invite link does not exist or has been deleted');
+        setLoading(false);
+        return;
+      }
+
+      console.log('✅ Found invite link:', inviteLink);
+
       // Check if link is active
       if (!inviteLink.is_active) {
-        setError('This invite link has been disabled');
+        setError('This invite link has been manually disabled by an admin');
         setLoading(false);
         return;
       }
 
       // Check if expired
-      if (inviteLink.expires_at && new Date(inviteLink.expires_at) < new Date()) {
-        setError('This invite link has expired');
-        setLoading(false);
-        return;
+      if (inviteLink.expires_at) {
+        const expiryDate = new Date(inviteLink.expires_at);
+        const now = new Date();
+        console.log('📅 Checking expiry:', { expiryDate, now, isExpired: expiryDate < now });
+        if (expiryDate < now) {
+          setError(`This invite link expired on ${expiryDate.toLocaleDateString()} at ${expiryDate.toLocaleTimeString()}`);
+          setLoading(false);
+          return;
+        }
       }
 
       // Check if max uses reached
@@ -170,7 +189,7 @@ export default function Invite() {
           .select('subscriber_count')
           .eq('id', inviteInfo.conversationId)
           .single();
-        
+
         if (conv) {
           await supabase
             .from('conversations')
