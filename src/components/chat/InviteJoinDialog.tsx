@@ -50,28 +50,42 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
       // Find the invite link
       const { data: inviteLink, error: linkError } = await supabase
         .from('channel_invite_links')
-        .select('id, conversation_id, is_active, max_uses, uses_count, expires_at')
+        .select('*') // Get all for debug
         .eq('code', inviteCode)
         .maybeSingle();
 
-      if (linkError || !inviteLink) {
+      if (linkError) {
+        console.error('❌ Database error validating invite:', linkError);
+        setError('Error connecting to group service');
+        setLoading(false);
+        return;
+      }
+
+      if (!inviteLink) {
+        console.warn('⚠️ Invite link not found:', inviteCode);
         setError('This invite link is invalid or has been deleted');
         setLoading(false);
         return;
       }
 
+      // Clear the session storage now that we've found it
+      sessionStorage.removeItem('pendingInviteCode');
+
       // Check if link is active
       if (!inviteLink.is_active) {
-        setError('This invite link has been disabled');
+        setError('This invite link has been disabled by the administrator');
         setLoading(false);
         return;
       }
 
       // Check if expired
-      if (inviteLink.expires_at && new Date(inviteLink.expires_at) < new Date()) {
-        setError('This invite link has expired');
-        setLoading(false);
-        return;
+      if (inviteLink.expires_at) {
+        const expiryDate = new Date(inviteLink.expires_at);
+        if (expiryDate < new Date()) {
+          setError(`This invite link expired on ${expiryDate.toLocaleDateString()}`);
+          setLoading(false);
+          return;
+        }
       }
 
       // Check if max uses reached
