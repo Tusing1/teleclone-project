@@ -11,6 +11,7 @@ import Install from "./pages/Install";
 import Invite from "./pages/Invite";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
+import { IncomingCallListener } from "@/components/chat/IncomingCallListener";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <IncomingCallListener />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
