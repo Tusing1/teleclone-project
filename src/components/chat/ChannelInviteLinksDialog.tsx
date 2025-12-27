@@ -26,6 +26,7 @@ interface InviteLink {
   expires_at: string | null;
   is_active: boolean;
   created_at: string;
+  name: string | null;
 }
 
 interface InviteLinkUse {
@@ -54,6 +55,7 @@ export function ChannelInviteLinksDialog({
   const [linkUses, setLinkUses] = useState<InviteLinkUse[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [name, setName] = useState('');
   const [maxUses, setMaxUses] = useState<string>('');
   const [expiresInHours, setExpiresInHours] = useState<string>('');
 
@@ -72,7 +74,7 @@ export function ChannelInviteLinksDialog({
       .order('created_at', { ascending: false });
 
     if (!error && data) {
-      setLinks(data as InviteLink[]);
+      setLinks(data as unknown as InviteLink[]);
     }
     setLoading(false);
   };
@@ -106,9 +108,9 @@ export function ChannelInviteLinksDialog({
 
   const handleCreateLink = async () => {
     if (!user) return;
-    
+
     setCreating(true);
-    const expiresAt = expiresInHours 
+    const expiresAt = expiresInHours
       ? new Date(Date.now() + parseInt(expiresInHours) * 60 * 60 * 1000).toISOString()
       : null;
 
@@ -117,6 +119,7 @@ export function ChannelInviteLinksDialog({
       .insert({
         conversation_id: conversationId,
         created_by: user.id,
+        name: name.trim() || null,
         max_uses: maxUses ? parseInt(maxUses) : null,
         expires_at: expiresAt,
       })
@@ -129,6 +132,7 @@ export function ChannelInviteLinksDialog({
       toast.error('Failed to create invite link');
     } else {
       toast.success('Invite link created');
+      setName('');
       setMaxUses('');
       setExpiresInHours('');
       fetchLinks();
@@ -223,8 +227,17 @@ export function ChannelInviteLinksDialog({
                 />
               </div>
             </div>
-            <Button 
-              onClick={handleCreateLink} 
+            <div>
+              <Input
+                placeholder="Link Name (e.g. 'Twitter Campaign', 'Friend')"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                maxLength={30}
+                className="bg-slate-700 border-slate-600 text-slate-100 placeholder:text-slate-400"
+              />
+            </div>
+            <Button
+              onClick={handleCreateLink}
               disabled={creating}
               className="w-full"
             >
@@ -245,9 +258,9 @@ export function ChannelInviteLinksDialog({
               </div>
             ) : selectedLink ? (
               <div className="space-y-3">
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={() => {
                     setSelectedLink(null);
                     setLinkUses([]);
@@ -268,7 +281,7 @@ export function ChannelInviteLinksDialog({
                 ) : (
                   <div className="space-y-2">
                     {linkUses.map((use) => (
-                      <div 
+                      <div
                         key={use.id}
                         className="flex items-center justify-between p-2 rounded-lg bg-slate-700/30"
                       >
@@ -303,15 +316,22 @@ export function ChannelInviteLinksDialog({
             ) : (
               <div className="space-y-2">
                 {links.map((link) => (
-                  <div 
+                  <div
                     key={link.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-slate-700/30"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <p className={`text-sm font-mono ${link.is_active ? 'text-slate-200' : 'text-slate-500'}`}>
-                          ...{link.code.slice(-8)}
-                        </p>
+                        {link.name ? (
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-200">{link.name}</span>
+                            <span className="text-xs font-mono text-slate-500">...{link.code.slice(-8)}</span>
+                          </div>
+                        ) : (
+                          <p className={`text-sm font-mono ${link.is_active ? 'text-slate-200' : 'text-slate-500'}`}>
+                            ...{link.code.slice(-8)}
+                          </p>
+                        )}
                         {!link.is_active && (
                           <span className="text-xs px-2 py-0.5 rounded bg-slate-600 text-slate-400">
                             Disabled
