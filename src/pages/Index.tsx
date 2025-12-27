@@ -27,6 +27,7 @@ import { AskAIDialog } from '@/components/chat/AskAIDialog';
 import { FriendRequestsDialog } from '@/components/chat/FriendRequestsDialog';
 import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
+import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -96,6 +97,7 @@ export default function Index() {
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [showMessageFriends, setShowMessageFriends] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -416,6 +418,7 @@ export default function Index() {
                 setDiscussionContext(null);
               }}
               onRefreshConversations={refetchConversations}
+              onOpenBrowser={(url) => setBrowserUrl(url)}
             />
           ) : (
             <ChatView
@@ -426,6 +429,7 @@ export default function Index() {
                 handleNavigateToDiscussion(discussionId, selectedConversation, msg);
               }}
               onRefreshConversations={refetchConversations}
+              onOpenBrowser={(url) => setBrowserUrl(url)}
             />
           )
         ) : (
@@ -507,6 +511,7 @@ export default function Index() {
       <StudyTokensDialog
         open={showStudyTokens}
         onClose={() => setShowStudyTokens(false)}
+        onOpenBrowser={(url) => setBrowserUrl(url)}
       />
 
       <GlobalSearchDialog
@@ -546,6 +551,12 @@ export default function Index() {
       <SettingsDialog
         open={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      <InAppBrowser
+        open={!!browserUrl}
+        url={browserUrl || ''}
+        onClose={() => setBrowserUrl(null)}
       />
     </div>
   );
