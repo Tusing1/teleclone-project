@@ -47,11 +47,11 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
     setError(null);
 
     try {
-      // Find the invite link
-      const { data: inviteLink, error: linkError } = await supabase
-        .from('channel_invite_links')
-        .select('*') // Get all for debug
-        .eq('code', inviteCode)
+      // Find the invite link using secure RPC
+      const { data: inviteLink, error: linkError } = await (supabase.rpc as any)(
+        'get_invite_by_code',
+        { invite_code: inviteCode }
+      )
         .maybeSingle();
 
       if (linkError) {
@@ -141,72 +141,29 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
 
     setJoining(true);
     try {
-      // Get the invite link again to ensure it's still valid
-      const { data: inviteLink, error: linkError } = await supabase
-        .from('channel_invite_links')
-        .select('id, uses_count')
-        .eq('code', inviteCode)
-        .single();
-
-      if (linkError || !inviteLink) {
-        toast.error('This invite link is no longer valid');
-        setJoining(false);
-        return;
-      }
-
-      // Add user as participant
-      const { error: participantError } = await supabase
-        .from('conversation_participants')
-        .insert({
-          conversation_id: inviteInfo.conversationId,
-          user_id: user.id,
-          role: 'member',
-        });
-
-      if (participantError) {
-        if (participantError.code === '23505') {
-          toast.info('You are already a member');
-          onJoined(inviteInfo.conversationId);
-          onClose();
-          return;
-        }
-        throw participantError;
-      }
-
-      // Record the invite link use
-      await supabase.from('invite_link_uses').insert({
-        invite_link_id: inviteLink.id,
-        user_id: user.id,
+      const { data, error } = await (supabase.rpc as any)('join_channel_with_invite_code', {
+        invite_code: inviteCode
       });
 
-      // Update uses count
-      await supabase
-        .from('channel_invite_links')
-        .update({ uses_count: inviteLink.uses_count + 1 })
-        .eq('id', inviteLink.id);
-
-      // Update subscriber count for channels
-      if (inviteInfo.conversationType === 'channel') {
-        const { data: conv } = await supabase
-          .from('conversations')
-          .select('subscriber_count')
-          .eq('id', inviteInfo.conversationId)
-          .single();
-
-        if (conv) {
-          await supabase
-            .from('conversations')
-            .update({ subscriber_count: (conv.subscriber_count || 0) + 1 })
-            .eq('id', inviteInfo.conversationId);
-        }
+      if (error) {
+        throw error;
       }
 
-      toast.success(`Joined ${inviteInfo.conversationName}!`);
-      onJoined(inviteInfo.conversationId);
+      const result = data as { success: boolean, conversation_id: string, already_member?: boolean };
+
+      if (result.already_member) {
+        toast.info('You are already a member');
+      } else {
+        toast.success(`Joined ${inviteInfo.conversationName}!`);
+      }
+
+      onJoined(result.conversation_id);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error joining:', err);
-      toast.error('Failed to join. Please try again.');
+      // Extract error message from Postgres error if available
+      const message = err.message || err.details || 'Failed to join. Please try again.';
+      toast.error(message);
       setJoining(false);
     }
   };
