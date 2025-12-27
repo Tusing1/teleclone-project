@@ -11,7 +11,6 @@ import { DiscussionView } from '@/components/chat/DiscussionView';
 import { EmptyState } from '@/components/chat/EmptyState';
 import { NewChatDialog } from '@/components/chat/NewChatDialog';
 import { Sidebar } from '@/components/chat/Sidebar';
-import { ArchivedChatsDialog } from '@/components/chat/ArchivedChatsDialog';
 import { ContactsDialog } from '@/components/chat/ContactsDialog';
 import { InviteFriendsDialog } from '@/components/chat/InviteFriendsDialog';
 import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
@@ -19,7 +18,6 @@ import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
 import { ForwardMessageDialog } from '@/components/chat/ForwardMessageDialog';
 import { FindFriendsDialog } from '@/components/chat/FindFriendsDialog';
 import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
-import { NotificationSettingsDialog } from '@/components/chat/NotificationSettingsDialog';
 import { CallsInboxDialog } from '@/components/chat/CallsInboxDialog';
 import { InviteJoinDialog } from '@/components/chat/InviteJoinDialog';
 import { StudyTokensDialog } from '@/components/chat/StudyTokensDialog';
@@ -84,14 +82,12 @@ export default function Index() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [showArchived, setShowArchived] = useState(false);
   const [showContacts, setShowContacts] = useState(false);
   const [showInviteFriends, setShowInviteFriends] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [showCreateChannel, setShowCreateChannel] = useState(false);
   const [showFindFriends, setShowFindFriends] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
-  const [showNotificationSettings, setShowNotificationSettings] = useState(false);
   const [showCallsInbox, setShowCallsInbox] = useState(false);
   const [showStudyTokens, setShowStudyTokens] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
@@ -360,15 +356,12 @@ export default function Index() {
       <Sidebar
         open={showSidebar}
         onClose={() => setShowSidebar(false)}
-        onOpenSavedMessages={handleOpenSavedMessages}
-        onOpenArchived={() => setShowArchived(true)}
         onOpenContacts={() => setShowContacts(true)}
         onOpenCreateGroup={() => setShowCreateGroup(true)}
         onOpenCreateChannel={() => setShowCreateChannel(true)}
         onOpenInviteFriends={() => setShowInviteFriends(true)}
         onOpenFindFriends={() => setShowFindFriends(true)}
         onOpenEditProfile={() => setShowEditProfile(true)}
-        onOpenNotificationSettings={() => setShowNotificationSettings(true)}
         onOpenCallsInbox={() => setShowCallsInbox(true)}
         onOpenStudyTokens={() => setShowStudyTokens(true)}
         onOpenGlobalSearch={() => setShowGlobalSearch(true)}
@@ -391,8 +384,6 @@ export default function Index() {
           onSelect={setSelectedConversationId}
           onNewChat={() => setShowNewChat(true)}
           onMenuClick={() => setShowSidebar(true)}
-          onOpenSavedMessages={handleOpenSavedMessages}
-          onArchiveConversation={handleArchiveConversation}
           onDeleteConversation={handleDeleteConversation}
           getUserRole={getUserRole}
           onRefresh={refetchConversations}
@@ -449,13 +440,6 @@ export default function Index() {
         onSelectUser={handleSelectUser}
       />
 
-      <ArchivedChatsDialog
-        open={showArchived}
-        onClose={() => setShowArchived(false)}
-        archivedConversations={archivedConversations}
-        onUnarchive={handleUnarchiveConversation}
-        onSelectConversation={setSelectedConversationId}
-      />
 
       <ContactsDialog
         open={showContacts}
@@ -503,10 +487,6 @@ export default function Index() {
         onClose={() => setShowEditProfile(false)}
       />
 
-      <NotificationSettingsDialog
-        open={showNotificationSettings}
-        onClose={() => setShowNotificationSettings(false)}
-      />
 
       <CallsInboxDialog
         open={showCallsInbox}
