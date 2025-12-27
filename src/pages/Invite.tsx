@@ -44,12 +44,11 @@ export default function Invite() {
     setLoading(true);
 
     try {
-      // Find the invite link
-      const { data: inviteLink, error: linkError } = await supabase
-        .from('channel_invite_links')
-        .select('*') // Get all fields for debugging
-        .eq('code', code)
-        .maybeSingle();
+      // Use secure RPC function to get invite details (bypasses RLS)
+      const { data: result, error: linkError } = await (supabase.rpc as any)(
+        'get_invite_details',
+        { invite_code: code }
+      );
 
       if (linkError) {
         console.error('❌ Database error fetching invite:', linkError);
@@ -58,12 +57,16 @@ export default function Invite() {
         return;
       }
 
-      if (!inviteLink) {
+      if (!result) {
         console.warn('⚠️ Invite link not found in database:', code);
         setError('This invite link does not exist or has been deleted');
         setLoading(false);
         return;
       }
+
+      const inviteLink = result.invite;
+      const conversation = result.conversation;
+      const isMember = result.is_member;
 
       console.log('✅ Found invite link:', inviteLink);
 
@@ -94,27 +97,13 @@ export default function Invite() {
       }
 
       // Check if user is already a member
-      const { data: existingMember } = await supabase
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', inviteLink.conversation_id)
-        .eq('user_id', user?.id)
-        .maybeSingle();
-
-      if (existingMember) {
+      if (isMember) {
         toast.info('You are already a member of this group');
-        navigate('/', { state: { conversationId: inviteLink.conversation_id } });
+        navigate('/', { state: { conversationId: conversation.id } });
         return;
       }
 
-      // Get conversation info
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .select('id, name, type')
-        .eq('id', inviteLink.conversation_id)
-        .single();
-
-      if (convError || !conversation) {
+      if (!conversation) {
         setError('Could not find this group or channel');
         setLoading(false);
         return;
