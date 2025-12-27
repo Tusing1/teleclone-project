@@ -254,7 +254,11 @@ export function useCalls(conversationId: string | null) {
     try {
       // Get local media stream
       const constraints = {
-        audio: true,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        },
         video: callType === 'video'
       };
 
