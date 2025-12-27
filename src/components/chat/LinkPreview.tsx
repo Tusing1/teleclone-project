@@ -14,16 +14,17 @@ interface LinkPreviewData {
 interface LinkPreviewProps {
   url: string;
   className?: string;
+  onOpenBrowser?: (url: string) => void;
 }
 
 // Simple URL metadata extraction from known patterns
 function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
   const urlObj = new URL(url);
   const hostname = urlObj.hostname.replace('www.', '');
-  
+
   // YouTube
   if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
-    const videoId = url.includes('youtu.be') 
+    const videoId = url.includes('youtu.be')
       ? url.split('/').pop()?.split('?')[0]
       : new URLSearchParams(urlObj.search).get('v');
     if (videoId) {
@@ -34,7 +35,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
       };
     }
   }
-  
+
   // Twitter/X
   if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
     return {
@@ -42,7 +43,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
       favicon: 'https://abs.twimg.com/favicons/twitter.ico',
     };
   }
-  
+
   // GitHub
   if (hostname.includes('github.com')) {
     return {
@@ -50,7 +51,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
       favicon: 'https://github.com/favicon.ico',
     };
   }
-  
+
   // LinkedIn
   if (hostname.includes('linkedin.com')) {
     return {
@@ -58,7 +59,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
       favicon: 'https://www.linkedin.com/favicon.ico',
     };
   }
-  
+
   // Instagram
   if (hostname.includes('instagram.com')) {
     return {
@@ -66,14 +67,14 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
       favicon: 'https://www.instagram.com/favicon.ico',
     };
   }
-  
+
   return {
     siteName: hostname.charAt(0).toUpperCase() + hostname.slice(1),
     favicon: `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`,
   };
 }
 
-export function LinkPreview({ url, className }: LinkPreviewProps) {
+export function LinkPreview({ url, className, onOpenBrowser }: LinkPreviewProps) {
   const [preview, setPreview] = useState<LinkPreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -83,11 +84,11 @@ export function LinkPreview({ url, className }: LinkPreviewProps) {
     const fetchPreview = async () => {
       setLoading(true);
       setError(false);
-      
+
       try {
         const urlObj = new URL(url);
         const metadata = extractMetadataFromUrl(url);
-        
+
         // For now, we use basic metadata extraction
         // A full implementation would use an edge function to fetch Open Graph data
         setPreview({
@@ -129,8 +130,14 @@ export function LinkPreview({ url, className }: LinkPreviewProps) {
   return (
     <a
       href={url}
-      target="_blank"
+      target={onOpenBrowser ? undefined : "_blank"}
       rel="noopener noreferrer"
+      onClick={(e) => {
+        if (onOpenBrowser) {
+          e.preventDefault();
+          onOpenBrowser(url);
+        }
+      }}
       className={cn(
         "block rounded-lg overflow-hidden border border-border/50 bg-secondary/30 hover:bg-secondary/50 transition-colors group",
         className
@@ -148,7 +155,7 @@ export function LinkPreview({ url, className }: LinkPreviewProps) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
         </div>
       )}
-      
+
       {/* Content */}
       <div className="p-3 flex items-start gap-3">
         {/* Favicon */}
@@ -166,7 +173,7 @@ export function LinkPreview({ url, className }: LinkPreviewProps) {
           ) : null}
           <Globe className={cn("w-5 h-5 text-muted-foreground", preview.favicon && "hidden")} />
         </div>
-        
+
         {/* Text content */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
