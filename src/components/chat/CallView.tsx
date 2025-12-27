@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Circle, Wifi, WifiOff, Monitor, MonitorOff } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Circle, Wifi, WifiOff, Monitor, MonitorOff, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface CallViewProps {
   callType: 'voice' | 'video';
@@ -145,11 +146,18 @@ export const CallView: React.FC<CallViewProps> = ({
     }
   };
 
+  const renderRemoteAudio = () => {
+    return Array.from(remoteStreams.entries()).map(([streamId, stream]) => (
+      <RemoteAudioPlayer key={streamId} stream={stream} />
+    ));
+  };
+
   // Get participants excluding current user for remote display
   const remoteParticipants = participants.filter(p => p.profile);
 
   return (
     <div className="fixed inset-0 bg-background/95 backdrop-blur-sm z-50 flex flex-col">
+      {renderRemoteAudio()}
       {/* Header */}
       <div className="p-4 flex items-center justify-between border-b">
         <div className="flex items-center gap-2">
@@ -164,6 +172,19 @@ export const CallView: React.FC<CallViewProps> = ({
               <span className="text-sm font-medium">Recording</span>
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex bg-primary/20 hover:bg-primary/30 text-primary border-primary/50 text-[10px] font-bold h-7 animate-pulse px-2"
+            onClick={() => {
+              const audios = document.querySelectorAll('audio');
+              audios.forEach(a => a.play().catch(() => { }));
+              toast.success('Audio system refreshed');
+            }}
+          >
+            <Volume2 className="h-3 w-3 mr-1" />
+            Resume Audio
+          </Button>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <div className={cn(
               "w-2 h-2 rounded-full",
@@ -239,9 +260,6 @@ export const CallView: React.FC<CallViewProps> = ({
               >
                 {/* Audio level indicator ring */}
                 <AudioIndicator stream={stream} showRing={!participant?.is_muted} />
-
-                {/* Hidden audio element to play remote audio */}
-                <RemoteAudioPlayer stream={stream} />
 
                 {showVideo ? (
                   <video
