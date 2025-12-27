@@ -41,14 +41,16 @@ interface DiscussionViewProps {
   replyToMessage?: MessageWithSender | null;
   onBack: () => void;
   onRefreshConversations?: () => void;
+  onOpenBrowser?: (url: string) => void;
 }
 
-export function DiscussionView({ 
-  conversation, 
+export function DiscussionView({
+  conversation,
   parentChannel,
   replyToMessage,
   onBack,
-  onRefreshConversations 
+  onRefreshConversations,
+  onOpenBrowser
 }: DiscussionViewProps) {
   const { user } = useAuth();
   const { messages, loading, sendMessage, uploadFile, refetch } = useMessages(conversation.id);
@@ -87,14 +89,14 @@ export function DiscussionView({
   useEffect(() => {
     const checkRestriction = async () => {
       if (!user?.id || !conversation.id) return;
-      
+
       const { data } = await supabase
         .from('discussion_restricted_members')
         .select('*')
         .eq('conversation_id', conversation.id)
         .eq('user_id', user.id)
         .maybeSingle();
-      
+
       if (data) {
         // Check if restriction has expired
         if (data.restricted_until && new Date(data.restricted_until) < new Date()) {
@@ -111,7 +113,7 @@ export function DiscussionView({
         setIsRestricted(false);
       }
     };
-    
+
     checkRestriction();
   }, [user?.id, conversation.id]);
 
@@ -127,14 +129,14 @@ export function DiscussionView({
 
   const handleSend = async () => {
     if (!messageText.trim() || sending || isRestricted) return;
-    
+
     setSending(true);
     // Send message with reply reference
     const replyToId = replyingTo?.id || replyToMessage?.id;
     await sendMessage(
-      messageText.trim(), 
-      'text', 
-      undefined, 
+      messageText.trim(),
+      'text',
+      undefined,
       replyToId
     );
     setMessageText('');
@@ -170,12 +172,12 @@ export function DiscussionView({
 
   const handleDeleteMessage = async () => {
     if (!deleteMessage) return;
-    
+
     const { error } = await supabase
       .from('messages')
       .delete()
       .eq('id', deleteMessage.id);
-    
+
     if (error) {
       toast.error('Failed to delete message');
     } else {
@@ -187,11 +189,11 @@ export function DiscussionView({
 
   const handleRestrictMember = async () => {
     if (!restrictMember || !user?.id) return;
-    
+
     // Set restriction for 24 hours
     const restrictedUntil = new Date();
     restrictedUntil.setHours(restrictedUntil.getHours() + 24);
-    
+
     const { error } = await supabase
       .from('discussion_restricted_members')
       .upsert({
@@ -201,7 +203,7 @@ export function DiscussionView({
         reason: restrictReason || 'Too many messages',
         restricted_until: restrictedUntil.toISOString(),
       });
-    
+
     if (error) {
       toast.error('Failed to restrict member');
     } else {
@@ -212,12 +214,12 @@ export function DiscussionView({
   };
 
   // Get comment count - messages replying to the channel message
-  const commentCount = replyToMessage 
+  const commentCount = replyToMessage
     ? messages.filter(m => m.reply_to_channel_message_id === replyToMessage.id).length
     : messages.length;
 
   // Filter messages for this discussion
-  const discussionMessages = messages.filter(m => 
+  const discussionMessages = messages.filter(m =>
     !replyToMessage || m.reply_to_channel_message_id === replyToMessage.id
   );
 
@@ -225,15 +227,15 @@ export function DiscussionView({
     <div className="flex flex-col h-full bg-gradient-to-b from-slate-900 to-slate-800">
       {/* Header */}
       <div className="flex items-center gap-3 p-3 bg-slate-800/80 backdrop-blur border-b border-slate-700">
-        <Button 
-          variant="ghost" 
-          size="icon" 
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={onBack}
           className="shrink-0 text-slate-300 hover:text-slate-100 hover:bg-slate-700"
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        
+
         <div className="flex-1 min-w-0">
           <h2 className="font-semibold text-slate-100 flex items-center gap-2">
             <MessageCircle className="h-4 w-4 text-blue-400" />
@@ -263,7 +265,7 @@ export function DiscussionView({
                 </span>
                 <span className="text-xs text-slate-500">channel</span>
               </div>
-              
+
               {/* Message content preview */}
               {replyToMessage.message_type === 'file' && replyToMessage.file_name ? (
                 <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-700/50">
@@ -283,9 +285,9 @@ export function DiscussionView({
                 </div>
               ) : replyToMessage.message_type === 'image' ? (
                 <div className="w-20 h-20 rounded-lg overflow-hidden">
-                  <img 
-                    src={replyToMessage.file_url || ''} 
-                    alt="Shared image" 
+                  <img
+                    src={replyToMessage.file_url || ''}
+                    alt="Shared image"
                     className="w-full h-full object-cover"
                   />
                 </div>
@@ -339,21 +341,22 @@ export function DiscussionView({
               const isOwnMessage = message.sender_id === user?.id;
               const canDelete = isOwnMessage || isAdminOrOwner;
               const canReply = isOwnMessage || isAdminOrOwner; // Members can reply to their own, admins to any
-              
+
               return (
                 <div key={message.id} className="group relative">
-                  <MessageBubble 
+                  <MessageBubble
                     message={message}
                     showAvatar={showAvatar}
                     isChannelMessage={false}
                     isAdmin={isAdminOrOwner}
                     onReply={canReply ? handleReply : undefined}
-                    onEdit={() => {}}
+                    onEdit={() => { }}
                     onDelete={canDelete ? () => setDeleteMessage(message) : undefined}
-                    onPin={() => {}}
+                    onPin={() => { }}
                     discussionMode
+                    onOpenBrowser={onOpenBrowser}
                   />
-                  
+
                   {/* Admin: Restrict member option */}
                   {isAdminOrOwner && !isOwnMessage && message.sender && (
                     <Button
@@ -432,7 +435,7 @@ export function DiscussionView({
                 className="hidden"
                 onChange={(e) => handleFileUpload(e, 'file')}
               />
-              
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -440,7 +443,7 @@ export function DiscussionView({
               >
                 <Smile className="h-5 w-5" />
               </Button>
-              
+
               <Input
                 placeholder={replyingTo ? "Reply to message..." : "Send a comment"}
                 value={messageText}
@@ -449,9 +452,9 @@ export function DiscussionView({
                 disabled={sending || isUploadingVoice}
                 className="flex-1 border-0 bg-slate-700/50 text-slate-100 placeholder:text-slate-500"
               />
-              
-              <Button 
-                variant="ghost" 
+
+              <Button
+                variant="ghost"
                 size="icon"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending || isUploadingVoice}
@@ -459,9 +462,9 @@ export function DiscussionView({
               >
                 <Paperclip className="h-5 w-5" />
               </Button>
-              
+
               {messageText.trim() ? (
-                <Button 
+                <Button
                   size="icon"
                   onClick={handleSend}
                   disabled={!messageText.trim() || sending || isUploadingVoice}
@@ -478,9 +481,9 @@ export function DiscussionView({
                   className="shrink-0 text-slate-400 hover:text-slate-200 hover:bg-slate-700"
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    <line x1="12" x2="12" y1="19" y2="22"/>
+                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" x2="12" y1="19" y2="22" />
                   </svg>
                 </Button>
               )}
@@ -502,7 +505,7 @@ export function DiscussionView({
             <AlertDialogCancel className="bg-slate-700 text-slate-100 border-slate-600 hover:bg-slate-600">
               Cancel
             </AlertDialogCancel>
-            <AlertDialogAction 
+            <AlertDialogAction
               onClick={handleDeleteMessage}
               className="bg-red-600 text-white hover:bg-red-700"
             >
