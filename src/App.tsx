@@ -8,28 +8,13 @@ import { ThemeProvider } from "@/hooks/useTheme";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Install from "./pages/Install";
+import Invite from "./pages/Invite";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
-// Invite redirect component - redirects to home with invite code in state
-function InviteRedirect() {
-  const { code } = useParams<{ code: string }>();
-  const navigate = useNavigate();
-  
-  useEffect(() => {
-    if (code) {
-      navigate('/', { state: { inviteCode: code }, replace: true });
-    }
-  }, [code, navigate]);
-  
-  return (
-    <div className="flex items-center justify-center min-h-screen bg-background">
-      <div className="animate-pulse text-muted-foreground">Loading...</div>
-    </div>
-  );
-}
+
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -42,7 +27,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/invite/:code" element={<InviteRedirect />} />
+              <Route path="/invite/:code" element={<Invite />} />
               <Route path="/install" element={<Install />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
