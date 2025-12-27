@@ -44,7 +44,7 @@ export default function Invite() {
     setLoading(true);
 
     try {
-      // 1. Get consolidated details securely
+      // Use secure RPC function to get invite details (bypasses RLS)
       const { data: result, error: linkError } = await (supabase.rpc as any)(
         'get_invite_details',
         { invite_code: code }
@@ -64,19 +64,20 @@ export default function Invite() {
         return;
       }
 
-      console.log('✅ Found invite link data:', result);
-
       const inviteLink = result.invite;
       const conversation = result.conversation;
       const isMember = result.is_member;
 
-      // Check key properties
+      console.log('✅ Found invite link:', inviteLink);
+
+      // Check if link is active
       if (!inviteLink.is_active) {
         setError('This invite link has been manually disabled by an admin');
         setLoading(false);
         return;
       }
 
+      // Check if expired
       if (inviteLink.expires_at) {
         const expiryDate = new Date(inviteLink.expires_at);
         const now = new Date();
@@ -88,12 +89,14 @@ export default function Invite() {
         }
       }
 
+      // Check if max uses reached
       if (inviteLink.max_uses && inviteLink.uses_count >= inviteLink.max_uses) {
         setError('This invite link has reached its maximum uses');
         setLoading(false);
         return;
       }
 
+      // Check if user is already a member
       if (isMember) {
         toast.info('You are already a member of this group');
         navigate('/', { state: { conversationId: conversation.id } });
@@ -124,17 +127,20 @@ export default function Invite() {
 
     setJoining(true);
     try {
+      // Use secure RPC function to join (bypasses RLS, handles all logic atomically)
       const { data, error } = await (supabase.rpc as any)('join_channel_with_invite_code', {
-        invite_code: code
+        invite_code: code,
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
-      const result = data as { success: boolean, conversation_id: string, already_member?: boolean };
+      const result = data as {
+        success: boolean;
+        conversation_id: string;
+        already_member?: boolean;
+      };
 
-      if (result.already_member) {
+      if (result?.already_member) {
         toast.info('You are already a member');
       } else {
         toast.success(`Joined ${inviteInfo.conversationName}!`);
@@ -143,8 +149,7 @@ export default function Invite() {
       navigate('/', { state: { conversationId: result.conversation_id } });
     } catch (err: any) {
       console.error('Error joining:', err);
-      // Extract error message from Postgres error if available
-      const message = err.message || err.details || 'Failed to join. Please try again.';
+      const message = err?.message || err?.details || 'Failed to join. Please try again.';
       toast.error(message);
       setJoining(false);
     }
