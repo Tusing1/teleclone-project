@@ -31,6 +31,7 @@ interface ChannelMessageBubbleProps {
   onEdit?: () => void;
   onDelete?: () => void;
   isAdmin?: boolean;
+  onOpenBrowser?: (url: string) => void;
 }
 
 // Only positive emojis - removed 👎 and 😢
@@ -49,7 +50,8 @@ export function ChannelMessageBubble({
   onPin,
   onEdit,
   onDelete,
-  isAdmin = false
+  isAdmin = false,
+  onOpenBrowser
 }: ChannelMessageBubbleProps) {
   const { user } = useAuth();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -135,7 +137,7 @@ export function ChannelMessageBubble({
     // Video thumbnail with play button
     if (isVideoFile(message.file_url, message.message_type)) {
       return (
-        <div 
+        <div
           className="relative rounded-xl overflow-hidden mb-3 cursor-pointer group"
           onClick={() => window.open(message.file_url!, '_blank')}
         >
@@ -171,19 +173,19 @@ export function ChannelMessageBubble({
   };
 
   // Check if this is a forwarded audio file - don't show "Forwarded: Recording:" text
-  const isForwardedAudio = message.file_url && 
-    isAudioFile(message.file_url, message.message_type) && 
+  const isForwardedAudio = message.file_url &&
+    isAudioFile(message.file_url, message.message_type) &&
     message.content?.includes('📤 Forwarded');
 
   const renderContent = () => {
     // Don't render content for forwarded audio files - title is shown in player
     if (isForwardedAudio) return null;
-    
+
     if (message.content) {
       // Parse links in content
       const urlRegex = /(https?:\/\/[^\s]+)/g;
       const parts = message.content.split(urlRegex);
-      
+
       return (
         <div className="text-foreground whitespace-pre-wrap text-[15px] leading-relaxed">
           {parts.map((part, index) => {
@@ -192,7 +194,13 @@ export function ChannelMessageBubble({
                 <a
                   key={index}
                   href={part}
-                  target="_blank"
+                  onClick={(e) => {
+                    if (onOpenBrowser) {
+                      e.preventDefault();
+                      onOpenBrowser(part);
+                    }
+                  }}
+                  target={onOpenBrowser ? undefined : "_blank"}
                   rel="noopener noreferrer"
                   className="text-sky-400 hover:underline break-all"
                 >
@@ -285,17 +293,16 @@ export function ChannelMessageBubble({
               <button
                 key={reaction.emoji}
                 onClick={() => onToggleReaction(reaction.emoji)}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-sm transition-all ${
-                  reaction.userReacted
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-sm transition-all ${reaction.userReacted
                     ? 'bg-sky-500/30 text-sky-300 border border-sky-500/40'
                     : 'bg-slate-700/50 hover:bg-slate-600/50 text-slate-200'
-                }`}
+                  }`}
               >
                 <span>{reaction.emoji}</span>
                 <span className="font-medium text-xs">{reaction.count}</span>
               </button>
             ))}
-            
+
             <Popover open={showEmojiPicker} onOpenChange={setShowEmojiPicker}>
               <PopoverTrigger asChild>
                 <Button
@@ -365,7 +372,7 @@ export function ChannelMessageBubble({
                 <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-violet-500 to-purple-600" />
               </div>
             )}
-            
+
             <span className="text-sm font-medium text-sky-400 group-hover:text-sky-300 transition-colors flex items-center gap-1">
               {commentCount > 0 ? `${commentCount} comments` : 'Leave a comment'}
               <ChevronRight className="w-4 h-4" />
