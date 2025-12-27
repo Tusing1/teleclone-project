@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Bookmark, Users, Radio, Settings, MessageCircle, Phone, Video, User } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, Video, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
@@ -55,7 +55,7 @@ import {
 interface ChatViewProps {
   conversation: ConversationWithDetails;
   onBack: () => void;
-  onForwardMessage?: (message: MessageWithSender, fromSavedMessages?: boolean) => void;
+  onForwardMessage?: (message: MessageWithSender) => void;
   onNavigateToDiscussion?: (discussionId: string, replyToMessage?: MessageWithSender) => void;
   onRefreshConversations?: () => void;
 }
@@ -99,7 +99,6 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
     },
   });
 
-  const isSavedMessages = conversation.isSavedMessages;
   const isGroup = conversation.type === 'group';
   const isChannel = conversation.type === 'channel';
   const otherParticipant = conversation.participants.find(p => p.user_id !== user?.id);
@@ -318,23 +317,19 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
   };
 
   // Display name and status for header
-  const displayName = isSavedMessages
-    ? 'Saved Messages'
-    : isGroup || isChannel
-      ? conversation.name || 'Unnamed'
-      : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
+  const displayName = isGroup || isChannel
+    ? conversation.name || 'Unnamed'
+    : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
 
-  const statusText = isSavedMessages
-    ? 'Forward messages here for safekeeping'
-    : isGroup
-      ? `${conversation.participants.length} members`
-      : isChannel
-        ? `${conversation.participants.length} subscribers`
-        : (otherProfile?.is_online
-          ? 'online'
-          : otherProfile?.last_seen
-            ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
-            : 'offline');
+  const statusText = isGroup
+    ? `${conversation.participants.length} members`
+    : isChannel
+      ? `${conversation.participants.length} subscribers`
+      : (otherProfile?.is_online
+        ? 'online'
+        : otherProfile?.last_seen
+          ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
+          : 'offline');
 
   // Show connecting screen while starting stream
   if (isStartingStream && isChannel) {
@@ -479,11 +474,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           <ArrowLeft className="h-5 w-5" />
         </Button>
 
-        {isSavedMessages ? (
-          <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-            <Bookmark className="w-5 h-5 text-primary-foreground" />
-          </div>
-        ) : isGroup ? (
+        {isGroup ? (
           <button
             onClick={() => isAdminOrOwner && setShowGroupSettings(true)}
             className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
@@ -516,14 +507,14 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           <p className={cn(
             'text-xs truncate',
             isChannel ? 'text-slate-400' :
-              (!isSavedMessages && !isGroup && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground')
+              (!isGroup && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground')
           )}>
             {statusText}
           </p>
         </div>
 
         {/* Call button for direct messages */}
-        {!isGroup && !isChannel && !isSavedMessages && (
+        {!isGroup && !isChannel && (
           <CallButton
             onStartCall={handleStartCall}
             canStartCall={true}
@@ -533,7 +524,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
         )}
 
         {/* Call button for groups and channels */}
-        {(isGroup || isChannel) && !isSavedMessages && (
+        {(isGroup || isChannel) && (
           <CallButton
             onStartCall={handleStartCall}
             canStartCall={isAdminOrOwner}
@@ -568,7 +559,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {/* Call options for direct chats */}
-            {!isGroup && !isChannel && !isSavedMessages && (
+            {!isGroup && !isChannel && (
               <>
                 <DropdownMenuItem onClick={() => handleStartCall('voice')}>
                   <Phone className="h-4 w-4 mr-2" />
@@ -631,7 +622,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
       )}
 
       {/* Edit Profile Dialog for direct chats */}
-      {!isGroup && !isChannel && !isSavedMessages && (
+      {!isGroup && !isChannel && (
         <EditProfileDialog
           open={showEditProfile}
           onClose={() => setShowEditProfile(false)}
@@ -645,22 +636,10 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
             <div className="animate-pulse text-muted-foreground">Loading messages...</div>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            {isSavedMessages ? (
-              <>
-                <Bookmark className="w-16 h-16 mb-4 text-primary/30" />
-                <p className="font-medium">Saved Messages</p>
-                <p className="text-sm text-center max-w-xs mt-1">
-                  Forward messages here to save them. Recorded calls will also appear here.
-                </p>
-              </>
-            ) : (
-              <>
-                <p>No messages yet</p>
-                <p className="text-sm">Send a message to start the conversation</p>
-              </>
-            )}
-          </div>
+          <>
+            <p>No messages yet</p>
+            <p className="text-sm">Send a message to start the conversation</p>
+          </>
         ) : (
           <div className="px-3 space-y-4">
             {messages.map((message, index) => {
@@ -712,7 +691,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                   key={message.id}
                   message={message}
                   showAvatar={showAvatar}
-                  onForward={onForwardMessage ? (msg) => onForwardMessage(msg, isSavedMessages) : undefined}
+                  onForward={onForwardMessage ? (msg) => onForwardMessage(msg) : undefined}
                   isChannelMessage={false}
                   onReply={(msg) => handleReply(msg)}
                   onEdit={(msg) => openEditDialog(msg)}
@@ -778,7 +757,7 @@ export function ChatView({ conversation, onBack, onForwardMessage, onNavigateToD
                 <Paperclip className="h-5 w-5" />
               </Button>
               <Input
-                placeholder={isChannel ? "Broadcast..." : isSavedMessages ? "Write a note..." : "Message"}
+                placeholder={isChannel ? "Broadcast..." : "Message"}
                 value={messageText}
                 onChange={(e) => {
                   setMessageText(e.target.value);
