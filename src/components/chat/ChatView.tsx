@@ -676,6 +676,8 @@ export function ChatView({
                 return (
                   <ChannelMessageBubble
                     key={message.id}
+                    activeStreamId={activeStream?.id}
+                    onJoinStream={(callId) => joinStream(callId, true)}
                     message={message}
                     reactions={reactions[message.id] || []}
                     onToggleReaction={(emoji) => toggleReaction(message.id, emoji)}
