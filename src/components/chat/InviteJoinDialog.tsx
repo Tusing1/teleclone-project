@@ -47,12 +47,11 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
     setError(null);
 
     try {
-      // Find the invite link using secure RPC
-      const { data: inviteLink, error: linkError } = await (supabase.rpc as any)(
-        'get_invite_by_code',
+      // 1. Get consolidated details securely
+      const { data: result, error: linkError } = await (supabase.rpc as any)(
+        'get_invite_details',
         { invite_code: inviteCode }
-      )
-        .maybeSingle();
+      );
 
       if (linkError) {
         console.error('❌ Database error validating invite:', linkError);
@@ -61,7 +60,7 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
         return;
       }
 
-      if (!inviteLink) {
+      if (!result) {
         console.warn('⚠️ Invite link not found:', inviteCode);
         setError('This invite link is invalid or has been deleted');
         setLoading(false);
@@ -71,14 +70,17 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
       // Clear the session storage now that we've found it
       sessionStorage.removeItem('pendingInviteCode');
 
-      // Check if link is active
+      const inviteLink = result.invite;
+      const conversation = result.conversation;
+      const isMember = result.is_member;
+
+      // Check key properties
       if (!inviteLink.is_active) {
         setError('This invite link has been disabled by the administrator');
         setLoading(false);
         return;
       }
 
-      // Check if expired
       if (inviteLink.expires_at) {
         const expiryDate = new Date(inviteLink.expires_at);
         if (expiryDate < new Date()) {
@@ -88,36 +90,20 @@ export function InviteJoinDialog({ open, onClose, inviteCode, onJoined }: Invite
         }
       }
 
-      // Check if max uses reached
       if (inviteLink.max_uses && inviteLink.uses_count >= inviteLink.max_uses) {
         setError('This invite link has reached its maximum uses');
         setLoading(false);
         return;
       }
 
-      // Check if user is already a member
-      const { data: existingMember } = await supabase
-        .from('conversation_participants')
-        .select('id')
-        .eq('conversation_id', inviteLink.conversation_id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (existingMember) {
+      if (isMember) {
         toast.info('You are already a member of this group');
-        onJoined(inviteLink.conversation_id);
+        onJoined(conversation.id);
         onClose();
         return;
       }
 
-      // Get conversation info
-      const { data: conversation, error: convError } = await supabase
-        .from('conversations')
-        .select('id, name, type')
-        .eq('id', inviteLink.conversation_id)
-        .single();
-
-      if (convError || !conversation) {
+      if (!conversation) {
         setError('Could not find this group or channel');
         setLoading(false);
         return;
