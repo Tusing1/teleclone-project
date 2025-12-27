@@ -945,6 +945,7 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_invite_details: { Args: { invite_code: string }; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
