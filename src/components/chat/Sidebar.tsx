@@ -1,6 +1,6 @@
-import { 
-  LogOut, Settings, User, Moon, Sun, Bookmark, Archive, 
-  Users, UserPlus, Radio, Contact, Heart, Bell, Phone, Coins, Search, Shield, Bot, Download 
+import {
+  LogOut, Settings, User, Moon, Sun,
+  Users, UserPlus, Radio, Contact, Heart, Phone, Coins, Search, Shield, Bot, Download
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -16,15 +16,12 @@ import { useFriendRequests } from '@/hooks/useFriendRequests';
 interface SidebarProps {
   open: boolean;
   onClose: () => void;
-  onOpenSavedMessages: () => void;
-  onOpenArchived: () => void;
   onOpenContacts: () => void;
   onOpenCreateGroup: () => void;
   onOpenCreateChannel: () => void;
   onOpenInviteFriends: () => void;
   onOpenFindFriends: () => void;
   onOpenEditProfile: () => void;
-  onOpenNotificationSettings: () => void;
   onOpenCallsInbox: () => void;
   onOpenStudyTokens?: () => void;
   onOpenGlobalSearch?: () => void;
@@ -34,18 +31,15 @@ interface SidebarProps {
   onOpenSettings?: () => void;
 }
 
-export function Sidebar({ 
-  open, 
+export function Sidebar({
+  open,
   onClose,
-  onOpenSavedMessages,
-  onOpenArchived,
   onOpenContacts,
   onOpenCreateGroup,
   onOpenCreateChannel,
   onOpenInviteFriends,
   onOpenFindFriends,
   onOpenEditProfile,
-  onOpenNotificationSettings,
   onOpenCallsInbox,
   onOpenStudyTokens,
   onOpenGlobalSearch,
@@ -151,25 +145,10 @@ export function Sidebar({
 
           {/* Menu items */}
           <div className="flex-1 py-2 overflow-y-auto">
-            <button 
-              onClick={() => handleMenuClick(onOpenSavedMessages)}
-              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
-            >
-              <Bookmark className="h-5 w-5 text-muted-foreground" />
-              <span>Saved Messages</span>
-            </button>
-
-            <button 
-              onClick={() => handleMenuClick(onOpenArchived)}
-              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
-            >
-              <Archive className="h-5 w-5 text-muted-foreground" />
-              <span>Archived Chats</span>
-            </button>
 
             <Separator className="my-2" />
 
-            <button 
+            <button
               onClick={() => handleMenuClick(onOpenContacts)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -177,7 +156,7 @@ export function Sidebar({
               <span>Contacts</span>
             </button>
 
-            <button 
+            <button
               onClick={() => handleMenuClick(onOpenCreateGroup)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -185,7 +164,7 @@ export function Sidebar({
               <span>New Group</span>
             </button>
 
-            <button 
+            <button
               onClick={() => handleMenuClick(onOpenCreateChannel)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -193,7 +172,7 @@ export function Sidebar({
               <span>New Channel</span>
             </button>
 
-            <button 
+            <button
               onClick={() => handleMenuClick(onOpenInviteFriends)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -203,7 +182,7 @@ export function Sidebar({
 
             {/* Friend Requests */}
             {onOpenFriendRequests && (
-              <button 
+              <button
                 onClick={() => handleMenuClick(onOpenFriendRequests)}
                 className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
               >
@@ -217,7 +196,7 @@ export function Sidebar({
               </button>
             )}
 
-            <button 
+            <button
               onClick={() => handleMenuClick(onOpenCallsInbox)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -227,7 +206,7 @@ export function Sidebar({
 
             <Separator className="my-2" />
 
-            <button 
+            <button
               onClick={() => handleMenuClick(onOpenEditProfile)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -235,7 +214,7 @@ export function Sidebar({
               <span>My Profile</span>
             </button>
 
-            <button 
+            <button
               onClick={toggleTheme}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -247,15 +226,8 @@ export function Sidebar({
               <span>{darkMode ? 'Light Mode' : 'Dark Mode'}</span>
             </button>
 
-            <button 
-              onClick={() => handleMenuClick(onOpenNotificationSettings)}
-              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
-            >
-              <Bell className="h-5 w-5 text-muted-foreground" />
-              <span>Notifications</span>
-            </button>
 
-            <button 
+            <button
               onClick={() => onOpenSettings && handleMenuClick(onOpenSettings)}
               className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
             >
@@ -267,7 +239,7 @@ export function Sidebar({
             {isAdmin && onOpenAdminPanel && (
               <>
                 <Separator className="my-2" />
-                <button 
+                <button
                   onClick={() => handleMenuClick(onOpenAdminPanel)}
                   className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
                 >
@@ -280,8 +252,8 @@ export function Sidebar({
 
           {/* Sign out */}
           <div className="p-4 border-t border-border">
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               className="w-full justify-start gap-4 text-destructive hover:text-destructive hover:bg-destructive/10"
               onClick={handleSignOut}
             >
