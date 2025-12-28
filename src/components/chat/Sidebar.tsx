@@ -112,14 +112,6 @@ export function Sidebar({
                 </button>
               )}
 
-              {/* Find Friends */}
-              <button
-                onClick={() => handleMenuClick(onOpenFindFriends)}
-                className="flex flex-col items-center gap-1 p-2 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
-              >
-                <Heart className="h-5 w-5 text-pink-300" />
-                <span className="text-[10px] text-primary-foreground/80">Friends</span>
-              </button>
 
               {/* Ask AI */}
               {onOpenAskAI && (
