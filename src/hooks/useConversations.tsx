@@ -150,7 +150,7 @@ export function useConversations() {
   const createConversation = async (otherUserId: string) => {
     if (!user) return null;
 
-    // Check if conversation already exists
+    // Check if a DIRECT conversation already exists between these two users
     const { data: existingParticipants } = await supabase
       .from('conversation_participants')
       .select('conversation_id')
@@ -158,6 +158,15 @@ export function useConversations() {
 
     if (existingParticipants) {
       for (const p of existingParticipants) {
+        // First verify this is a DIRECT conversation
+        const { data: convData } = await supabase
+          .from('conversations')
+          .select('type')
+          .eq('id', p.conversation_id)
+          .single();
+
+        if (convData?.type !== 'direct') continue;
+
         const { data: otherParticipant } = await supabase
           .from('conversation_participants')
           .select('*')
@@ -166,7 +175,7 @@ export function useConversations() {
           .maybeSingle();
 
         if (otherParticipant) {
-          // Conversation exists, return its ID
+          // Direct conversation exists, return its ID
           return p.conversation_id;
         }
       }
@@ -309,7 +318,7 @@ export function useConversations() {
         await fetchConversations();
         return data.id;
       }
-      
+
       return null;
     } catch (err) {
       console.error('Failed to create Saved Messages:', err);
@@ -329,7 +338,7 @@ export function useConversations() {
       return false;
     }
 
-    const forwardedContent = message.content 
+    const forwardedContent = message.content
       ? `📤 Forwarded:\n${message.content}`
       : '📤 Forwarded message';
 
@@ -370,7 +379,7 @@ export function useConversations() {
       return false;
     }
 
-    const forwardedContent = message.content 
+    const forwardedContent = message.content
       ? `📤 Forwarded:\n${message.content}`
       : '📤 Forwarded message';
 
@@ -456,10 +465,10 @@ export function useConversations() {
     return participant?.role || null;
   };
 
-  return { 
-    conversations, 
+  return {
+    conversations,
     archivedConversations,
-    loading, 
+    loading,
     createConversation,
     createGroup,
     createChannel,
