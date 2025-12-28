@@ -35,8 +35,9 @@ interface TokenPurchase {
 
 // Token costs for premium features
 export const TOKEN_COSTS = {
-  ONE_WEEK_PREMIUM: 200,
-  SEE_WHO_LIKES: 100,
+  ONE_WEEK_PREMIUM: 350,
+  SEE_WHO_LIKES_DAILY: 100,
+  SEE_WHO_LIKES_WEEKLY: 350,
   RECORD_CALLS: 150,
   EXTENDED_AI: 75,
   UNLOCK_AI_CHAT: 50,
@@ -91,7 +92,7 @@ export function useStudyTokens() {
         .maybeSingle();
 
       if (error) throw error;
-      
+
       if (data) {
         setBalance(data);
       } else {
@@ -99,7 +100,7 @@ export function useStudyTokens() {
         const { error: insertError } = await (supabase
           .from('study_tokens') as any)
           .insert({ user_id: user.id, balance: 0, total_earned: 0 });
-        
+
         if (!insertError) {
           setBalance({ balance: 0, total_earned: 0 });
         }
@@ -138,7 +139,7 @@ export function useStudyTokens() {
         .maybeSingle();
 
       if (error) throw error;
-      
+
       if (data) {
         setStreak(data);
       } else {
@@ -146,7 +147,7 @@ export function useStudyTokens() {
         const { error: insertError } = await (supabase
           .from('login_streaks') as any)
           .insert({ user_id: user.id, current_streak: 0, longest_streak: 0 });
-        
+
         if (!insertError) {
           setStreak({ current_streak: 0, longest_streak: 0, last_login_date: null });
         }
@@ -278,11 +279,11 @@ export function useStudyTokens() {
       // Refresh streak data
       await fetchStreak();
 
-      return { 
-        streak: newStreak, 
-        tokensEarned: totalReward, 
+      return {
+        streak: newStreak,
+        tokensEarned: totalReward,
         milestoneBonus,
-        milestoneMessage 
+        milestoneMessage
       };
     } catch (error) {
       console.error('Error checking daily login:', error);
@@ -291,8 +292,8 @@ export function useStudyTokens() {
   }, [user]);
 
   const earnTokens = useCallback(async (
-    amount: number, 
-    activityType: string, 
+    amount: number,
+    activityType: string,
     description: string
   ) => {
     if (!user) return false;
@@ -311,7 +312,7 @@ export function useStudyTokens() {
       // Update balance
       const { error: updateError } = await (supabase
         .from('study_tokens') as any)
-        .update({ 
+        .update({
           balance: currentBalance + amount,
           total_earned: currentTotal + amount,
           updated_at: new Date().toISOString()
@@ -344,8 +345,8 @@ export function useStudyTokens() {
   }, [user, fetchBalance, fetchTransactions]);
 
   const spendTokens = useCallback(async (
-    amount: number, 
-    activityType: string, 
+    amount: number,
+    activityType: string,
     description: string
   ) => {
     if (!user || !balance || balance.balance < amount) {
@@ -357,7 +358,7 @@ export function useStudyTokens() {
       // Update balance
       const { error: updateError } = await (supabase
         .from('study_tokens') as any)
-        .update({ 
+        .update({
           balance: balance.balance - amount,
           updated_at: new Date().toISOString()
         })
@@ -390,23 +391,30 @@ export function useStudyTokens() {
 
   const unlockPremiumWithTokens = useCallback(async (feature: keyof typeof TOKEN_COSTS) => {
     const cost = TOKEN_COSTS[feature];
-    
+
     if (!balance || balance.balance < cost) {
       toast.error(`You need ${cost} tokens. Current balance: ${balance?.balance || 0}`);
       return false;
     }
 
-    const success = await spendTokens(cost, feature.toLowerCase(), `Unlocked ${feature.replace(/_/g, ' ').toLowerCase()}`);
-    
+    const description = feature === 'SEE_WHO_LIKES_DAILY' ? 'Unlocked See Likes (24h)' :
+      feature === 'SEE_WHO_LIKES_WEEKLY' ? 'Unlocked See Likes (1 Week)' :
+        `Unlocked ${feature.replace(/_/g, ' ').toLowerCase()}`;
+
+    const success = await spendTokens(cost, feature.toLowerCase(), description);
+
     if (success && user) {
       // Enable the premium feature
-      if (feature === 'SEE_WHO_LIKES') {
-        await supabase
+      if (feature === 'SEE_WHO_LIKES_DAILY' || feature === 'SEE_WHO_LIKES_WEEKLY') {
+        const { error } = await supabase
           .from('premium_unlocks')
           .upsert({
             user_id: user.id,
-            can_see_likes: true
+            can_see_likes: true,
+            unlocked_at: new Date().toISOString()
           });
+
+        if (error) console.error("Error updating premium status:", error);
       }
     }
 
