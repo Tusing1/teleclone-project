@@ -651,6 +651,8 @@ export function ChatView({
                     hasActiveCall={hasActiveCallOrStream && isNotInCallOrStream}
                     onJoinCall={handleJoinCall}
                     isChannel={isChannel}
+                    isAdmin={isAdminOrOwner}
+                    onDelete={() => openDeleteDialog(message)}
                   />
                 );
               }
