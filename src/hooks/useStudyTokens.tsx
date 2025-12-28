@@ -42,6 +42,7 @@ export const TOKEN_COSTS = {
   EXTENDED_AI: 75,
   UNLOCK_AI_CHAT: 50,
   LONGER_CALLS: 100,
+  UNLIMITED_AI: 500,
 } as const;
 
 // Token rewards for activities
@@ -79,6 +80,7 @@ export function useStudyTokens() {
   const [transactions, setTransactions] = useState<TokenTransaction[]>([]);
   const [streak, setStreak] = useState<LoginStreak | null>(null);
   const [pendingPurchases, setPendingPurchases] = useState<TokenPurchase[]>([]);
+  const [globalStats, setGlobalStats] = useState<{ supply: number; burnt: number; value: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchBalance = useCallback(async () => {
@@ -175,14 +177,48 @@ export function useStudyTokens() {
     }
   }, [user]);
 
+  const fetchGlobalStats = useCallback(async () => {
+    try {
+      // Get all-time earned (Supply)
+      const { data: earnedData } = await supabase
+        .from('token_transactions')
+        .select('amount')
+        .eq('transaction_type', 'earn');
+
+      const supply = earnedData?.reduce((acc, curr) => acc + curr.amount, 0) || 0;
+
+      // Get all-time spent (Burnt)
+      const { data: spentData } = await supabase
+        .from('token_transactions')
+        .select('amount')
+        .eq('transaction_type', 'spend');
+
+      const burnt = spentData?.reduce((acc, curr) => acc + Math.abs(curr.amount), 0) || 0;
+
+      // Calculate a pseudo-value based on scarcity (burnt/supply ratio)
+      const burnRatio = supply > 0 ? burnt / supply : 0;
+      const value = 1 + (burnRatio * 2); // Value increases as more tokens are burnt
+
+      setGlobalStats({ supply, burnt, value });
+    } catch (error) {
+      console.error('Error fetching global token stats:', error);
+    }
+  }, []);
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await Promise.all([fetchBalance(), fetchTransactions(), fetchStreak(), fetchPendingPurchases()]);
+      await Promise.all([
+        fetchBalance(),
+        fetchTransactions(),
+        fetchStreak(),
+        fetchPendingPurchases(),
+        fetchGlobalStats()
+      ]);
       setLoading(false);
     };
     init();
-  }, [fetchBalance, fetchTransactions, fetchStreak, fetchPendingPurchases]);
+  }, [fetchBalance, fetchTransactions, fetchStreak, fetchPendingPurchases, fetchGlobalStats]);
 
   // Check and update daily login streak
   const checkDailyLogin = useCallback(async () => {
@@ -399,12 +435,12 @@ export function useStudyTokens() {
 
     const description = feature === 'SEE_WHO_LIKES_DAILY' ? 'Unlocked See Likes (24h)' :
       feature === 'SEE_WHO_LIKES_WEEKLY' ? 'Unlocked See Likes (1 Week)' :
-        `Unlocked ${feature.replace(/_/g, ' ').toLowerCase()}`;
+        `Unlocked ${String(feature).replace(/_/g, ' ').toLowerCase()}`;
 
-    const success = await spendTokens(cost, feature.toLowerCase(), description);
+    const success = await spendTokens(cost, String(feature).toLowerCase(), description);
 
     if (success && user) {
-      // Enable the premium feature
+      // For see_likes, we still update the dedicated table for legacy reasons
       if (feature === 'SEE_WHO_LIKES_DAILY' || feature === 'SEE_WHO_LIKES_WEEKLY') {
         const { error } = await supabase
           .from('premium_unlocks')
@@ -416,10 +452,64 @@ export function useStudyTokens() {
 
         if (error) console.error("Error updating premium status:", error);
       }
+
+      // Other features are tracked via token_transactions (handled in spendTokens)
     }
 
     return success;
   }, [balance, spendTokens, user]);
+
+  const isFeatureUnlocked = useCallback(async (feature: string) => {
+    if (!user) return false;
+
+    try {
+      const featureKey = feature.toLowerCase();
+
+      // Special handling for see_likes which has a dedicated table
+      if (featureKey.includes('see_who_likes')) {
+        const { data: premium } = await supabase
+          .from('premium_unlocks')
+          .select('*')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (premium && premium.can_see_likes) {
+          const unlockedAt = new Date(premium.unlocked_at).getTime();
+          const now = Date.now();
+          const duration = featureKey.includes('daily') ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
+          if (now - unlockedAt < duration) return true;
+        }
+      }
+
+      // General check against transaction history for all features
+      const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: transactions } = await supabase
+        .from('token_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('transaction_type', 'spend')
+        .eq('activity_type', featureKey)
+        .gt('created_at', oneWeekAgo)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (transactions && transactions.length > 0) {
+        const tx = transactions[0];
+        const txDate = new Date(tx.created_at).getTime();
+        const now = Date.now();
+
+        if (featureKey.includes('daily')) {
+          return (now - txDate) < 24 * 60 * 60 * 1000;
+        }
+        return true; // Week-based or permanent for a week
+      }
+
+      return false;
+    } catch (e) {
+      console.error("Error checking feature status:", e);
+      return false;
+    }
+  }, [user]);
 
   // Create a token purchase and return the activation code
   const createPurchase = useCallback(async (
@@ -507,13 +597,15 @@ export function useStudyTokens() {
     transactions,
     streak,
     pendingPurchases,
-    loading,
     earnTokens,
     spendTokens,
     unlockPremiumWithTokens,
     checkDailyLogin,
     createPurchase,
     activateCode,
-    refetch: () => Promise.all([fetchBalance(), fetchTransactions(), fetchStreak(), fetchPendingPurchases()])
+    isFeatureUnlocked,
+    globalStats,
+    loading,
+    refetch: () => Promise.all([fetchBalance(), fetchTransactions(), fetchStreak(), fetchPendingPurchases(), fetchGlobalStats()])
   };
 }
