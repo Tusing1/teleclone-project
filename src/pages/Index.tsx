@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
+import { useFriendRequests } from '@/hooks/useFriendRequests';
+import { useFindFriends } from '@/hooks/useFindFriends';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { useStudyTokens } from '@/hooks/useStudyTokens';
 import { useReferrals } from '@/hooks/useReferrals';
@@ -80,6 +82,10 @@ export default function Index() {
     forwardToConversation,
     refetch: refetchConversations
   } = useConversations();
+
+  const { pendingCount: friendRequestsCount } = useFriendRequests();
+  const { likedByCount } = useFindFriends();
+  const totalLikesCount = friendRequestsCount + likedByCount;
 
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [showNewChat, setShowNewChat] = useState(false);
@@ -395,6 +401,7 @@ export default function Index() {
           onOpenAskAI={() => setShowAskAI(true)}
           onOpenFindFriends={() => setShowFindFriends(true)}
           onOpenMessageFriends={() => setShowMessageFriends(true)}
+          pendingLikesCount={totalLikesCount}
         />
       </div>
 
