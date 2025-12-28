@@ -111,7 +111,7 @@ export function useFriendRequests() {
             .from('conversation_participants')
             .select('user_id')
             .eq('conversation_id', conv.conversation_id);
-          
+
           const hasReceiver = participants?.some(p => p.user_id === receiverId);
           if (hasReceiver && participants?.length === 2) {
             toast.info('You already have a conversation with this user');
@@ -160,11 +160,19 @@ export function useFriendRequests() {
         body: { participantId: request.sender_id }
       });
 
-      if (convError) throw convError;
+      if (convError) {
+        console.error('Error creating conversation via edge function:', convError);
+        throw convError;
+      }
+
+      if (!data?.id) {
+        console.error('Edge function did not return conversation ID:', data);
+        throw new Error('Failed to create conversation');
+      }
 
       toast.success('Friend request accepted!');
       await fetchRequests();
-      return data?.conversationId || null;
+      return data.id;
     } catch (error) {
       console.error('Error accepting request:', error);
       toast.error('Failed to accept request');
@@ -196,7 +204,7 @@ export function useFriendRequests() {
   const getRequestStatus = (userId: string): 'none' | 'pending_sent' | 'pending_received' | 'friends' => {
     const sent = sentRequests.find(r => r.receiver_id === userId);
     const received = incomingRequests.find(r => r.sender_id === userId);
-    
+
     if (sent?.status === 'accepted' || received?.status === 'accepted') return 'friends';
     if (sent?.status === 'pending') return 'pending_sent';
     if (received?.status === 'pending') return 'pending_received';
