@@ -804,39 +804,68 @@ export function useLiveStream(conversationId: string | null) {
 
       console.log('Uploaded, public URL:', publicUrl);
 
-      // Find or create Saved Messages via edge function (more reliable)
-      let savedConversationId: string | null = null;
+      // Find the channel owner/admin to send recording to their inbox
+      let adminConversationId: string | null = null;
 
       try {
-        const { data, error } = await supabase.functions.invoke('create-conversation', {
-          body: { type: 'saved' }
-        });
+        // Get the channel/conversation details to find the owner
+        const { data: conversation } = await supabase
+          .from('conversations')
+          .select('created_by')
+          .eq('id', conversationId)
+          .single();
 
-        console.log('create-conversation result:', { data, error });
+        if (!conversation?.created_by) {
+          throw new Error('Could not find channel owner');
+        }
 
-        if (!error && data?.id) {
-          savedConversationId = data.id;
+        const adminUserId = conversation.created_by;
+
+        // If the current user IS the admin, find or create a self-conversation
+        if (adminUserId === user.id) {
+          const { data, error } = await supabase.functions.invoke('create-conversation', {
+            body: {
+              type: 'direct',
+              participant_id: user.id // Self-conversation
+            }
+          });
+
+          if (!error && data?.id) {
+            adminConversationId = data.id;
+          }
+        } else {
+          // Create or find DM with the admin
+          const { data, error } = await supabase.functions.invoke('create-conversation', {
+            body: {
+              type: 'direct',
+              participant_id: adminUserId
+            }
+          });
+
+          if (!error && data?.id) {
+            adminConversationId = data.id;
+          }
         }
       } catch (err) {
-        console.error('Failed to get/create Saved Messages:', err);
+        console.error('Failed to create conversation with admin:', err);
       }
 
-      if (!savedConversationId) {
-        console.error('Could not get Saved Messages conversation');
-        toast.error('Could not find Saved Messages', { id: 'save-recording' });
+      if (!adminConversationId) {
+        console.error('Could not create conversation with admin');
+        toast.error('Could not send recording to admin', { id: 'save-recording' });
         return;
       }
 
-      console.log('Inserting message into Saved Messages:', savedConversationId);
+      console.log('Inserting recording into admin conversation:', adminConversationId);
 
       // Create message with recording (store as a normal file; UI detects .webm as audio)
       const displayTitle = (title || 'Live Stream Recording').trim() || 'Live Stream Recording';
-      const safeFileTitle = displayTitle.replace(/[\\/]/g, '-');
+      const safeFileTitle = displayTitle.replace(/[\\\\/]/g, '-');
 
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          conversation_id: savedConversationId,
+          conversation_id: adminConversationId,
           sender_id: user.id,
           content: displayTitle,
           message_type: 'file',
@@ -847,17 +876,17 @@ export function useLiveStream(conversationId: string | null) {
 
       if (msgError) {
         console.error('Error inserting recording message:', msgError);
-        toast.error('Failed to save recording message', { id: 'save-recording' });
+        toast.error('Failed to send recording to admin', { id: 'save-recording' });
         return;
       }
 
       await supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', savedConversationId);
+        .eq('id', adminConversationId);
 
       console.log('Recording saved successfully!');
-      toast.success('Recording saved to Saved Messages', { id: 'save-recording' });
+      toast.success('Recording sent to admin inbox', { id: 'save-recording' });
     } catch (error) {
       console.error('Error saving recording:', error);
       toast.error('Failed to save recording', { id: 'save-recording' });
