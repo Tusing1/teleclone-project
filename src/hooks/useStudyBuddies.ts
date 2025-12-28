@@ -27,26 +27,13 @@ export function useStudyBuddies() {
           id,
           sender_id,
           receiver_id,
-          updated_at,
-          sender:sender_id(*),
-          receiver:receiver_id(*)
+          responded_at,
+          created_at
         `)
         .eq('status', 'accepted')
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`);
 
       if (frError) throw frError;
-
-      // Type output manually since recursive join types are tricky to infer
-      interface FriendRequestResponse {
-        id: string;
-        sender_id: string;
-        receiver_id: string;
-        updated_at: string;
-        sender: Profile;
-        receiver: Profile;
-      }
-
-      const typedFriendRequests = (friendRequests || []) as unknown as FriendRequestResponse[];
 
       // 2. Fetch Matches
       const { data: matches, error: mError } = await supabase
@@ -61,31 +48,40 @@ export function useStudyBuddies() {
 
       if (mError) throw mError;
 
-      // Collect IDs for matches to fetch profiles
-      const matchUserIds = new Set<string>();
-      matches?.forEach(m => {
-        const otherId = m.user1_id === user.id ? m.user2_id : m.user1_id;
-        matchUserIds.add(otherId);
+      // 3. Collect all unique User IDs to fetch profiles for
+      const userIdsToFetch = new Set<string>();
+
+      friendRequests?.forEach(fr => {
+        userIdsToFetch.add(fr.sender_id);
+        userIdsToFetch.add(fr.receiver_id);
       });
 
-      let matchProfiles: Profile[] = [];
-      if (matchUserIds.size > 0) {
-        const { data: mProfiles, error: mpError } = await supabase
+      matches?.forEach(m => {
+        userIdsToFetch.add(m.user1_id);
+        userIdsToFetch.add(m.user2_id);
+      });
+
+      // Remove self
+      userIdsToFetch.delete(user.id);
+
+      let fetchedProfiles: Profile[] = [];
+      if (userIdsToFetch.size > 0) {
+        const { data: profiles, error: pError } = await supabase
           .from('profiles')
           .select('*')
-          .in('user_id', Array.from(matchUserIds));
+          .in('user_id', Array.from(userIdsToFetch));
 
-        if (mpError) throw mpError;
-        matchProfiles = (mProfiles as Profile[]) || [];
+        if (pError) throw pError;
+        fetchedProfiles = (profiles as Profile[]) || [];
       }
 
-      // 3. Aggregate Results
+      // 4. Aggregate Results
       const buddyMap = new Map<string, StudyBuddy>();
 
       // Process Matches
       matches?.forEach(m => {
         const otherId = m.user1_id === user.id ? m.user2_id : m.user1_id;
-        const profile = matchProfiles.find(p => p.user_id === otherId);
+        const profile = fetchedProfiles.find(p => p.user_id === otherId);
         if (profile) {
           buddyMap.set(otherId, {
             profile,
@@ -96,22 +92,16 @@ export function useStudyBuddies() {
       });
 
       // Process Friend Requests
-      typedFriendRequests.forEach(fr => {
+      friendRequests?.forEach(fr => {
         const otherUserId = fr.sender_id === user.id ? fr.receiver_id : fr.sender_id;
-
-        let profile: Profile | undefined;
-
-        if (fr.sender_id === user.id) {
-          profile = fr.receiver;
-        } else {
-          profile = fr.sender;
-        }
+        const profile = fetchedProfiles.find(p => p.user_id === otherUserId);
 
         if (profile && !buddyMap.has(otherUserId)) {
           buddyMap.set(otherUserId, {
             profile,
             source: 'friend_request',
-            connectedAt: fr.updated_at
+            // Use responded_at for when they became friends, fallback to created_at
+            connectedAt: fr.responded_at || fr.created_at || new Date().toISOString()
           });
         }
       });
