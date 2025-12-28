@@ -241,28 +241,6 @@ export function useCalls(conversationId: string | null) {
     }
 
     console.log('New call created, joining as creator:', data.id);
-
-    // DEBUG: Check RLS prerequisites immediately after creation
-    try {
-      console.log('🔍 Debugging RLS: Checking is_conversation_member...');
-      const { data: isMember, error: rpcError } = await supabase.rpc('is_conversation_member', {
-        _user_id: user.id,
-        _conversation_id: conversationId
-      });
-      console.log('🔍 is_conversation_member result:', isMember, 'Error:', rpcError);
-
-      console.log('🔍 Debugging RLS: Checking visibility of new call...');
-      const { data: visibleCall, error: visError } = await supabase
-        .from('calls')
-        .select('*')
-        .eq('id', data.id)
-        .maybeSingle();
-      console.log('🔍 Call visibility:', visibleCall ? 'Visible' : 'Not Visible', 'Error:', visError);
-
-    } catch (debugErr) {
-      console.error('🔍 Debug check failed:', debugErr);
-    }
-
     await joinCall(data.id, callType, true);
     return data.id;
   };
@@ -317,21 +295,14 @@ export function useCalls(conversationId: string | null) {
           .eq('id', existingParticipant.id);
       } else {
         console.log('Joining: Creating new participant record before signaling');
-        const { data, error } = await supabase
+        await supabase
           .from('call_participants')
           .insert({
             call_id: callId,
             user_id: user.id,
             is_video_off: callType === 'voice',
             left_at: null
-          })
-          .select();
-
-        if (error) {
-          console.error('❌ Error creating participant record:', error);
-          throw error;
-        }
-        console.log('✅ Participant added successfully:', data);
+          });
       }
 
       setIsInCall(true);
