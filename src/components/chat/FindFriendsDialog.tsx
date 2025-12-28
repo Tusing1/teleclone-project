@@ -23,13 +23,28 @@ interface FindFriendsDialogProps {
   onOpenConversation: (conversationId: string) => void;
 }
 
+import { useStudyTokens } from '@/hooks/useStudyTokens';
+import { AlertCircle } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 type TabType = 'discover' | 'matches' | 'likes';
 
 export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFriendsDialogProps) {
   const [activeTab, setActiveTab] = useState<TabType>('discover');
   const [matchAnimation, setMatchAnimation] = useState<{ user: Profile; conversationId: string } | null>(null);
+  const [showUnlockOptions, setShowUnlockOptions] = useState(false);
   const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
   const cardRef = useRef<HTMLDivElement>(null);
+  const { balance, unlockPremiumWithTokens } = useStudyTokens();
 
   const {
     currentProfile,
@@ -38,6 +53,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
     likedByCount,
     likedByUsers,
     canSeeLikes,
+    fetchCanSeeLikes,
     loading,
     swipe,
     unlockSeeLikes
@@ -64,8 +80,13 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
     }
   };
 
-  const handleUnlockLikes = async () => {
-    await unlockSeeLikes();
+  const handleUnlockLikes = async (choice: 'daily' | 'weekly') => {
+    const feature = choice === 'daily' ? 'SEE_WHO_LIKES_DAILY' : 'SEE_WHO_LIKES_WEEKLY';
+    const success = await unlockPremiumWithTokens(feature);
+    if (success) {
+      setShowUnlockOptions(false);
+      await fetchCanSeeLikes();
+    }
   };
 
   const renderDiscoverTab = () => {
@@ -277,7 +298,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           </p>
           <Button
             className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600"
-            onClick={handleUnlockLikes}
+            onClick={() => setShowUnlockOptions(true)}
           >
             <Eye className="h-4 w-4 mr-2" />
             See Who Likes You
@@ -416,6 +437,53 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Unlock Options Alert Dialog */}
+      <AlertDialog open={showUnlockOptions} onOpenChange={setShowUnlockOptions}>
+        <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-amber-400" />
+              Unlock Premium Access
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-300">
+              Choose your plan to see who liked you and match instantly!
+              <div className="mt-4 p-3 bg-white/5 rounded-lg text-xs flex items-center justify-between">
+                <span>Your Balance:</span>
+                <span className="font-bold text-amber-400">{balance} Tokens</span>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-3 my-4">
+            <button
+              onClick={() => handleUnlockLikes('daily')}
+              className="flex items-center justify-between p-4 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-750 transition-colors group"
+            >
+              <div className="text-left">
+                <div className="font-bold">24 Hours Access</div>
+                <div className="text-xs text-slate-400">Perfect for a quick look</div>
+              </div>
+              <div className="font-bold text-lg text-amber-400">100 TK</div>
+            </button>
+            <button
+              onClick={() => handleUnlockLikes('weekly')}
+              className="flex items-center justify-between p-4 rounded-xl border-2 border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 transition-colors relative overflow-hidden"
+            >
+              <div className="absolute top-0 right-0 bg-amber-500 text-slate-900 text-[10px] font-bold px-2 py-0.5 rounded-bl-lg">
+                BEST VALUE
+              </div>
+              <div className="text-left">
+                <div className="font-bold">1 Week Unlimited</div>
+                <div className="text-xs text-slate-400">Match all week long</div>
+              </div>
+              <div className="font-bold text-lg text-amber-400">350 TK</div>
+            </button>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent border-slate-700 text-white hover:bg-white/5">Cancel</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }
