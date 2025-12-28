@@ -35,23 +35,24 @@ export function useFindFriends() {
     if (!user) return;
 
     try {
-      // Get users that the current user has already swiped on
-      const { data: swipedUsers } = await supabase
+      // Get users that the current user has already liked or matched with
+      const { data: excludedSwipes } = await supabase
         .from('user_swipes')
         .select('swiped_id')
-        .eq('swiper_id', user.id);
+        .eq('swiper_id', user.id)
+        .eq('direction', 'right');
 
-      const swipedIds = swipedUsers?.map(s => s.swiped_id) || [];
+      const excludedIds = excludedSwipes?.map(s => s.swiped_id) || [];
 
-      // Get all users except current user and already swiped users
+      // Get all users except current user and already liked users
       let query = supabase
         .from('profiles')
         .select('*')
         .neq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (swipedIds.length > 0) {
-        query = query.not('user_id', 'in', `(${swipedIds.join(',')})`);
+      if (excludedIds.length > 0) {
+        query = query.not('user_id', 'in', `(${excludedIds.join(',')})`);
       }
 
       const { data: profiles, error } = await query.limit(50);
@@ -78,7 +79,7 @@ export function useFindFriends() {
 
       // Fetch profiles for matched users
       if (matchData && matchData.length > 0) {
-        const otherUserIds = matchData.map(m => 
+        const otherUserIds = matchData.map(m =>
           m.user1_id === user.id ? m.user2_id : m.user1_id
         );
 
@@ -125,7 +126,7 @@ export function useFindFriends() {
 
       const mySwipedIds = mySwipes?.map(s => s.swiped_id) || [];
       const pendingLikes = swipedOnMe?.filter(s => !mySwipedIds.includes(s.swiper_id)) || [];
-      
+
       setLikedByCount(pendingLikes.length);
     } catch (error) {
       console.error('Error fetching liked by count:', error);
@@ -138,15 +139,45 @@ export function useFindFriends() {
     try {
       const { data, error } = await supabase
         .from('premium_unlocks')
-        .select('can_see_likes')
+        .select('*')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (!error && data) {
-        setCanSeeLikes(data.can_see_likes);
+      if (!error && data && data.can_see_likes) {
+        // Check expiration
+        const unlockedAt = new Date(data.unlocked_at).getTime();
+        const now = Date.now();
+
+        // Since we don't have an expires_at column, we check the last transaction
+        // But for simplicity, let's assume if it's there it was valid for some time.
+        // Actually, let's check token transactions to know if it was weekly or daily.
+        const { data: lastSpend } = await supabase
+          .from('token_transactions')
+          .select('amount, created_at')
+          .eq('user_id', user.id)
+          .eq('transaction_type', 'spend')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lastSpend) {
+          const isWeekly = Math.abs(lastSpend.amount) >= 350;
+          const duration = isWeekly ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+
+          if (now - unlockedAt > duration) {
+            // Expired
+            setCanSeeLikes(false);
+            // Optionally update DB to false
+            await supabase.from('premium_unlocks').update({ can_see_likes: false }).eq('user_id', user.id);
+            return;
+          }
+        }
+
+        setCanSeeLikes(true);
+      } else {
+        setCanSeeLikes(false);
       }
     } catch (error) {
-      // No premium record exists
       setCanSeeLikes(false);
     }
   }, [user]);
@@ -163,7 +194,7 @@ export function useFindFriends() {
 
       if (swipedOnMe && swipedOnMe.length > 0) {
         const swiperIds = swipedOnMe.map(s => s.swiper_id);
-        
+
         // Filter out already matched users
         const { data: mySwipes } = await supabase
           .from('user_swipes')
@@ -172,7 +203,7 @@ export function useFindFriends() {
 
         const mySwipedIds = mySwipes?.map(s => s.swiped_id) || [];
         const pendingLikes = swipedOnMe.filter(s => !mySwipedIds.includes(s.swiper_id));
-        
+
         const { data: profiles } = await supabase
           .from('profiles')
           .select('*')
@@ -378,6 +409,7 @@ export function useFindFriends() {
     loading,
     swipe,
     unlockSeeLikes,
+    fetchCanSeeLikes,
     refetch: fetchPotentialMatches
   };
 }
