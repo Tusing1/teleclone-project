@@ -25,6 +25,7 @@ interface ConversationListProps {
   onOpenAskAI?: () => void;
   onOpenFindFriends?: () => void;
   onOpenMessageFriends?: () => void;
+  pendingLikesCount?: number;
 }
 
 export function ConversationList({
@@ -38,7 +39,8 @@ export function ConversationList({
   onRefresh,
   onOpenAskAI,
   onOpenFindFriends,
-  onOpenMessageFriends
+  onOpenMessageFriends,
+  pendingLikesCount = 0
 }: ConversationListProps) {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
@@ -406,89 +408,45 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Expandable FAB */}
+      {/* Dual FAB: StudyBuddies (with likes badge) peeking behind + New Message */}
       <div className="absolute bottom-6 right-6 z-50">
-        {/* Backdrop when FAB is open */}
-        {fabOpen && (
-          <div
-            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] -z-10 animate-in fade-in duration-200"
-            onClick={() => setFabOpen(false)}
-          />
-        )}
+        <div className="relative">
+          {/* StudyBuddies FAB - peeking from behind with likes badge */}
+          <button
+            onClick={() => onOpenFindFriends?.()}
+            className={cn(
+              "absolute w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-300",
+              "bg-gradient-to-br from-pink-500 to-rose-600",
+              "hover:scale-110 active:scale-95",
+              // Position offset to peek from behind (top-left of main FAB)
+              "-top-4 -left-4",
+              // Pulse glow animation
+              "before:absolute before:inset-0 before:rounded-full before:bg-pink-500/40 before:animate-ping"
+            )}
+            title="StudyBuddies"
+          >
+            <Users className="h-5 w-5 text-white relative z-10" />
 
-        {/* FAB Options */}
-        <div className="absolute bottom-16 right-0 flex flex-col items-end gap-3">
-          {/* Ask AI Option */}
-          <div className={cn(
-            "flex items-center gap-3 transition-all duration-300",
-            fabOpen
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-4 pointer-events-none"
-          )} style={{ transitionDelay: fabOpen ? '100ms' : '0ms' }}>
-            <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
-              Ask AI
-            </span>
-            <button
-              onClick={() => { onOpenAskAI?.(); setFabOpen(false); }}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
-            >
-              <Bot className="h-5 w-5 text-white" />
-            </button>
-          </div>
+            {/* Likes badge - shows pending likes to entice clicks */}
+            {pendingLikesCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-yellow-400 text-[10px] font-bold text-black flex items-center justify-center shadow-lg animate-bounce z-20">
+                +{pendingLikesCount}
+              </span>
+            )}
+          </button>
 
-          {/* Find Friends Option */}
-          <div className={cn(
-            "flex items-center gap-3 transition-all duration-300",
-            fabOpen
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-4 pointer-events-none"
-          )} style={{ transitionDelay: fabOpen ? '50ms' : '0ms' }}>
-            <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
-              Find Friends
-            </span>
-            <button
-              onClick={() => { onOpenFindFriends?.(); setFabOpen(false); }}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-pink-500 to-rose-600 shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
-            >
-              <Heart className="h-5 w-5 text-white" />
-            </button>
-          </div>
-
-          {/* Message Friends Option */}
-          <div className={cn(
-            "flex items-center gap-3 transition-all duration-300",
-            fabOpen
-              ? "opacity-100 translate-y-0"
-              : "opacity-0 translate-y-4 pointer-events-none"
-          )} style={{ transitionDelay: fabOpen ? '0ms' : '0ms' }}>
-            <span className="text-sm font-medium text-foreground bg-card/95 backdrop-blur-sm px-3 py-1.5 rounded-lg shadow-lg whitespace-nowrap">
-              Message
-            </span>
-            <button
-              onClick={() => { onOpenMessageFriends?.(); setFabOpen(false); }}
-              className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-cyan-600 shadow-lg flex items-center justify-center hover:scale-110 transition-transform active:scale-95"
-            >
-              <MessageCircle className="h-5 w-5 text-white" />
-            </button>
-          </div>
-        </div>
-
-        {/* Main FAB */}
-        <button
-          onClick={() => setFabOpen(!fabOpen)}
-          className={cn(
-            "w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300",
-            fabOpen
-              ? "bg-muted rotate-45"
-              : "bg-gradient-to-br from-primary to-primary/80 hover:shadow-primary/25 hover:shadow-2xl"
-          )}
-        >
-          {fabOpen ? (
-            <X className="h-6 w-6 text-foreground" />
-          ) : (
+          {/* Main FAB - New Message (direct action, no expand) */}
+          <button
+            onClick={() => onOpenMessageFriends?.()}
+            className={cn(
+              "relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-10",
+              "bg-gradient-to-br from-primary to-primary/80 hover:shadow-primary/25 hover:shadow-2xl hover:scale-105 active:scale-95"
+            )}
+            title="New Message"
+          >
             <Edit className="h-6 w-6 text-primary-foreground" />
-          )}
-        </button>
+          </button>
+        </div>
       </div>
     </div>
   );
