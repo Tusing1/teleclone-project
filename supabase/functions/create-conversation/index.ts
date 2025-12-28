@@ -41,8 +41,90 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { type, name, description, memberIds, enableDiscussion } = await req.json()
-    console.log('Creating conversation:', { type, name, userId: user.id, enableDiscussion })
+    const { type, name, description, memberIds, enableDiscussion, participantId } = await req.json()
+    console.log('Creating conversation:', { type, name, userId: user.id, enableDiscussion, participantId })
+
+    // Handle participantId - create direct 1:1 conversation (for friend requests)
+    if (participantId) {
+      console.log('Creating direct conversation with participant:', participantId)
+      
+      // Check if a direct conversation already exists between these two users
+      const { data: userConversations } = await supabaseAdmin
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id)
+
+      if (userConversations && userConversations.length > 0) {
+        const conversationIds = userConversations.map(p => p.conversation_id)
+        
+        // Get all direct conversations
+        const { data: directConversations } = await supabaseAdmin
+          .from('conversations')
+          .select('id')
+          .in('id', conversationIds)
+          .eq('type', 'direct')
+
+        if (directConversations) {
+          // Check each direct conversation to see if it includes the participant
+          for (const conv of directConversations) {
+            const { data: participants, count } = await supabaseAdmin
+              .from('conversation_participants')
+              .select('user_id', { count: 'exact' })
+              .eq('conversation_id', conv.id)
+
+            // Direct 1:1 conversation = exactly 2 participants
+            if (count === 2 && participants) {
+              const participantIds = participants.map(p => p.user_id)
+              if (participantIds.includes(user.id) && participantIds.includes(participantId)) {
+                console.log('Direct conversation already exists:', conv.id)
+                return new Response(JSON.stringify({ id: conv.id }), {
+                  status: 200,
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+                })
+              }
+            }
+          }
+        }
+      }
+
+      // Create new direct conversation
+      const { data: newConv, error: convError } = await supabaseAdmin
+        .from('conversations')
+        .insert({ type: 'direct', created_by: user.id })
+        .select()
+        .single()
+
+      if (convError) {
+        console.error('Error creating direct conversation:', convError)
+        return new Response(JSON.stringify({ error: convError.message }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      // Add both participants
+      const { error: partError } = await supabaseAdmin
+        .from('conversation_participants')
+        .insert([
+          { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+          { conversation_id: newConv.id, user_id: participantId, role: 'member' }
+        ])
+
+      if (partError) {
+        console.error('Error adding participants:', partError)
+        await supabaseAdmin.from('conversations').delete().eq('id', newConv.id)
+        return new Response(JSON.stringify({ error: 'Failed to add participants' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        })
+      }
+
+      console.log('Direct conversation created:', newConv.id)
+      return new Response(JSON.stringify({ id: newConv.id }), {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      })
+    }
 
     let discussionId = null
 
