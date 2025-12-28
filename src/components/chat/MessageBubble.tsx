@@ -234,7 +234,7 @@ export function MessageBubble({
         {renderFileContent()}
 
         {message.content && (
-          <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">
+          <div className="text-sm whitespace-pre-wrap break-words leading-relaxed text-left">
             {message.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
               if (part.match(/^https?:\/\//)) {
                 return (
@@ -255,9 +255,30 @@ export function MessageBubble({
                   </a>
                 );
               }
-              return part;
+
+              // Simple Markdown-lite transformation for AI/playful messages
+              // Handle bold: **text**
+              let text = part;
+              const segments = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
+
+              return segments.map((seg, idx) => {
+                if (seg.startsWith('**') && seg.endsWith('**')) {
+                  return <strong key={idx}>{seg.slice(2, -2)}</strong>;
+                }
+                if (seg.startsWith('*') && seg.endsWith('*')) {
+                  return <em key={idx}>{seg.slice(1, -1)}</em>;
+                }
+
+                // Handle simple list items: "- text"
+                if (seg.startsWith('- ')) {
+                  return <div key={idx} className="pl-4 border-l-2 border-primary/20 bg-primary/5 my-1 py-1 rounded-r-md">
+                    {seg}
+                  </div>;
+                }
+                return seg;
+              });
             })}
-          </p>
+          </div>
         )}
 
         {/* Link previews */}
