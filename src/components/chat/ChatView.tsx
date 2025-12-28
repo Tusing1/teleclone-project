@@ -478,30 +478,22 @@ export function ChatView({
           <ArrowLeft className="h-5 w-5" />
         </Button>
 
-        {isGroup ? (
-          <button
-            onClick={() => isAdminOrOwner && setShowGroupSettings(true)}
-            className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Users className="w-5 h-5 text-white" />
-          </button>
-        ) : isChannel ? (
-          <button
-            onClick={() => setShowChannelSettings(true)}
-            className="w-10 h-10 rounded-full bg-violet-500 flex items-center justify-center hover:opacity-90 transition-opacity cursor-pointer"
-          >
-            <Radio className="w-5 h-5 text-white" />
-          </button>
-        ) : (
-          <button onClick={() => setShowEditProfile(true)} className="cursor-pointer">
-            <Avatar
-              src={otherProfile?.avatar_url}
-              name={displayName}
-              size="sm"
-              isOnline={otherProfile?.is_online}
-            />
-          </button>
-        )}
+        <button
+          onClick={() => {
+            if (isGroup && isAdminOrOwner) setShowGroupSettings(true);
+            else if (isChannel) setShowChannelSettings(true);
+            else setShowEditProfile(true);
+          }}
+          className="cursor-pointer"
+        >
+          <Avatar
+            src={isGroup || isChannel ? conversation.avatar_url : otherProfile?.avatar_url}
+            name={displayName}
+            size="sm"
+            isOnline={isGroup || isChannel ? undefined : otherProfile?.is_online}
+            type={isGroup ? 'group' : isChannel ? 'channel' : 'user'}
+          />
+        </button>
 
         <div className="flex-1 min-w-0">
           <h2 className={cn(
