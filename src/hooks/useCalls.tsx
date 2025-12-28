@@ -295,7 +295,7 @@ export function useCalls(conversationId: string | null) {
           .eq('id', existingParticipant.id);
       } else {
         console.log('Joining: Creating new participant record before signaling');
-        await supabase
+        const { error: insertError } = await supabase
           .from('call_participants')
           .insert({
             call_id: callId,
@@ -303,6 +303,12 @@ export function useCalls(conversationId: string | null) {
             is_video_off: callType === 'voice',
             left_at: null
           });
+
+        if (insertError) {
+          console.error('Error creating participant record:', insertError);
+          throw insertError;
+        }
+        console.log('Participant added successfully');
       }
 
       setIsInCall(true);
