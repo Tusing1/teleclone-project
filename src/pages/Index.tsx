@@ -80,7 +80,7 @@ export default function Index() {
     getOrCreateSavedMessages,
     forwardToSavedMessages,
     forwardToConversation,
-    refetch: refetchConversations
+    fetchConversations: refetchConversations
   } = useConversations();
 
   const { pendingCount: friendRequestsCount } = useFriendRequests();
@@ -402,6 +402,7 @@ export default function Index() {
           onOpenFindFriends={() => setShowFindFriends(true)}
           onOpenMessageFriends={() => setShowMessageFriends(true)}
           pendingLikesCount={totalLikesCount}
+          loading={convLoading}
         />
       </div>
 
