@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
-import { 
-  Heart, X, Sparkles, Users, Crown, ChevronLeft, 
-  MessageCircle, Eye, Loader2 
+import {
+  Heart, X, Sparkles, Users, Crown, ChevronLeft,
+  MessageCircle, Eye, Loader2
 } from 'lucide-react';
 import {
   Dialog,
@@ -45,12 +45,12 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
 
   const handleSwipe = async (direction: 'left' | 'right') => {
     setSwipeDirection(direction);
-    
+
     // Animate card out
     setTimeout(async () => {
       const result = await swipe(direction);
       setSwipeDirection(null);
-      
+
       if (result?.matched && result.user && result.conversationId) {
         setMatchAnimation({ user: result.user, conversationId: result.conversationId });
       }
@@ -107,8 +107,8 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           {/* Profile image area */}
           <div className="relative h-72 bg-gradient-to-br from-pink-400 via-purple-500 to-indigo-600">
             {currentProfile.avatar_url ? (
-              <img 
-                src={currentProfile.avatar_url} 
+              <img
+                src={currentProfile.avatar_url}
                 alt={currentProfile.username}
                 className="w-full h-full object-cover"
               />
@@ -119,10 +119,10 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
                 </span>
               </div>
             )}
-            
+
             {/* Gradient overlay */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            
+
             {/* Profile info overlay */}
             <div className="absolute bottom-4 left-4 right-4 text-white">
               <h3 className="text-2xl font-bold">
@@ -140,13 +140,13 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
             <p className="text-muted-foreground text-sm line-clamp-2">
               {currentProfile.bio || "No bio yet. Say hi and get to know them!"}
             </p>
-            
+
             {/* Interests */}
             {currentProfile.interests && currentProfile.interests.length > 0 && (
               <div className="flex flex-wrap gap-1.5">
                 {currentProfile.interests.slice(0, 5).map((interest, idx) => (
-                  <Badge 
-                    key={idx} 
+                  <Badge
+                    key={idx}
                     variant="secondary"
                     className="text-xs"
                   >
@@ -174,7 +174,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           >
             <X className="h-8 w-8 text-red-500" />
           </Button>
-          
+
           <Button
             size="lg"
             className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 transition-all hover:scale-110 shadow-lg"
@@ -206,7 +206,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
     return (
       <div className="space-y-3 max-h-[450px] overflow-y-auto">
         {matches.map(match => (
-          <div 
+          <div
             key={match.id}
             className="flex items-center gap-3 p-3 rounded-xl bg-secondary/50 hover:bg-secondary transition-colors cursor-pointer"
             onClick={() => handleOpenMatch(match.conversation_id)}
@@ -253,7 +253,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           <p className="text-muted-foreground">
             Unlock to see who's interested in you and match instantly.
           </p>
-          <Button 
+          <Button
             className="bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600"
             onClick={handleUnlockLikes}
           >
@@ -281,7 +281,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
     return (
       <div className="space-y-3 max-h-[450px] overflow-y-auto">
         {likedByUsers.map(like => (
-          <div 
+          <div
             key={like.id}
             className="flex items-center gap-3 p-3 rounded-xl bg-gradient-to-r from-pink-500/10 to-purple-500/10 border border-pink-500/20"
           >
@@ -327,73 +327,73 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 flex items-center justify-center">
                 <Heart className="h-4 w-4 text-white" />
               </div>
-              Find Friends
+              StudyBuddies
             </DialogTitle>
           </DialogHeader>
 
-        {/* Tabs */}
-        <div className="flex border-b border-border">
-          <button
-            onClick={() => setActiveTab('discover')}
-            className={cn(
-              "flex-1 py-3 text-sm font-medium transition-colors relative",
-              activeTab === 'discover' 
-                ? "text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Sparkles className="h-4 w-4 inline mr-1" />
-            Discover
-            {activeTab === 'discover' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-600" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('matches')}
-            className={cn(
-              "flex-1 py-3 text-sm font-medium transition-colors relative",
-              activeTab === 'matches' 
-                ? "text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Users className="h-4 w-4 inline mr-1" />
-            Matches
-            {matches.length > 0 && (
-              <Badge className="ml-1 bg-pink-500 text-white text-xs">{matches.length}</Badge>
-            )}
-            {activeTab === 'matches' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-600" />
-            )}
-          </button>
-          <button
-            onClick={() => setActiveTab('likes')}
-            className={cn(
-              "flex-1 py-3 text-sm font-medium transition-colors relative",
-              activeTab === 'likes' 
-                ? "text-primary" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <Heart className="h-4 w-4 inline mr-1" />
-            Likes
-            {likedByCount > 0 && (
-              <Badge className="ml-1 bg-amber-500 text-white text-xs">{likedByCount}</Badge>
-            )}
-            {activeTab === 'likes' && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-600" />
-            )}
-          </button>
-        </div>
+          {/* Tabs */}
+          <div className="flex border-b border-border">
+            <button
+              onClick={() => setActiveTab('discover')}
+              className={cn(
+                "flex-1 py-3 text-sm font-medium transition-colors relative",
+                activeTab === 'discover'
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Sparkles className="h-4 w-4 inline mr-1" />
+              Discover
+              {activeTab === 'discover' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-600" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('matches')}
+              className={cn(
+                "flex-1 py-3 text-sm font-medium transition-colors relative",
+                activeTab === 'matches'
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Users className="h-4 w-4 inline mr-1" />
+              Matches
+              {matches.length > 0 && (
+                <Badge className="ml-1 bg-pink-500 text-white text-xs">{matches.length}</Badge>
+              )}
+              {activeTab === 'matches' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-600" />
+              )}
+            </button>
+            <button
+              onClick={() => setActiveTab('likes')}
+              className={cn(
+                "flex-1 py-3 text-sm font-medium transition-colors relative",
+                activeTab === 'likes'
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <Heart className="h-4 w-4 inline mr-1" />
+              Likes
+              {likedByCount > 0 && (
+                <Badge className="ml-1 bg-amber-500 text-white text-xs">{likedByCount}</Badge>
+              )}
+              {activeTab === 'likes' && (
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-pink-500 to-purple-600" />
+              )}
+            </button>
+          </div>
 
-        {/* Tab content */}
-        <div className="p-6 pt-4">
-          {activeTab === 'discover' && renderDiscoverTab()}
-          {activeTab === 'matches' && renderMatchesTab()}
-          {activeTab === 'likes' && renderLikesTab()}
-        </div>
-      </DialogContent>
-    </Dialog>
+          {/* Tab content */}
+          <div className="p-6 pt-4">
+            {activeTab === 'discover' && renderDiscoverTab()}
+            {activeTab === 'matches' && renderMatchesTab()}
+            {activeTab === 'likes' && renderLikesTab()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
