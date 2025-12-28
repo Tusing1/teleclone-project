@@ -46,30 +46,46 @@ export const IncomingCallListener = () => {
                     if (newCall.started_by === user.id) return; // Ignore calls started by self
 
                     console.log('📞 Detected new call:', newCall);
+                    console.log('📞 Checking participation for user:', user.id, 'conversation:', newCall.conversation_id);
 
                     // Check if we are a participant in this conversation
-                    const { data: participation } = await supabase
+                    const { data: participation, error: partError } = await supabase
                         .from('conversation_participants')
                         .select('role')
                         .eq('conversation_id', newCall.conversation_id)
                         .eq('user_id', user.id)
                         .maybeSingle();
 
+                    if (partError) {
+                        console.error('📞 Error checking participation:', partError);
+                    }
+
+                    console.log('📞 Participation result:', participation);
+
                     if (participation) {
-                        // We are relevant! Fetch caller info
-                        const { data: callerProfile } = await supabase
-                            .from('profiles')
-                            .select('username, full_name, avatar_url')
-                            .eq('user_id', newCall.started_by)
-                            .single();
+                        try {
+                            // We are relevant! Fetch caller info
+                            const { data: callerProfile, error: profileError } = await supabase
+                                .from('profiles')
+                                .select('username, full_name, avatar_url')
+                                .eq('user_id', newCall.started_by)
+                                .single();
 
-                        setIncomingCall({
-                            ...newCall,
-                            caller_profile: callerProfile || { username: 'Unknown User', full_name: 'Unknown', avatar_url: null }
-                        });
+                            if (profileError) console.error('📞 Error fetching caller profile:', profileError);
 
-                        // Play sound? (Might need user interaction first, so maybe just visual)
+                            console.log('📞 Setting incoming call with profile:', callerProfile);
+
+                            setIncomingCall({
+                                ...newCall,
+                                caller_profile: callerProfile || { username: 'Unknown User', full_name: 'Unknown', avatar_url: null }
+                            });
+                        } catch (err) {
+                            console.error('📞 Exception in incoming call handler:', err);
+                        }
+
                         // playRingtone();
+                    } else {
+                        console.log('📞 User is NOT a participant in this conversation. Ignoring call.');
                     }
                 }
             )
