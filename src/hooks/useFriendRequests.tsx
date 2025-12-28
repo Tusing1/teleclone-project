@@ -195,7 +195,7 @@ export function useFriendRequests() {
         const { data: newConv, error: convError } = await supabase
           .from('conversations')
           .insert({ type: 'direct' })
-          .select()
+          .select('id')
           .single();
 
         if (convError) {
