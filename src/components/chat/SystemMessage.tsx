@@ -1,4 +1,4 @@
-import { Radio, Phone } from 'lucide-react';
+import { Radio, Phone, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -9,6 +9,8 @@ interface SystemMessageProps {
   hasActiveCall?: boolean;
   onJoinCall?: () => void;
   isChannel?: boolean;
+  isAdmin?: boolean;
+  onDelete?: () => void;
 }
 
 export function SystemMessage({
@@ -17,7 +19,9 @@ export function SystemMessage({
   callId,
   hasActiveCall,
   onJoinCall,
-  isChannel = false
+  isChannel = false,
+  isAdmin = false,
+  onDelete
 }: SystemMessageProps) {
   const formatTime = (dateString: string) => {
     return new Date(dateString).toLocaleTimeString([], {
@@ -41,10 +45,9 @@ export function SystemMessage({
   const isMissed = content.toLowerCase().includes('missed');
 
   return (
-    <div className="flex justify-center my-4 w-full">
+    <div className="flex justify-center my-4 w-full group relative">
       <div className={cn(
         "bg-black/40 backdrop-blur-sm text-white px-4 py-1.5 rounded-full flex items-center gap-2 text-sm shadow-sm border border-white/5 mx-auto max-w-[90%]",
-        // Optional: differentiation based on state? For now, unified dark pill is cleaner.
       )}>
         {/* Icon Logic */}
         {isStarted ? (
@@ -70,6 +73,20 @@ export function SystemMessage({
           </Button>
         )}
       </div>
+
+      {/* Delete Trigger for Admins */}
+      {isAdmin && onDelete && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+          className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-[5%] top-1/2 -translate-y-1/2 p-1.5 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-full ml-2"
+          title="Delete system message"
+        >
+          <Trash2 className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 }
