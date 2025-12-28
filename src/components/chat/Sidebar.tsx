@@ -97,30 +97,31 @@ export function Sidebar({
             </div>
 
             {/* Quick Action Icons Row */}
-            <div className="grid grid-cols-4 gap-2 mt-4">
+            <div className="grid grid-cols-3 gap-3 mt-4">
               {/* Tokens */}
               {onOpenStudyTokens && (
                 <button
                   onClick={() => handleMenuClick(onOpenStudyTokens)}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
+                  className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-yellow-500/20 to-orange-500/10 hover:from-yellow-500/30 hover:to-orange-500/20 transition-all border border-yellow-400/20"
                 >
-                  <div className="relative">
-                    <Coins className="h-5 w-5 text-yellow-300" />
+                  <div className="p-2 rounded-full bg-yellow-400/20">
+                    <Coins className="h-6 w-6 text-yellow-300" />
                   </div>
-                  <span className="text-[10px] text-primary-foreground/80">Tokens</span>
-                  <span className="text-xs font-bold text-yellow-300">{balance}</span>
+                  <span className="text-xs font-medium text-primary-foreground/90">Tokens</span>
+                  <span className="text-sm font-bold text-yellow-300">{balance}</span>
                 </button>
               )}
-
 
               {/* Ask AI */}
               {onOpenAskAI && (
                 <button
                   onClick={() => handleMenuClick(onOpenAskAI)}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
+                  className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 hover:from-cyan-500/30 hover:to-blue-500/20 transition-all border border-cyan-400/20"
                 >
-                  <Bot className="h-5 w-5 text-cyan-300" />
-                  <span className="text-[10px] text-primary-foreground/80">AI</span>
+                  <div className="p-2 rounded-full bg-cyan-400/20">
+                    <Bot className="h-6 w-6 text-cyan-300" />
+                  </div>
+                  <span className="text-xs font-medium text-primary-foreground/90">Ask AI</span>
                 </button>
               )}
 
@@ -128,10 +129,12 @@ export function Sidebar({
               {onOpenGlobalSearch && (
                 <button
                   onClick={() => handleMenuClick(onOpenGlobalSearch)}
-                  className="flex flex-col items-center gap-1 p-2 rounded-lg bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
+                  className="flex flex-col items-center justify-center gap-1.5 p-3 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/10 hover:from-purple-500/30 hover:to-pink-500/20 transition-all border border-purple-400/20"
                 >
-                  <Search className="h-5 w-5 text-primary-foreground/90" />
-                  <span className="text-[10px] text-primary-foreground/80">Search</span>
+                  <div className="p-2 rounded-full bg-purple-400/20">
+                    <Search className="h-6 w-6 text-purple-300" />
+                  </div>
+                  <span className="text-xs font-medium text-primary-foreground/90">Search</span>
                 </button>
               )}
             </div>
