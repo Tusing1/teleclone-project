@@ -31,6 +31,7 @@ import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
 import { StudyBuddiesDialog } from '@/components/chat/StudyBuddiesDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
+import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -109,6 +110,8 @@ export default function Index() {
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
+  const [showInterestsOnboarding, setShowInterestsOnboarding] = useState(false);
+  const { profile } = useAuth();
 
   // Discussion group navigation state
   const [discussionContext, setDiscussionContext] = useState<{
@@ -148,6 +151,15 @@ export default function Index() {
       });
     }
   }, [user, processReferralCode]);
+
+  // Handle mandatory interests onboarding
+  useEffect(() => {
+    if (!authLoading && user && profile) {
+      if (!profile.interests || profile.interests.length < 3) {
+        setShowInterestsOnboarding(true);
+      }
+    }
+  }, [authLoading, user, profile]);
 
   // Global call and livestream notifications
   useEffect(() => {
@@ -575,6 +587,17 @@ export default function Index() {
         url={browserUrl || ''}
         onClose={() => setBrowserUrl(null)}
       />
+      {/* Interests Onboarding - Mandatory */}
+      {user && (
+        <InterestsOnboarding
+          open={showInterestsOnboarding}
+          onComplete={() => {
+            setShowInterestsOnboarding(false);
+            window.location.reload(); // Refresh to get updated profile
+          }}
+          userId={user.id}
+        />
+      )}
     </div>
   );
 }
