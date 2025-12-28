@@ -28,6 +28,7 @@ interface SidebarProps {
   onOpenAdminPanel?: () => void;
   onOpenAskAI?: () => void;
   onOpenFriendRequests?: () => void;
+  onOpenStudyBuddies?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -46,6 +47,7 @@ export function Sidebar({
   onOpenAdminPanel,
   onOpenAskAI,
   onOpenFriendRequests,
+  onOpenStudyBuddies,
   onOpenSettings
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
@@ -178,6 +180,14 @@ export function Sidebar({
             >
               <UserPlus className="h-5 w-5 text-muted-foreground" />
               <span>Invite Friends</span>
+            </button>
+
+            <button
+              onClick={() => handleMenuClick(onOpenStudyBuddies!)}
+              className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+            >
+              <Users className="h-5 w-5 text-muted-foreground" />
+              <span>StudyBuddies</span>
             </button>
 
             {/* Friend Requests */}
