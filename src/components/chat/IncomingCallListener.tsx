@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Phone, PhoneOff, Video } from 'lucide-react';
+import { Phone, PhoneOff } from 'lucide-react';
 import { Avatar } from './Avatar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -12,7 +12,7 @@ interface IncomingCall {
     id: string;
     conversation_id: string;
     started_by: string;
-    call_type: 'voice' | 'video';
+    call_type: 'voice';
     caller_profile?: {
         username: string;
         full_name: string | null;
@@ -127,7 +127,8 @@ export const IncomingCallListener = () => {
 
     const handleAccept = () => {
         if (incomingCall) {
-            navigate(`/chat/${incomingCall.conversation_id}`);
+            // Navigate to home with conversationId in state - Index.tsx will select the conversation
+            navigate('/', { state: { conversationId: incomingCall.conversation_id } });
             setIncomingCall(null);
             // The CallView in the chat page handles the actual joining logic
         }
@@ -162,8 +163,8 @@ export const IncomingCallListener = () => {
                     </DialogDescription>
 
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        {incomingCall.call_type === 'video' ? <Video className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
-                        Incoming {incomingCall.call_type} call
+                        <Phone className="h-4 w-4" />
+                        Incoming voice call
                     </div>
                 </DialogHeader>
 

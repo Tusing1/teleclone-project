@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Video, Phone, Trash2, Plus } from 'lucide-react';
+import { Calendar, Clock, Phone, Trash2, Plus } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -55,7 +55,6 @@ export function ScheduleCallDialog({
   const [description, setDescription] = useState('');
   const [scheduledDate, setScheduledDate] = useState('');
   const [scheduledTime, setScheduledTime] = useState('');
-  const [callType, setCallType] = useState<'video' | 'voice'>('video');
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
@@ -101,7 +100,7 @@ export function ScheduleCallDialog({
         title: title.trim(),
         description: description.trim() || null,
         scheduled_at: scheduledAt.toISOString(),
-        call_type: callType,
+        call_type: 'voice',
       });
 
     setCreating(false);
@@ -220,28 +219,6 @@ export function ScheduleCallDialog({
                   </div>
                 </div>
 
-                <div>
-                  <Label className="text-slate-300">Call Type</Label>
-                  <Select value={callType} onValueChange={(v) => setCallType(v as 'video' | 'voice')}>
-                    <SelectTrigger className="mt-1 bg-slate-700 border-slate-600 text-slate-100">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-slate-700 border-slate-600">
-                      <SelectItem value="video" className="text-slate-100">
-                        <span className="flex items-center gap-2">
-                          <Video className="h-4 w-4" />
-                          Video Call
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="voice" className="text-slate-100">
-                        <span className="flex items-center gap-2">
-                          <Phone className="h-4 w-4" />
-                          Voice Call
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
                 <Button 
                   onClick={handleCreateCall} 
@@ -286,11 +263,7 @@ export function ScheduleCallDialog({
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            {call.call_type === 'video' ? (
-                              <Video className="h-4 w-4 text-blue-400" />
-                            ) : (
-                              <Phone className="h-4 w-4 text-green-400" />
-                            )}
+                            <Phone className="h-4 w-4 text-green-400" />
                             <p className="text-sm font-medium text-slate-200 truncate">
                               {call.title}
                             </p>

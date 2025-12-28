@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, Video, User } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
@@ -169,14 +169,14 @@ export function ChatView({
   // Typing indicator
   const { typingUsers, handleTyping } = useTypingIndicator(conversation.id);
 
-  const handleStartCall = async (type: 'voice' | 'video') => {
+  const handleStartCall = async () => {
     if (isChannel) {
       // For channels, show the live stream preview
       setShowLiveStreamPreview(true);
     } else {
-      const callId = await startCall(type);
+      const callId = await startCall('voice');
       if (callId) {
-        toast.success(`${type === 'video' ? 'Video' : 'Voice'} call started`);
+        toast.success('Voice call started');
       } else {
         toast.error('Failed to start call');
       }
@@ -407,7 +407,7 @@ export function ChatView({
   if (isInCall && activeCall && !isChannel) {
     return (
       <CallView
-        callType={activeCall.call_type}
+        callType="voice"
         participants={callParticipants}
         localStream={useCallsLocalStream}
         remoteStreams={useCallsRemoteStreams}
@@ -415,11 +415,7 @@ export function ChatView({
         onLeave={leaveCall}
         onEnd={endCall}
         onToggleMute={toggleMute}
-        onToggleVideo={toggleVideo}
-        onToggleScreenShare={activeCall.call_type === 'video' ? toggleScreenShare : undefined}
         isMuted={isMuted}
-        isVideoOff={isVideoOff}
-        isScreenSharing={isScreenSharing}
         isRecording={isCallRecording}
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
@@ -569,13 +565,9 @@ export function ChatView({
             {/* Call options for direct chats */}
             {!isGroup && !isChannel && (
               <>
-                <DropdownMenuItem onClick={() => handleStartCall('voice')}>
+                <DropdownMenuItem onClick={() => handleStartCall()}>
                   <Phone className="h-4 w-4 mr-2" />
                   Voice Call
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => handleStartCall('video')}>
-                  <Video className="h-4 w-4 mr-2" />
-                  Video Call
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setShowEditProfile(true)}>
                   <User className="h-4 w-4 mr-2" />
