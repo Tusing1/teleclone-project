@@ -1,3 +1,4 @@
+import { Users, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AvatarProps {
@@ -6,6 +7,7 @@ interface AvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   isOnline?: boolean;
   className?: string;
+  type?: 'user' | 'group' | 'channel';
 }
 
 const sizeClasses = {
@@ -15,9 +17,17 @@ const sizeClasses = {
   xl: 'w-24 h-24 text-3xl'
 };
 
-export function Avatar({ src, name, size = 'md', isOnline, className }: AvatarProps) {
+const iconSizes = {
+  sm: 'w-5 h-5',
+  md: 'w-6 h-6',
+  lg: 'w-8 h-8',
+  xl: 'w-12 h-12'
+};
+
+export function Avatar({ src, name, size = 'md', isOnline, className, type = 'user' }: AvatarProps) {
   const initials = name
     .split(' ')
+    .filter(Boolean)
     .map(n => n[0])
     .join('')
     .toUpperCase()
@@ -30,8 +40,10 @@ export function Avatar({ src, name, size = 'md', isOnline, className }: AvatarPr
     'bg-violet-500', 'bg-purple-500', 'bg-fuchsia-500', 'bg-pink-500'
   ];
 
-  const colorIndex = name.charCodeAt(0) % colors.length;
-  const bgColor = colors[colorIndex];
+  const colorIndex = name ? name.charCodeAt(0) % colors.length : 0;
+  const bgColor = type === 'group' ? 'bg-emerald-500' :
+    type === 'channel' ? 'bg-violet-500' :
+      colors[colorIndex];
 
   return (
     <div className={cn('relative flex-shrink-0', className)}>
@@ -52,10 +64,16 @@ export function Avatar({ src, name, size = 'md', isOnline, className }: AvatarPr
             bgColor
           )}
         >
-          {initials}
+          {type === 'group' ? (
+            <Users className={iconSizes[size]} />
+          ) : type === 'channel' ? (
+            <Radio className={iconSizes[size]} />
+          ) : (
+            initials || '?'
+          )}
         </div>
       )}
-      {isOnline !== undefined && (
+      {isOnline !== undefined && type === 'user' && (
         <span
           className={cn(
             'absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card',
