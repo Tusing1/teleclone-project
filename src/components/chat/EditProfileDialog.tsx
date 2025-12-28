@@ -31,7 +31,7 @@ interface EditProfileDialogProps {
 export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
   const { profile, user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [fullName, setFullName] = useState('');
   const [username, setUsername] = useState('');
   const [bio, setBio] = useState('');
@@ -39,7 +39,7 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
   const [availableInterests, setAvailableInterests] = useState<InterestCategory[]>([]);
-  
+
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
@@ -60,12 +60,12 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
         .from('interest_categories')
         .select('*')
         .order('name');
-      
+
       if (data) {
         setAvailableInterests(data);
       }
     };
-    
+
     if (open) {
       fetchInterests();
     }
@@ -119,10 +119,10 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
   };
 
   const toggleInterest = (interest: string) => {
-    setInterests(prev => 
+    setInterests(prev =>
       prev.includes(interest)
         ? prev.filter(i => i !== interest)
-        : prev.length < 10 
+        : prev.length < 10
           ? [...prev, interest]
           : prev
     );
@@ -139,6 +139,11 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
 
     if (username.length < 3) {
       toast.error('Username must be at least 3 characters');
+      return;
+    }
+
+    if (interests.length < 3) {
+      toast.error('Please select at least 3 interests');
       return;
     }
 
@@ -161,7 +166,7 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
 
       toast.success('Profile updated!');
       onClose();
-      
+
       // Reload to reflect changes
       window.location.reload();
     } catch (error: any) {
@@ -299,8 +304,11 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label>Interests</Label>
-              <span className="text-xs text-muted-foreground">
-                {interests.length}/10 selected
+              <span className={cn(
+                "text-xs",
+                interests.length < 3 ? "text-amber-500 font-medium" : "text-muted-foreground"
+              )}>
+                {interests.length}/10 selected {interests.length < 3 && `(min 3)`}
               </span>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -334,8 +342,8 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
             <Button variant="outline" onClick={onClose} className="flex-1">
               Cancel
             </Button>
-            <Button 
-              onClick={handleSave} 
+            <Button
+              onClick={handleSave}
               disabled={saving}
               className="flex-1 bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700"
             >
