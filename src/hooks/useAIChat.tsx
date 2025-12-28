@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useStudyTokens, TOKEN_COSTS } from '@/hooks/useStudyTokens';
@@ -19,10 +19,12 @@ const TOKENS_PER_QUESTION = 5;
 
 export function useAIChat() {
   const { user } = useAuth();
-  const { balance, spendTokens } = useStudyTokens();
+  const { balance, spendTokens, isFeatureUnlocked } = useStudyTokens();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [usage, setUsage] = useState<AIUsage | null>(null);
+  const [isUnlimited, setIsUnlimited] = useState(false);
+  const [isExtended, setIsExtended] = useState(false);
 
   const fetchUsage = useCallback(async () => {
     if (!user) return;
@@ -70,10 +72,24 @@ export function useAIChat() {
     }
   }, [user]);
 
+  useEffect(() => {
+    const checkPremium = async () => {
+      if (!user) return;
+      const unlimited = await isFeatureUnlocked('UNLIMITED_AI');
+      const extended = await isFeatureUnlocked('EXTENDED_AI');
+      setIsUnlimited(unlimited);
+      setIsExtended(extended);
+    };
+    checkPremium();
+  }, [user, isFeatureUnlocked]);
+
+  const dailyLimit = isExtended ? 50 : FREE_QUESTIONS_PER_DAY;
+
   const getFreeQuestionsRemaining = useCallback(() => {
-    if (!usage) return FREE_QUESTIONS_PER_DAY;
-    return Math.max(0, FREE_QUESTIONS_PER_DAY - usage.question_count);
-  }, [usage]);
+    if (isUnlimited) return 999;
+    if (!usage) return dailyLimit;
+    return Math.max(0, dailyLimit - usage.question_count);
+  }, [usage, isUnlimited, dailyLimit]);
 
   const canAskQuestion = useCallback(() => {
     const freeRemaining = getFreeQuestionsRemaining();
