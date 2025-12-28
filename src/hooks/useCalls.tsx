@@ -241,6 +241,28 @@ export function useCalls(conversationId: string | null) {
     }
 
     console.log('New call created, joining as creator:', data.id);
+
+    // DEBUG: Check RLS prerequisites immediately after creation
+    try {
+      console.log('🔍 Debugging RLS: Checking is_conversation_member...');
+      const { data: isMember, error: rpcError } = await supabase.rpc('is_conversation_member', {
+        _user_id: user.id,
+        _conversation_id: conversationId
+      });
+      console.log('🔍 is_conversation_member result:', isMember, 'Error:', rpcError);
+
+      console.log('🔍 Debugging RLS: Checking visibility of new call...');
+      const { data: visibleCall, error: visError } = await supabase
+        .from('calls')
+        .select('*')
+        .eq('id', data.id)
+        .maybeSingle();
+      console.log('🔍 Call visibility:', visibleCall ? 'Visible' : 'Not Visible', 'Error:', visError);
+
+    } catch (debugErr) {
+      console.error('🔍 Debug check failed:', debugErr);
+    }
+
     await joinCall(data.id, callType, true);
     return data.id;
   };
