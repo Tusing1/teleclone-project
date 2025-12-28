@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, Bot, Heart, MessageCircle, X } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -26,6 +27,7 @@ interface ConversationListProps {
   onOpenFindFriends?: () => void;
   onOpenMessageFriends?: () => void;
   pendingLikesCount?: number;
+  loading?: boolean;
 }
 
 export function ConversationList({
@@ -40,7 +42,8 @@ export function ConversationList({
   onOpenAskAI,
   onOpenFindFriends,
   onOpenMessageFriends,
-  pendingLikesCount = 0
+  pendingLikesCount = 0,
+  loading = false
 }: ConversationListProps) {
   const { user } = useAuth();
   const [search, setSearch] = useState('');
@@ -333,6 +336,23 @@ export function ConversationList({
     );
   };
 
+  const renderSkeleton = () => (
+    <div className="space-y-1">
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <div key={i} className="flex items-center gap-3 p-3">
+          <Skeleton className="w-12 h-12 rounded-full shrink-0" />
+          <div className="flex-1 space-y-2 min-w-0">
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-3 w-12" />
+            </div>
+            <Skeleton className="h-3 w-3/4" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div className="flex flex-col h-full bg-card">
       {/* Header */}
@@ -391,7 +411,9 @@ export function ConversationList({
 
         {/* Content with pull offset */}
         <div style={{ transform: `translateY(${pullDistance}px)` }}>
-          {filteredConversations.length === 0 ? (
+          {loading ? (
+            renderSkeleton()
+          ) : filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground">
               <p>No conversations yet</p>
               <Button
