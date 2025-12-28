@@ -1,100 +1,91 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { ConversationWithDetails, Profile, Message } from '@/types/chat';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 export function useConversations() {
   const { user } = useAuth();
-  const [conversations, setConversations] = useState<ConversationWithDetails[]>([]);
-  const [archivedConversations, setArchivedConversations] = useState<ConversationWithDetails[]>([]);
+  const queryClient = useQueryClient();
   const [savedMessagesId, setSavedMessagesId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
 
-  const fetchConversations = useCallback(async () => {
-    if (!user) return;
+  const { data: conversationsData = [], isLoading: loading } = useQuery({
+    queryKey: ['conversations', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
 
-    // Get all conversations for this user
-    const { data: participantData, error: participantError } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id);
+      // Get all conversations for this user
+      const { data: participantData, error: participantError } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
 
-    if (participantError || !participantData?.length) {
-      setConversations([]);
-      setArchivedConversations([]);
-      setLoading(false);
-      return;
-    }
+      if (participantError || !participantData?.length) return [];
 
-    const conversationIds = participantData.map(p => p.conversation_id);
+      const conversationIds = participantData.map(p => p.conversation_id);
 
-    // Get conversation details with participants
-    const { data: conversationsData, error: convError } = await supabase
-      .from('conversations')
-      .select('*')
-      .in('id', conversationIds)
-      .order('updated_at', { ascending: false });
+      // Get conversation details with participants
+      const { data: conversations, error: convError } = await supabase
+        .from('conversations')
+        .select('*')
+        .in('id', conversationIds)
+        .order('updated_at', { ascending: false });
 
-    if (convError || !conversationsData) {
-      setLoading(false);
-      return;
-    }
+      if (convError || !conversations) return [];
 
-    // Get all participants for these conversations
-    const { data: allParticipants } = await supabase
-      .from('conversation_participants')
-      .select('*')
-      .in('conversation_id', conversationIds);
+      // Get all participants for these conversations
+      const { data: allParticipants } = await supabase
+        .from('conversation_participants')
+        .select('*')
+        .in('conversation_id', conversationIds);
 
-    // Get profiles for all participants
-    const participantUserIds = [...new Set(allParticipants?.map(p => p.user_id) || [])];
-    const { data: profiles } = await supabase
-      .from('profiles')
-      .select('*')
-      .in('user_id', participantUserIds);
+      // Get profiles for all participants
+      const participantUserIds = [...new Set(allParticipants?.map(p => p.user_id) || [])];
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('user_id', participantUserIds);
 
-    // Get last message for each conversation
-    const { data: lastMessages } = await supabase
-      .from('messages')
-      .select('*')
-      .in('conversation_id', conversationIds)
-      .order('created_at', { ascending: false });
+      // Get last message for each conversation
+      const { data: lastMessages } = await supabase
+        .from('messages')
+        .select('*')
+        .in('conversation_id', conversationIds)
+        .order('created_at', { ascending: false });
 
-    // Build conversation objects
-    const conversationsWithDetails: ConversationWithDetails[] = conversationsData.map(conv => {
-      const convParticipants = allParticipants?.filter(p => p.conversation_id === conv.id) || [];
-      const participantsWithProfiles = convParticipants.map(p => ({
-        ...p,
-        profile: profiles?.find(profile => profile.user_id === p.user_id) as Profile
-      }));
+      // Build conversation objects
+      const details: ConversationWithDetails[] = conversations.map(conv => {
+        const convParticipants = allParticipants?.filter(p => p.conversation_id === conv.id) || [];
+        const participantsWithProfiles = convParticipants.map(p => ({
+          ...p,
+          profile: profiles?.find(profile => profile.user_id === p.user_id) as Profile
+        }));
 
-      const convMessages = lastMessages?.filter(m => m.conversation_id === conv.id) || [];
-      const lastMessage = convMessages[0] as Message | undefined;
+        const convMessages = lastMessages?.filter(m => m.conversation_id === conv.id) || [];
+        const lastMessage = convMessages[0] as Message | undefined;
 
-      // Check if this is a self-chat conversation (only one participant, it's the current user, and it's a direct type)
-      const isSelfChat = conv.type === 'direct' && convParticipants.length === 1 && convParticipants[0].user_id === user.id;
+        const isSelfChat = conv.type === 'direct' && convParticipants.length === 1 && convParticipants[0].user_id === user.id;
 
-      return {
-        ...conv,
-        participants: participantsWithProfiles,
-        lastMessage,
-        isSavedMessages: isSelfChat, // Keep this for backwards compatibility
-        isSelfChat,
-        is_archived: conv.is_archived || false,
-      };
-    });
+        return {
+          ...conv,
+          participants: participantsWithProfiles,
+          lastMessage,
+          isSavedMessages: isSelfChat,
+          isSelfChat,
+          is_archived: conv.is_archived || false,
+        };
+      });
 
-    // Find and store self-chat ID (only one should exist now)
-    const selfChatConv = conversationsWithDetails.find(c => c.isSelfChat || c.isSavedMessages);
-    if (selfChatConv) {
-      setSavedMessagesId(selfChatConv.id);
-    }
+      return details;
+    },
+    enabled: !!user,
+    staleTime: 30000, // Consider data fresh for 30s
+  });
 
-    // Separate archived and active conversations
-    const active = conversationsWithDetails.filter(c => !c.is_archived);
-    const archived = conversationsWithDetails.filter(c => c.is_archived);
+  const { active, archived } = useMemo(() => {
+    const active = conversationsData.filter(c => !c.is_archived);
+    const archived = conversationsData.filter(c => c.is_archived);
 
-    // Sort by last message time (self-chat treated like any other conversation now)
     const sortFn = (a: ConversationWithDetails, b: ConversationWithDetails) => {
       const aTime = a.lastMessage?.created_at || a.updated_at;
       const bTime = b.lastMessage?.created_at || b.updated_at;
@@ -104,14 +95,19 @@ export function useConversations() {
     active.sort(sortFn);
     archived.sort(sortFn);
 
-    setConversations(active);
-    setArchivedConversations(archived);
-    setLoading(false);
-  }, [user]);
+    return { active, archived };
+  }, [conversationsData]);
 
   useEffect(() => {
-    fetchConversations();
-  }, [fetchConversations]);
+    const selfChatConv = conversationsData.find(c => c.isSelfChat || c.isSavedMessages);
+    if (selfChatConv) {
+      setSavedMessagesId(selfChatConv.id);
+    }
+  }, [conversationsData]);
+
+  const fetchConversations = useCallback(async () => {
+    await queryClient.invalidateQueries({ queryKey: ['conversations', user?.id] });
+  }, [queryClient, user?.id]);
 
   // Subscribe to new messages to update conversation list
   useEffect(() => {
@@ -459,27 +455,27 @@ export function useConversations() {
 
   const getUserRole = (conversationId: string): string | null => {
     if (!user) return null;
-    const conv = [...conversations, ...archivedConversations].find(c => c.id === conversationId);
+    const conv = [...active, ...archived].find(c => c.id === conversationId);
     if (!conv) return null;
     const participant = conv.participants.find(p => p.user_id === user.id);
     return participant?.role || null;
   };
 
   return {
-    conversations,
-    archivedConversations,
+    conversations: active,
+    archivedConversations: archived,
+    savedMessagesId,
     loading,
+    fetchConversations,
     createConversation,
     createGroup,
     createChannel,
     archiveConversation,
     unarchiveConversation,
-    deleteConversation,
-    getUserRole,
-    refetch: fetchConversations,
-    savedMessagesId,
     getOrCreateSavedMessages,
     forwardToSavedMessages,
-    forwardToConversation
+    forwardToConversation,
+    deleteConversation,
+    getUserRole
   };
 }
