@@ -155,24 +155,73 @@ export function useFriendRequests() {
 
       if (updateError) throw updateError;
 
-      // Create conversation using edge function
-      const { data, error: convError } = await supabase.functions.invoke('create-conversation', {
-        body: { participantId: request.sender_id }
-      });
+      // Create conversation directly (instead of using edge function)
+      // Check if a direct conversation already exists between these two users
+      const { data: existingParticipants } = await supabase
+        .from('conversation_participants')
+        .select('conversation_id')
+        .eq('user_id', user.id);
 
-      if (convError) {
-        console.error('Error creating conversation via edge function:', convError);
-        throw convError;
+      let conversationId: string | null = null;
+
+      if (existingParticipants) {
+        for (const p of existingParticipants) {
+          // First verify this is a DIRECT conversation
+          const { data: convData } = await supabase
+            .from('conversations')
+            .select('type')
+            .eq('id', p.conversation_id)
+            .single();
+
+          if (convData?.type !== 'direct') continue;
+
+          const { data: otherParticipant } = await supabase
+            .from('conversation_participants')
+            .select('*')
+            .eq('conversation_id', p.conversation_id)
+            .eq('user_id', request.sender_id)
+            .maybeSingle();
+
+          if (otherParticipant) {
+            // Direct conversation exists, use its ID
+            conversationId = p.conversation_id;
+            break;
+          }
+        }
       }
 
-      if (!data?.id) {
-        console.error('Edge function did not return conversation ID:', data);
-        throw new Error('Failed to create conversation');
+      // Create new conversation if none exists
+      if (!conversationId) {
+        const { data: newConv, error: convError } = await supabase
+          .from('conversations')
+          .insert({ type: 'direct' })
+          .select()
+          .single();
+
+        if (convError) {
+          console.error('Error creating conversation:', convError);
+          throw convError;
+        }
+
+        // Add participants
+        const { error: partError } = await supabase
+          .from('conversation_participants')
+          .insert([
+            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
+            { conversation_id: newConv.id, user_id: request.sender_id, role: 'member' }
+          ]);
+
+        if (partError) {
+          console.error('Error adding participants:', partError);
+          throw partError;
+        }
+
+        conversationId = newConv.id;
       }
 
       toast.success('Friend request accepted!');
       await fetchRequests();
-      return data.id;
+      return conversationId;
     } catch (error) {
       console.error('Error accepting request:', error);
       toast.error('Failed to accept request');
