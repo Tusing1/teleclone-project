@@ -192,11 +192,12 @@ export function useFriendRequests() {
 
       // Create new conversation if none exists
       if (!conversationId) {
-        const { data: newConv, error: convError } = await supabase
+        // Generate UUID on client side to avoid RLS SELECT issue
+        const newConvId = crypto.randomUUID();
+
+        const { error: convError } = await supabase
           .from('conversations')
-          .insert({ type: 'direct' })
-          .select('id')
-          .single();
+          .insert({ id: newConvId, type: 'direct' });
 
         if (convError) {
           console.error('Error creating conversation:', convError);
@@ -207,8 +208,8 @@ export function useFriendRequests() {
         const { error: partError } = await supabase
           .from('conversation_participants')
           .insert([
-            { conversation_id: newConv.id, user_id: user.id, role: 'member' },
-            { conversation_id: newConv.id, user_id: request.sender_id, role: 'member' }
+            { conversation_id: newConvId, user_id: user.id, role: 'member' },
+            { conversation_id: newConvId, user_id: request.sender_id, role: 'member' }
           ]);
 
         if (partError) {
@@ -216,7 +217,7 @@ export function useFriendRequests() {
           throw partError;
         }
 
-        conversationId = newConv.id;
+        conversationId = newConvId;
       }
 
       toast.success('Friend request accepted!');
