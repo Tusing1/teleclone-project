@@ -26,6 +26,7 @@ import { AdminPanelDialog } from '@/components/chat/AdminPanelDialog';
 import { AskAIDialog } from '@/components/chat/AskAIDialog';
 import { FriendRequestsDialog } from '@/components/chat/FriendRequestsDialog';
 import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
+import { StudyBuddiesDialog } from '@/components/chat/StudyBuddiesDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
@@ -96,6 +97,7 @@ export default function Index() {
   const [showAskAI, setShowAskAI] = useState(false);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [showMessageFriends, setShowMessageFriends] = useState(false);
+  const [showStudyBuddies, setShowStudyBuddies] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -370,6 +372,7 @@ export default function Index() {
         onOpenAdminPanel={() => setShowAdminPanel(true)}
         onOpenAskAI={() => setShowAskAI(true)}
         onOpenFriendRequests={() => setShowFriendRequests(true)}
+        onOpenStudyBuddies={() => setShowStudyBuddies(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
 
@@ -546,6 +549,12 @@ export default function Index() {
         onSelectConversation={(conversationId) => {
           setSelectedConversationId(conversationId);
         }}
+      />
+
+      <StudyBuddiesDialog
+        open={showStudyBuddies}
+        onClose={() => setShowStudyBuddies(false)}
+        onSelectUser={handleSelectUser}
       />
 
       <SettingsDialog
