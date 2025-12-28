@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Circle, Wifi, WifiOff, Monitor, MonitorOff, Volume2 } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Users, Circle, Wifi, WifiOff, Volume2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
@@ -18,7 +18,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface CallViewProps {
-  callType: 'voice' | 'video';
+  callType: 'voice';
   participants: CallParticipant[];
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
@@ -26,11 +26,7 @@ interface CallViewProps {
   onLeave: () => void;
   onEnd: () => void;
   onToggleMute: () => void;
-  onToggleVideo: () => void;
-  onToggleScreenShare?: () => void;
   isMuted: boolean;
-  isVideoOff: boolean;
-  isScreenSharing?: boolean;
   isRecording: boolean;
   onStartRecording: (title: string) => void;
   onStopRecording: () => void;
@@ -67,11 +63,7 @@ export const CallView: React.FC<CallViewProps> = ({
   onLeave,
   onEnd,
   onToggleMute,
-  onToggleVideo,
-  onToggleScreenShare,
   isMuted,
-  isVideoOff,
-  isScreenSharing = false,
   isRecording,
   onStartRecording,
   onStopRecording,
@@ -84,13 +76,6 @@ export const CallView: React.FC<CallViewProps> = ({
 
   // Audio level for local stream
   const { isSpeaking: localIsSpeaking } = useAudioLevel(localStream);
-
-  // Play local video stream
-  useEffect(() => {
-    if (localVideoRef.current && localStream && !isVideoOff) {
-      localVideoRef.current.srcObject = localStream;
-    }
-  }, [localStream, isVideoOff]);
 
   // Play remote video streams
   useEffect(() => {
@@ -190,7 +175,7 @@ export const CallView: React.FC<CallViewProps> = ({
               "w-2 h-2 rounded-full",
               connectionStatus === 'connected' ? "bg-green-500 animate-pulse" : "bg-yellow-500"
             )} />
-            {callType === 'video' ? 'Video Call' : 'Voice Call'}
+            Voice Call
           </div>
         </div>
       </div>
@@ -206,28 +191,18 @@ export const CallView: React.FC<CallViewProps> = ({
             {/* Audio level indicator ring */}
             <AudioIndicator stream={localStream} showRing={!isMuted} />
 
-            {callType === 'video' && !isVideoOff && localStream ? (
-              <video
-                ref={localVideoRef}
-                autoPlay
-                playsInline
-                muted
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <div className={cn(
-                  "relative transition-all duration-150",
-                  localIsSpeaking && !isMuted && "scale-110"
-                )}>
-                  <Avatar name="You" size="lg" />
-                  {localIsSpeaking && !isMuted && (
-                    <div className="absolute inset-0 rounded-full border-4 border-green-500 animate-ping opacity-75" />
-                  )}
-                </div>
-                <span className="text-sm font-medium">You</span>
+            <div className="flex flex-col items-center gap-2">
+              <div className={cn(
+                "relative transition-all duration-150",
+                localIsSpeaking && !isMuted && "scale-110"
+              )}>
+                <Avatar name="You" size="lg" />
+                {localIsSpeaking && !isMuted && (
+                  <div className="absolute inset-0 rounded-full border-4 border-green-500 animate-ping opacity-75" />
+                )}
               </div>
-            )}
+              <span className="text-sm font-medium">You</span>
+            </div>
 
             {/* Mute indicator with animation */}
             <div className={cn(
@@ -251,7 +226,6 @@ export const CallView: React.FC<CallViewProps> = ({
           {/* Remote participants with streams */}
           {Array.from(remoteStreams.entries()).map(([streamId, stream]) => {
             const participant = remoteParticipants[0]; // For 1:1 calls
-            const showVideo = callType === 'video' && stream;
 
             return (
               <div
@@ -261,25 +235,16 @@ export const CallView: React.FC<CallViewProps> = ({
                 {/* Audio level indicator ring */}
                 <AudioIndicator stream={stream} showRing={!participant?.is_muted} />
 
-                {showVideo ? (
-                  <video
-                    ref={setRemoteVideoRef(streamId)}
-                    autoPlay
-                    playsInline
-                    className="w-full h-full object-cover"
+                <div className="flex flex-col items-center gap-2">
+                  <Avatar
+                    name={participant?.profile?.full_name || participant?.profile?.username || 'Remote'}
+                    src={participant?.profile?.avatar_url || undefined}
+                    size="lg"
                   />
-                ) : (
-                  <div className="flex flex-col items-center gap-2">
-                    <Avatar
-                      name={participant?.profile?.full_name || participant?.profile?.username || 'Remote'}
-                      src={participant?.profile?.avatar_url || undefined}
-                      size="lg"
-                    />
-                    <span className="text-sm font-medium">
-                      {participant?.profile?.full_name || participant?.profile?.username || 'Remote User'}
-                    </span>
-                  </div>
-                )}
+                  <span className="text-sm font-medium">
+                    {participant?.profile?.full_name || participant?.profile?.username || 'Remote User'}
+                  </span>
+                </div>
 
                 {/* Mute indicator with animation */}
                 <div className={cn(
@@ -361,40 +326,6 @@ export const CallView: React.FC<CallViewProps> = ({
         >
           {isMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
         </Button>
-
-        {/* Video button with animated states */}
-        {callType === 'video' && (
-          <Button
-            variant="ghost"
-            size="lg"
-            className={cn(
-              "rounded-full w-14 h-14 transition-all duration-300 border-2",
-              isVideoOff
-                ? "bg-red-500/20 border-red-500 text-red-500 hover:bg-red-500/30 animate-pulse shadow-[0_0_15px_rgba(239,68,68,0.4)]"
-                : "bg-green-500/20 border-green-500 text-green-500 hover:bg-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.3)]"
-            )}
-            onClick={onToggleVideo}
-          >
-            {isVideoOff ? <VideoOff className="h-6 w-6" /> : <Video className="h-6 w-6" />}
-          </Button>
-        )}
-
-        {/* Screen share button */}
-        {callType === 'video' && onToggleScreenShare && (
-          <Button
-            variant="ghost"
-            size="lg"
-            className={cn(
-              "rounded-full w-14 h-14 transition-all duration-300 border-2",
-              isScreenSharing
-                ? "bg-blue-500/20 border-blue-500 text-blue-500 hover:bg-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.4)]"
-                : "bg-secondary border-border text-foreground hover:bg-secondary/80"
-            )}
-            onClick={onToggleScreenShare}
-          >
-            {isScreenSharing ? <Monitor className="h-6 w-6" /> : <MonitorOff className="h-6 w-6" />}
-          </Button>
-        )}
 
         {/* Recording button - only for call starter */}
         {isCallStarter && (
