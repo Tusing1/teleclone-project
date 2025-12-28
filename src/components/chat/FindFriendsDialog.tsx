@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react';
 import {
   Heart, X, Sparkles, Users, Crown, ChevronLeft,
-  MessageCircle, Eye, Loader2
+  MessageCircle, Eye, Loader2, Wand2
 } from 'lucide-react';
 import {
   Dialog,
@@ -93,7 +93,11 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
     }
 
     return (
-      <div className="relative h-[450px] flex flex-col items-center">
+      <div className="relative h-[480px] flex flex-col items-center pt-8">
+
+        {/* Background stack cards for playfulness */}
+        <div className="absolute top-12 w-[90%] h-72 bg-white/5 rounded-2xl rotate-[-2deg] -z-10 translate-y-2 border border-white/5" />
+        <div className="absolute top-12 w-[85%] h-72 bg-white/5 rounded-2xl rotate-[3deg] -z-20 translate-y-4 border border-white/5 shadow-xl" />
 
         {/* Profile card */}
         <div
@@ -141,21 +145,34 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
               {currentProfile.bio || "No bio yet. Say hi and get to know them!"}
             </p>
 
-            {/* Interests */}
+            {/* Interests with playful colors */}
             {currentProfile.interests && currentProfile.interests.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {currentProfile.interests.slice(0, 5).map((interest, idx) => (
-                  <Badge
-                    key={idx}
-                    variant="secondary"
-                    className="text-xs"
-                  >
-                    {interest}
-                  </Badge>
-                ))}
-                {currentProfile.interests.length > 5 && (
-                  <Badge variant="outline" className="text-xs">
-                    +{currentProfile.interests.length - 5}
+              <div className="flex flex-wrap gap-2">
+                {currentProfile.interests.slice(0, 6).map((interest, idx) => {
+                  const colors = [
+                    'bg-pink-500/10 text-pink-500 border-pink-500/20',
+                    'bg-purple-500/10 text-purple-500 border-purple-500/20',
+                    'bg-blue-500/10 text-blue-500 border-blue-500/20',
+                    'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+                    'bg-amber-500/10 text-amber-500 border-amber-500/20',
+                    'bg-indigo-500/10 text-indigo-500 border-indigo-500/20',
+                  ];
+                  return (
+                    <Badge
+                      key={idx}
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-bold uppercase tracking-wider px-2 py-1 animate-in zoom-in duration-300",
+                        colors[idx % colors.length]
+                      )}
+                    >
+                      {interest}
+                    </Badge>
+                  );
+                })}
+                {currentProfile.interests.length > 6 && (
+                  <Badge variant="outline" className="text-[10px] py-1 border-dashed">
+                    +{currentProfile.interests.length - 6} more
                   </Badge>
                 )}
               </div>
@@ -177,11 +194,11 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
 
           <Button
             size="lg"
-            className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 transition-all hover:scale-110 shadow-lg"
+            className="w-20 h-20 rounded-full bg-gradient-to-r from-pink-500 to-rose-600 hover:from-pink-600 hover:to-rose-700 transition-all hover:scale-110 shadow-[0_0_20px_rgba(236,72,153,0.4)] active:scale-90 group"
             onClick={() => handleSwipe('right')}
             disabled={!!swipeDirection}
           >
-            <Heart className="h-10 w-10 text-white" />
+            <Heart className="h-10 w-10 text-white group-hover:fill-white transition-all animate-pulse" />
           </Button>
         </div>
       </div>
@@ -224,9 +241,14 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
                 Matched {new Date(match.matched_at).toLocaleDateString()}
               </p>
             </div>
-            <Button size="sm" variant="ghost">
-              <MessageCircle className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="ghost" className="text-pink-400 hover:text-pink-500 hover:bg-pink-500/10">
+                <Wand2 className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="ghost">
+                <MessageCircle className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         ))}
       </div>
