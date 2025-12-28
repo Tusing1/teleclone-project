@@ -459,9 +459,6 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               <span className="text-xs font-medium">REC</span>
             </div>
           )}
-          <Button variant="ghost" size="icon" className="text-white">
-            <Monitor className="h-5 w-5" />
-          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="text-white">
@@ -546,18 +543,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                 <p className="font-medium text-white">Share invite link</p>
               </DropdownMenuItem>
 
-              {/* Screen Share - Admin only */}
-              {isAdmin && (
-                <DropdownMenuItem
-                  className="flex items-center gap-3 py-3"
-                  onSelect={handleScreenShare}
-                >
-                  <Monitor className="h-5 w-5 text-gray-400" />
-                  <p className="font-medium text-white">
-                    {isScreenSharing ? 'Stop sharing screen' : 'Share screen'}
-                  </p>
-                </DropdownMenuItem>
-              )}
+
 
               {/* Recording - Admin only */}
               {isAdmin && (
@@ -639,17 +625,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
           <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Speaker</span>
         </div>
 
-        {/* Video Toggle (Disabled for now as it's voice-only focus) */}
-        <div className="flex flex-col items-center gap-2 group opacity-50">
-          <Button
-            variant="ghost"
-            size="lg"
-            className="rounded-full w-14 h-14 bg-white/5 border border-white/5 cursor-not-allowed"
-          >
-            <VideoOff className="h-6 w-6 text-white/40" />
-          </Button>
-          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Camera</span>
-        </div>
+
 
         {/* Primary Action: Mute/Unmute or Raise Hand */}
         <div className="flex flex-col items-center gap-2 group">
