@@ -179,7 +179,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
     const mutualInterests = currentProfile.interests?.filter(interest => myProfile?.interests?.includes(interest)) || [];
 
     return (
-      <div className="relative h-full flex flex-col items-center perspective-1000 overflow-hidden pt-4 pb-12">
+      <div className="relative h-full flex flex-col items-center perspective-1000 overflow-hidden pt-2 pb-6">
         {/* Profile card */}
         <div
           ref={cardRef}
@@ -187,15 +187,15 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           className={cn(
-            "w-full max-w-[380px] bg-[#0d0d12] rounded-[40px] shadow-2xl overflow-hidden touch-none border border-white/[0.08] select-none relative group/card",
+            "w-full max-w-[380px] bg-[#0d0d12] rounded-[32px] shadow-2xl overflow-hidden touch-none border border-white/[0.08] select-none relative group/card h-[520px] md:h-[580px]",
             !isDragging && "transition-all duration-300 ease-out"
           )}
           style={{
             transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${rotation}deg)`,
           }}
         >
-          {/* Profile image area */}
-          <div className="relative h-[480px] bg-[#08080a]">
+          {/* Profile image area - Now the full card height */}
+          <div className="relative h-full bg-[#08080a]">
             {currentProfile.avatar_url ? (
               <img
                 src={currentProfile.avatar_url}
@@ -209,68 +209,71 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
                     {(currentProfile.full_name || currentProfile.username)[0].toUpperCase()}
                   </span>
                 </div>
-                <div className="px-4 py-1.5 rounded-full bg-white/[0.05] border border-white/[0.08] backdrop-blur-md">
-                  <p className="text-[10px] font-black text-white/30 uppercase tracking-[0.3em]">No Photo</p>
-                </div>
               </div>
             )}
 
             {/* Swipe Indicators Overlay */}
             {isDragging && dragOffset.x > 30 && (
-              <div className="absolute top-10 left-10 border-[3px] border-green-500 px-6 py-2 rounded-2xl rotate-[-12deg] bg-green-500/10 backdrop-blur-md z-10 transition-opacity" style={{ opacity: Math.min(dragOffset.x / 100, 1) }}>
+              <div className="absolute top-8 left-8 border-[3px] border-green-500 px-6 py-2 rounded-2xl rotate-[-12deg] bg-green-500/10 backdrop-blur-md z-30 transition-opacity" style={{ opacity: Math.min(dragOffset.x / 100, 1) }}>
                 <span className="text-3xl font-black text-green-500 uppercase tracking-[0.2em] italic">LIKE</span>
               </div>
             )}
             {isDragging && dragOffset.x < -30 && (
-              <div className="absolute top-10 right-10 border-[3px] border-pink-600 px-6 py-2 rounded-2xl rotate-[12deg] bg-pink-600/10 backdrop-blur-md z-10 transition-opacity" style={{ opacity: Math.min(-dragOffset.x / 100, 1) }}>
+              <div className="absolute top-8 right-8 border-[3px] border-pink-600 px-6 py-2 rounded-2xl rotate-[12deg] bg-pink-600/10 backdrop-blur-md z-30 transition-opacity" style={{ opacity: Math.min(-dragOffset.x / 100, 1) }}>
                 <span className="text-3xl font-black text-pink-600 uppercase tracking-[0.2em] italic">NOPE</span>
               </div>
             )}
 
             {/* Premium Gradient Overlays */}
-            <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#050508] via-[#050508]/40 to-transparent z-10" />
-            <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/40 to-transparent z-10" />
+            <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-[#050508] via-[#050508]/80 to-transparent z-10" />
+            <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/60 to-transparent z-10" />
 
-            {/* Profile info overlay */}
-            <div className="absolute bottom-10 left-8 right-8 text-white z-20">
-              <div className="flex items-end justify-between mb-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-4xl font-black tracking-tighter italic leading-none drop-shadow-2xl">
-                      {currentProfile.full_name || currentProfile.username}
-                    </h3>
-                    {currentProfile.is_online && (
-                      <div className="w-3 h-3 bg-green-500 rounded-full border-2 border-[#050508] shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse mb-1" />
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {mutualInterests.length > 0 && (
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-600 border border-pink-400/50 shadow-lg shadow-pink-600/20">
-                        <Users className="w-3 h-3 text-white fill-current" />
-                        <span className="text-[9px] font-black uppercase tracking-widest text-white">
-                          {mutualInterests.length} Mutual
-                        </span>
-                      </div>
-                    )}
-                    <p className="text-[11px] font-bold text-white/40 uppercase tracking-widest">
-                      {currentProfile.bio ? "VIEW BIO" : "STUDENT"}
-                    </p>
-                  </div>
+            {/* Profile info overlay (Integrated) */}
+            <div className="absolute bottom-6 left-6 right-6 text-white z-20 space-y-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3">
+                  <h3 className="text-4xl font-black tracking-tighter italic leading-none drop-shadow-2xl">
+                    {currentProfile.full_name || currentProfile.username}
+                  </h3>
+                  {currentProfile.is_online && (
+                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#050508] shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse" />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {mutualInterests.length > 0 && (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-600 border border-pink-400/50 shadow-lg shadow-pink-600/20">
+                      <Users className="w-3 h-3 text-white fill-current" />
+                      <span className="text-[9px] font-black uppercase tracking-widest text-white">
+                        {mutualInterests.length} Mutual
+                      </span>
+                    </div>
+                  )}
+                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
+                    Study Buddy
+                  </p>
                 </div>
               </div>
 
+              {/* Bio snippet */}
+              {currentProfile.bio && (
+                <p className="text-xs leading-relaxed text-white/70 font-medium line-clamp-2 italic italic-none">
+                  "{currentProfile.bio}"
+                </p>
+              )}
+
               {/* Interests Section */}
-              <div className="flex flex-wrap gap-2 max-h-[100px] overflow-hidden">
+              <div className="flex flex-wrap gap-1.5 pt-1">
                 {currentProfile.interests?.slice(0, 4).map((interest, idx) => {
                   const isMutual = myProfile?.interests?.includes(interest);
                   return (
                     <div
                       key={idx}
                       className={cn(
-                        "text-[9px] font-black px-4 py-2 rounded-full border transition-all backdrop-blur-3xl uppercase tracking-widest",
+                        "text-[8px] font-black px-3 py-1.5 rounded-full border transition-all backdrop-blur-3xl uppercase tracking-widest",
                         isMutual
                           ? "bg-white text-black border-white shadow-xl scale-105"
-                          : "bg-white/5 text-white/60 border-white/10"
+                          : "bg-white/10 text-white/70 border-white/10"
                       )}
                     >
                       {interest}
@@ -278,54 +281,31 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
                   );
                 })}
                 {currentProfile.interests && currentProfile.interests.length > 4 && (
-                  <div className="text-[9px] font-black px-3 py-2 rounded-full border bg-white/5 text-white/30 border-white/5 backdrop-blur-3xl uppercase tracking-widest">
-                    +{currentProfile.interests.length - 4} More
+                  <div className="text-[8px] font-black px-2 py-1.5 rounded-full border bg-white/5 text-white/40 border-white/5 backdrop-blur-3xl uppercase tracking-widest">
+                    +{currentProfile.interests.length - 4}
                   </div>
                 )}
               </div>
             </div>
           </div>
-
-          {/* Hidden Extra Info (Bio) */}
-          {currentProfile.bio && (
-            <div className="p-8 pb-10 bg-gradient-to-b from-[#050508] to-[#0d0d12] border-t border-white/[0.03]">
-              <div className="space-y-3">
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="h-[1px] flex-1 bg-white/5" />
-                  <span className="text-[9px] font-black text-white/20 uppercase tracking-[0.4em]">Personal Bio</span>
-                  <div className="h-[1px] flex-1 bg-white/5" />
-                </div>
-                <p className="text-xs leading-relaxed text-white/60 font-medium italic text-center max-w-[280px] mx-auto">
-                  "{currentProfile.bio}"
-                </p>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Action Controls */}
-        <div className="flex items-center justify-center gap-8 mt-10 w-full relative z-10 px-4">
+        {/* Action Controls - Compact Trio */}
+        <div className="flex items-center justify-center gap-8 mt-6 w-full relative z-30 px-4">
           <button
-            className="w-16 h-16 rounded-full border border-white/10 bg-white/[0.02] backdrop-blur-2xl flex items-center justify-center group/btn transition-all hover:scale-110 active:scale-90 hover:bg-pink-600 hover:border-pink-500 shadow-2xl"
+            className="w-14 h-14 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-2xl flex items-center justify-center group/btn transition-all hover:scale-110 active:scale-90 hover:bg-pink-600 hover:border-pink-500 shadow-xl"
             onClick={() => handleSwipe('left')}
             disabled={!!swipeDirection}
           >
-            <X className="h-7 w-7 text-white/40 group-hover/btn:text-white transition-colors" />
+            <X className="h-6 w-6 text-white/40 group-hover/btn:text-white transition-colors" />
           </button>
 
           <button
-            className="w-20 h-20 rounded-[30px] bg-white flex items-center justify-center group/heart transition-all hover:scale-110 active:scale-90 shadow-[0_20px_50px_-10px_rgba(255,255,255,0.3)] hover:rotate-[-4deg]"
+            className="w-16 h-16 rounded-[24px] bg-white flex items-center justify-center group/heart transition-all hover:scale-110 active:scale-90 shadow-[0_15px_35px_-10px_rgba(255,255,255,0.3)] hover:rotate-[-4deg]"
             onClick={() => handleSwipe('right')}
             disabled={!!swipeDirection}
           >
-            <Heart className="h-10 w-10 text-black fill-transparent group-hover/heart:fill-black group-hover/heart:scale-110 transition-all" />
-          </button>
-
-          <button
-            className="w-16 h-16 rounded-full border border-white/10 bg-white/[0.02] backdrop-blur-2xl flex items-center justify-center group/spark transition-all hover:scale-110 active:scale-90 hover:bg-white hover:border-white shadow-2xl"
-            onClick={() => { }}
-          >
-            <Sparkles className="h-6 w-6 text-white/40 group-hover/spark:text-black transition-colors" />
+            <Heart className="h-8 w-8 text-black fill-transparent group-hover/heart:fill-black group-hover/heart:scale-110 transition-all" />
           </button>
         </div>
       </div>
@@ -363,7 +343,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
         {matches.map(match => (
           <div
             key={match.id}
-            className="flex items-center gap-5 p-5 rounded-[28px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-white/20 transition-all cursor-pointer group/match relative overflow-hidden active:scale-[0.98]"
+            className="flex items-center gap-4 p-4 rounded-[28px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.05] hover:border-white/20 transition-all cursor-pointer group/match relative overflow-hidden active:scale-[0.98]"
             onClick={() => handleOpenMatch(match.conversation_id)}
           >
             <div className="relative">
@@ -373,23 +353,37 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
                 size="lg"
                 className="ring-2 ring-white/10 transition-transform group-hover/match:scale-105"
               />
-              <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-pink-600 rounded-full flex items-center justify-center border-2 border-[#050508] shadow-lg">
-                <Heart className="h-3 w-3 text-white fill-white" />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-pink-600 rounded-full flex items-center justify-center border-2 border-[#050508] shadow-lg">
+                <Heart className="h-2.5 w-2.5 text-white fill-white" />
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <h4 className="font-black text-lg tracking-tight text-white/90 group-hover/match:text-white transition-colors">
-                {match.matchedUser?.full_name || match.matchedUser?.username}
-              </h4>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (match.matchedUser) {
+                      setMatchAnimation({ user: match.matchedUser, conversationId: match.conversation_id });
+                    }
+                  }}
+                  className="p-1.5 rounded-lg bg-gradient-to-br from-amber-400/20 to-purple-600/20 border border-amber-500/30 hover:scale-110 active:scale-95 transition-all group/magic shadow-lg shadow-amber-500/5"
+                  title="AI Magic Icebreakers"
+                >
+                  <Sparkles className="h-3 w-3 text-amber-500 animate-pulse group-hover/magic:rotate-12" />
+                </button>
+                <h4 className="font-black text-base tracking-tight text-white/90 group-hover/match:text-white transition-colors truncate">
+                  {match.matchedUser?.full_name || match.matchedUser?.username}
+                </h4>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
                 <div className="w-1 h-1 rounded-full bg-white/20" />
                 <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
-                  Matched {new Date(match.matched_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  {new Date(match.matched_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                 </p>
               </div>
             </div>
-            <div className="w-12 h-12 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center group-hover/match:bg-white group-hover/match:border-white transition-all">
-              <MessageCircle className="h-5 w-5 text-white/40 group-hover/match:text-black transition-colors" />
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center group-hover/match:bg-white group-hover/match:border-white transition-all">
+              <MessageCircle className="h-4 w-4 text-white/40 group-hover/match:text-black transition-colors" />
             </div>
           </div>
         ))}
@@ -506,27 +500,27 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
         </div>
 
-        <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full relative z-10 px-6 pt-10 md:pt-14">
+        <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full relative z-10 px-4 pt-6 md:pt-10">
           {/* Minimalist Close Button */}
           <button
             onClick={onClose}
-            className="absolute right-6 top-8 p-3 rounded-full bg-white/[0.03] border border-white/[0.08] text-white/30 hover:text-white transition-all hover:bg-white/[0.08] hover:border-white/20 active:scale-90 z-[110] backdrop-blur-3xl"
+            className="absolute right-4 top-4 p-2.5 rounded-full bg-white/[0.03] border border-white/[0.08] text-white/30 hover:text-white transition-all hover:bg-white/[0.08] hover:border-white/20 active:scale-90 z-[110] backdrop-blur-3xl"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <header className="mb-12 text-center">
-            <div className="inline-flex items-center gap-5 mb-3 group">
-              <div className="w-14 h-14 rounded-[22px] bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 flex items-center justify-center transform rotate-[-6deg] shadow-[0_12px_32px_-8px_rgba(236,72,153,0.5)] transition-transform group-hover:rotate-[0deg] duration-500">
-                <Heart className="h-7 w-7 text-white fill-white" />
+          <header className="mb-6 text-center">
+            <div className="inline-flex items-center gap-4 mb-2 group">
+              <div className="w-10 h-10 rounded-[18px] bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 flex items-center justify-center transform rotate-[-6deg] shadow-lg transition-transform group-hover:rotate-[0deg] duration-500">
+                <Heart className="h-5 w-5 text-white fill-white" />
               </div>
               <div className="text-left">
-                <h2 className="text-3xl font-black italic tracking-tighter leading-none bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/70">
+                <h2 className="text-2xl font-black italic tracking-tighter leading-none bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/70">
                   STUDYBUDDIES
                 </h2>
-                <div className="flex items-center gap-2 mt-2">
-                  <div className="h-[2px] w-4 bg-pink-500/50 rounded-full" />
-                  <p className="text-[11px] font-black text-pink-500 uppercase tracking-[0.4em] leading-tight">
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="h-[1.5px] w-3 bg-pink-500/50 rounded-full" />
+                  <p className="text-[9px] font-black text-pink-500 uppercase tracking-[0.3em] leading-tight">
                     Discovery
                   </p>
                 </div>
@@ -534,35 +528,35 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
             </div>
 
             {/* Advanced Glassmorphic Tabs */}
-            <div className="mt-10 flex bg-white/[0.02] backdrop-blur-3xl rounded-full p-2 border border-white/[0.06] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.5)]">
+            <div className="mt-6 flex bg-white/[0.02] backdrop-blur-3xl rounded-full p-1.5 border border-white/[0.06] shadow-xl">
               <button
                 onClick={() => setActiveTab('discover')}
                 className={cn(
-                  "flex-1 py-3 px-6 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
+                  "flex-1 py-2.5 px-4 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
                   activeTab === 'discover'
-                    ? "bg-white text-black shadow-[0_4px_12px_rgba(255,255,255,0.2)]"
+                    ? "bg-white text-black shadow-md"
                     : "text-white/30 hover:text-white/80"
                 )}
               >
-                <div className="flex items-center justify-center gap-2.5 relative z-10">
-                  <Sparkles className={cn("h-3.5 w-3.5 transition-transform group-hover/tab:rotate-12", activeTab === 'discover' ? "text-pink-600" : "text-white/10")} />
+                <div className="flex items-center justify-center gap-2 relative z-10">
+                  <Sparkles className={cn("h-3 w-3 transition-transform group-hover/tab:rotate-12", activeTab === 'discover' ? "text-pink-600" : "text-white/10")} />
                   Discover
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('matches')}
                 className={cn(
-                  "flex-1 py-3 px-6 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
+                  "flex-1 py-2.5 px-4 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
                   activeTab === 'matches'
-                    ? "bg-white text-black shadow-[0_4px_12px_rgba(255,255,255,0.2)]"
+                    ? "bg-white text-black shadow-md"
                     : "text-white/30 hover:text-white/80"
                 )}
               >
-                <div className="flex items-center justify-center gap-2.5 relative z-10">
-                  <Users className={cn("h-3.5 w-3.5 transition-transform group-hover/tab:scale-110", activeTab === 'matches' ? "text-purple-600" : "text-white/10")} />
+                <div className="flex items-center justify-center gap-2 relative z-10">
+                  <Users className={cn("h-3 w-3 transition-transform group-hover/tab:scale-110", activeTab === 'matches' ? "text-purple-600" : "text-white/10")} />
                   Matches
                   {matches.length > 0 && (
-                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-pink-500 text-[10px] font-black text-white ms-2 shadow-lg shadow-pink-500/30 animate-pulse">
+                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500 text-[8px] font-black text-white ms-2 animate-pulse">
                       {matches.length}
                     </span>
                   )}
@@ -571,14 +565,14 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
               <button
                 onClick={() => setActiveTab('likes')}
                 className={cn(
-                  "flex-1 py-3 px-6 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
+                  "flex-1 py-2.5 px-4 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
                   activeTab === 'likes'
-                    ? "bg-white text-black shadow-[0_4px_12px_rgba(255,255,255,0.2)]"
+                    ? "bg-white text-black shadow-md"
                     : "text-white/30 hover:text-white/80"
                 )}
               >
-                <div className="flex items-center justify-center gap-2.5 relative z-10">
-                  <Heart className={cn("h-3.5 w-3.5 transition-transform group-hover/tab:scale-125", activeTab === 'likes' ? "text-rose-600 fill-rose-600/20" : "text-white/10")} />
+                <div className="flex items-center justify-center gap-2 relative z-10">
+                  <Heart className={cn("h-3 w-3 transition-transform group-hover/tab:scale-125", activeTab === 'likes' ? "text-rose-600 fill-rose-600/20" : "text-white/10")} />
                   Likes
                 </div>
               </button>
@@ -587,7 +581,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
 
           {/* Premium Immersive Viewport */}
           <main className="flex-1 overflow-y-auto custom-scrollbar relative px-1">
-            <div className="max-w-md mx-auto py-2 h-full">
+            <div className="max-w-md mx-auto py-1 h-full">
               {activeTab === 'discover' && renderDiscoverTab()}
               {activeTab === 'matches' && renderMatchesTab()}
               {activeTab === 'likes' && renderLikesTab()}
