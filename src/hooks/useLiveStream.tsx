@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { CallParticipant } from './useCalls';
 import { toast } from 'sonner';
+import { ICE_SERVERS } from '@/lib/webrtc';
 
 export interface LiveStream {
   id: string;
@@ -97,21 +98,8 @@ export function useLiveStream(conversationId: string | null) {
     setIsRecording(false);
   }, [conversationId, user]);
 
-  // ICE servers for STUN/STUN
-  const servers = {
-    iceServers: [
-      {
-        urls: [
-          'stun:stun1.l.google.com:19302',
-          'stun:stun2.l.google.com:19302',
-          'stun:stun3.l.google.com:19302',
-          'stun:stun4.l.google.com:19302',
-          'stun:stun.l.google.com:19302',
-        ],
-      },
-    ],
-    iceCandidatePoolSize: 10,
-  };
+  // ICE servers for STUN/STUN - Now using centralized config
+  const servers = ICE_SERVERS;
 
   const getOrCreatePC = useCallback((remoteUserId: string, stream: MediaStream, callId: string) => {
     if (peerConnections.current.has(remoteUserId)) {
@@ -154,8 +142,18 @@ export function useLiveStream(conversationId: string | null) {
 
     pc.oniceconnectionstatechange = () => {
       console.log(`🌐 ICE connection state with ${remoteUserId}: ${pc.iceConnectionState}`);
+
+      if (pc.iceConnectionState === 'disconnected') {
+        console.log(`📶 Participant ${remoteUserId} disconnected, waiting for auto-recovery...`);
+      }
+
       if (pc.iceConnectionState === 'failed') {
-        pc.restartIce();
+        console.warn(`❌ ICE connection failed for ${remoteUserId}, attempting restart...`);
+        try {
+          pc.restartIce();
+        } catch (err) {
+          console.error('Failed to call restartIce:', err);
+        }
       }
     };
 
