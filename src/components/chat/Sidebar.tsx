@@ -1,6 +1,6 @@
 import {
   LogOut, Settings, User, Moon, Sun,
-  Users, UserPlus, Radio, Contact, Heart, Phone, Coins, Search, Shield, Bot, Download
+  Users, UserPlus, Radio, Contact, Heart, Phone, Coins, Search, Shield, Bot, Download, FlaskConical, Zap
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ interface SidebarProps {
   onOpenAskAI?: () => void;
   onOpenFriendRequests?: () => void;
   onOpenStudyBuddies?: () => void;
+  onOpenStudyLabs?: () => void;
   onOpenSettings?: () => void;
 }
 
@@ -48,6 +49,7 @@ export function Sidebar({
   onOpenAskAI,
   onOpenFriendRequests,
   onOpenStudyBuddies,
+  onOpenStudyLabs,
   onOpenSettings
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
@@ -144,6 +146,26 @@ export function Sidebar({
           <div className="flex-1 py-2 overflow-y-auto">
 
             <Separator className="my-2" />
+
+            {/* StudyLabs - STAND OUT ENTRY */}
+            {onOpenStudyLabs && (
+              <button
+                onClick={() => handleMenuClick(onOpenStudyLabs)}
+                className="w-[calc(100%-1.5rem)] mx-3 mb-2 flex items-center gap-4 px-4 py-4 rounded-2xl bg-gradient-to-r from-purple-600/10 via-pink-600/5 to-transparent border border-purple-500/20 hover:bg-purple-600/10 transition-all group/labs"
+              >
+                <div className="p-2.5 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 shadow-lg shadow-purple-500/20 group-hover/labs:scale-110 transition-transform">
+                  <FlaskConical className="h-5 w-5 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <span className="block text-sm font-black tracking-tight text-white/90">StudyLabs</span>
+                  <span className="block text-[10px] font-bold text-purple-400 uppercase tracking-widest leading-none mt-0.5">Games & Rewards</span>
+                </div>
+                <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-pink-500/20 border border-pink-500/30">
+                  <Zap className="h-2.5 w-2.5 text-pink-500 fill-pink-500" />
+                  <span className="text-[9px] font-black text-pink-500 uppercase">New</span>
+                </div>
+              </button>
+            )}
 
             <button
               onClick={() => handleMenuClick(onOpenContacts)}
