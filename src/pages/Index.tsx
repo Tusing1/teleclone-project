@@ -29,6 +29,7 @@ import { AskAIDialog } from '@/components/chat/AskAIDialog';
 import { FriendRequestsDialog } from '@/components/chat/FriendRequestsDialog';
 import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
 import { StudyBuddiesDialog } from '@/components/chat/StudyBuddiesDialog';
+import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
@@ -105,6 +106,7 @@ export default function Index() {
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [showMessageFriends, setShowMessageFriends] = useState(false);
   const [showStudyBuddies, setShowStudyBuddies] = useState(false);
+  const [showStudyLabs, setShowStudyLabs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -391,6 +393,7 @@ export default function Index() {
         onOpenAskAI={() => setShowAskAI(true)}
         onOpenFriendRequests={() => setShowFriendRequests(true)}
         onOpenStudyBuddies={() => setShowStudyBuddies(true)}
+        onOpenStudyLabs={() => setShowStudyLabs(true)}
         onOpenSettings={() => setShowSettings(true)}
       />
 
@@ -575,6 +578,11 @@ export default function Index() {
         open={showStudyBuddies}
         onClose={() => setShowStudyBuddies(false)}
         onSelectUser={handleSelectUser}
+      />
+
+      <StudyLabsDialog
+        open={showStudyLabs}
+        onClose={() => setShowStudyLabs(false)}
       />
 
       <SettingsDialog
