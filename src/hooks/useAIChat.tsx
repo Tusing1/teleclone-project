@@ -259,7 +259,7 @@ export function useAIChat() {
     generateIcebreakers: async (otherProfile: any) => {
       if (!user) return [];
 
-      const prompt = `Generate 3 short, playful, and friendly conversation starters for a study buddy named ${otherProfile.full_name || otherProfile.username} who is interested in ${otherProfile.interests?.join(', ') || 'studying'}. Keep them engaging and relevant to students. Format as a JSON array of strings.`;
+      const prompt = `Generate 3 short, playful, and friendly conversation starters for a study buddy named ${otherProfile.full_name || otherProfile.username} who is interested in ${otherProfile.interests?.join(', ') || 'studying'}. Keep them engaging and relevant to students. Format as a JSON array of strings. ONLY RETURN THE JSON ARRAY.`;
 
       try {
         const resp = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`, {
@@ -270,32 +270,59 @@ export function useAIChat() {
           },
           body: JSON.stringify({
             messages: [{ role: 'user', content: prompt }],
-            stream: false // ICEBREAKERS don't need streaming
+            stream: true // The edge function currently forces stream: true effectively
           }),
         });
 
-        const data = await resp.json();
-        // The edge function currently returns a stream-like response even if stream: false is passed because of how it's written
-        // Wait, the edge function code I saw ALWAYS returns response.body.
-        // Let's assume I can handle the response or adjust the edge function.
-        // Actually, I'll just use the regular sendMessage logic but with a specialized prompt.
+        if (!resp.ok) throw new Error('Failed to fetch icebreakers');
+        if (!resp.body) throw new Error('No response body');
 
-        // For now, let's just return some high-quality fallbacks if parsing fails, but I'll try to parse.
-        const content = data.choices?.[0]?.message?.content || "";
-        try {
-          // Find JSON array in content
-          const match = content.match(/\[.*\]/s);
-          if (match) return JSON.parse(match[0]);
-        } catch (e) {
-          console.error("Failed to parse icebreakers", e);
+        const reader = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let streamDone = false;
+
+        while (!streamDone) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunk = decoder.decode(value, { stream: true });
+          
+          // Parse SSE format: data: {...}
+          const lines = chunk.split('\n');
+          for (let line of lines) {
+            if (line.startsWith('data: ')) {
+              const jsonStr = line.slice(6).trim();
+              if (jsonStr === '[DONE]') {
+                streamDone = true;
+                break;
+              }
+              try {
+                const parsed = JSON.parse(jsonStr);
+                const chunkContent = parsed.choices?.[0]?.delta?.content;
+                if (chunkContent) fullContent += chunkContent;
+              } catch (e) {
+                // Ignore parse errors for partial chunks
+              }
+            }
+          }
         }
 
+        try {
+          // Find JSON array in content
+          const match = fullContent.match(/\[.*\]/s);
+          if (match) return JSON.parse(match[0]);
+        } catch (e) {
+          console.error("Failed to parse icebreakers from content:", fullContent, e);
+        }
+
+        // High quality fallbacks if parsing fails but request succeeded
         return [
-          `Hey ${otherProfile.full_name || otherProfile.username}! Ready to crush some study sessions?`,
-          `I saw you're interested in ${otherProfile.interests?.[0] || 'studying'} too! What's your current favorite topic?`,
-          `Hi! I'm looking for a study buddy and you seemed like a great match. Want to sync up?`
+          `Hey ${otherProfile.full_name || otherProfile.username}! Saw you're into ${otherProfile.interests?.[0] || 'studying'}. Ready to crush some goals together?`,
+          `Hi! I'm looking for a study partner for ${otherProfile.interests?.[0] || 'our subjects'}. You interested?`,
+          `Your profile is awesome! Any chance you'd want to join a study session later?`
         ];
       } catch (e) {
+        console.error("Icebreaker error:", e);
         return [
           `Hey ${otherProfile.full_name || otherProfile.username}! Ready to crush some study sessions?`,
           `Hi! I'm looking for a study buddy and you seemed like a great match. Want to sync up?`,
