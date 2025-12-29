@@ -1,6 +1,6 @@
 import {
   LogOut, Settings, User, Moon, Sun,
-  Users, UserPlus, Radio, Contact, Heart, Phone, Coins, Search, Shield, Bot, Download, FlaskConical, Zap
+  Users, UserPlus, Radio, Contact, Heart, Phone, Coins, Search, Shield, Bot, Download, FlaskConical, Zap, Mic
 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
@@ -31,6 +31,7 @@ interface SidebarProps {
   onOpenStudyBuddies?: () => void;
   onOpenStudyLabs?: () => void;
   onOpenSettings?: () => void;
+  onOpenRecordings?: () => void;
 }
 
 export function Sidebar({
@@ -50,7 +51,8 @@ export function Sidebar({
   onOpenFriendRequests,
   onOpenStudyBuddies,
   onOpenStudyLabs,
-  onOpenSettings
+  onOpenSettings,
+  onOpenRecordings
 }: SidebarProps) {
   const { profile, signOut } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -230,6 +232,16 @@ export function Sidebar({
               <Phone className="h-5 w-5 text-muted-foreground" />
               <span>Calls</span>
             </button>
+
+            {onOpenRecordings && (
+              <button
+                onClick={() => handleMenuClick(onOpenRecordings)}
+                className="w-full flex items-center gap-4 px-6 py-3 hover:bg-secondary/50 transition-colors"
+              >
+                <Mic className="h-5 w-5 text-muted-foreground" />
+                <span>Recordings</span>
+              </button>
+            )}
 
             <Separator className="my-2" />
 

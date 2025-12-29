@@ -31,9 +31,12 @@ import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
 import { StudyBuddiesDialog } from '@/components/chat/StudyBuddiesDialog';
 import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
+import { RecordingsDialog } from '@/components/chat/RecordingsDialog';
+import { ForwardRecordingDialog } from '@/components/chat/ForwardRecordingDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
+import { Recording } from '@/hooks/useRecordings';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -108,6 +111,8 @@ export default function Index() {
   const [showStudyBuddies, setShowStudyBuddies] = useState(false);
   const [showStudyLabs, setShowStudyLabs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showRecordings, setShowRecordings] = useState(false);
+  const [forwardRecording, setForwardRecording] = useState<Recording | null>(null);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
@@ -395,6 +400,7 @@ export default function Index() {
         onOpenStudyBuddies={() => setShowStudyBuddies(true)}
         onOpenStudyLabs={() => setShowStudyLabs(true)}
         onOpenSettings={() => setShowSettings(true)}
+        onOpenRecordings={() => setShowRecordings(true)}
       />
 
       {/* Conversation list */}
@@ -588,6 +594,19 @@ export default function Index() {
       <SettingsDialog
         open={showSettings}
         onClose={() => setShowSettings(false)}
+      />
+
+      <RecordingsDialog
+        open={showRecordings}
+        onClose={() => setShowRecordings(false)}
+        onForwardRecording={(recording) => setForwardRecording(recording)}
+      />
+
+      <ForwardRecordingDialog
+        open={!!forwardRecording}
+        onClose={() => setForwardRecording(null)}
+        recording={forwardRecording}
+        conversations={conversations}
       />
 
       <InAppBrowser
