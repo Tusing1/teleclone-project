@@ -426,8 +426,8 @@ export function ChatView({
 
   return (
     <div className={cn(
-      "flex flex-col h-full relative md:rounded-2xl md:m-2 md:shadow-lg overflow-hidden",
-      isChannel ? "bg-slate-900" : "bg-chat-bg"
+      "flex flex-col h-full relative md:rounded-2xl md:m-2 md:shadow-2xl overflow-hidden",
+      isChannel ? "bg-slate-900/40" : "bg-white/5 backdrop-blur-xl border border-white/10"
     )}>
       {/* Minimized Live Stream Bar */}
       {isInStream && activeStream && isChannel && isStreamMinimized && (
@@ -462,8 +462,8 @@ export function ChatView({
       )}
       {/* Header - add top margin when minimized stream bar is visible */}
       <div className={cn(
-        "flex items-center gap-3 p-3 border-b md:rounded-t-2xl",
-        isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border",
+        "flex items-center gap-3 p-3 border-b md:rounded-t-2xl backdrop-blur-md z-20 transition-all",
+        isChannel ? "bg-slate-800/60 border-slate-700/50" : "bg-white/10 border-white/5",
         isStreamMinimized && isInStream && "mt-14"
       )}>
         <Button
@@ -497,8 +497,8 @@ export function ChatView({
 
         <div className="flex-1 min-w-0">
           <h2 className={cn(
-            "font-semibold truncate",
-            isChannel && "text-slate-100"
+            "font-semibold truncate text-white",
+            isChannel ? "text-slate-100" : "text-white"
           )}>{displayName}</h2>
           <p className={cn(
             'text-xs truncate',
@@ -536,7 +536,7 @@ export function ChatView({
             size="icon"
             onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}
             title="Go to discussion"
-            className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : ""}
+            className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : "text-white/70 hover:text-white hover:bg-white/10"}
           >
             <MessageCircle className="h-5 w-5" />
           </Button>
@@ -548,7 +548,7 @@ export function ChatView({
             <Button
               variant="ghost"
               size="icon"
-              className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : ""}
+              className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : "text-white/70 hover:text-white hover:bg-white/10"}
             >
               <MoreVertical className="h-5 w-5" />
             </Button>
@@ -713,8 +713,8 @@ export function ChatView({
       {/* Input */}
       {canSendMessages ? (
         <div className={cn(
-          "p-3 border-t md:rounded-b-2xl",
-          isChannel ? "bg-slate-800 border-slate-700" : "bg-card border-border"
+          "p-3 border-t md:rounded-b-2xl backdrop-blur-md",
+          isChannel ? "bg-slate-800/60 border-slate-700/50" : "bg-white/10 border-white/5"
         )}>
           {isRecordingVoice ? (
             <VoiceRecorder
@@ -764,8 +764,8 @@ export function ChatView({
                 onKeyDown={handleKeyDown}
                 disabled={sending || isUploadingVoice}
                 className={cn(
-                  "flex-1 border-0 rounded-full",
-                  isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-secondary"
+                  "flex-1 border-white/10 rounded-full transition-all focus-visible:ring-primary/50",
+                  isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-white/10 text-white placeholder:text-white/40"
                 )}
               />
               {messageText.trim() ? (
