@@ -148,8 +148,8 @@ export function ConversationList({
           key={conv.id}
           onClick={() => onSelect(conv.id)}
           className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 group',
-            selectedId === conv.id && 'bg-primary/10'
+            'flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white/10 group rounded-xl mx-2 my-1 border border-transparent hover:border-white/10',
+            selectedId === conv.id && 'bg-white/15 border-white/20 shadow-lg'
           )}
         >
           {conv.avatar_url ? (
@@ -215,8 +215,8 @@ export function ConversationList({
           key={conv.id}
           onClick={() => onSelect(conv.id)}
           className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 group',
-            selectedId === conv.id && 'bg-primary/10'
+            'flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white/10 group rounded-xl mx-2 my-1 border border-transparent hover:border-white/10',
+            selectedId === conv.id && 'bg-white/15 border-white/20 shadow-lg'
           )}
         >
           {conv.avatar_url ? (
@@ -285,8 +285,8 @@ export function ConversationList({
         key={conv.id}
         onClick={() => onSelect(conv.id)}
         className={cn(
-          'flex items-center gap-3 p-3 cursor-pointer transition-colors hover:bg-secondary/50 group',
-          selectedId === conv.id && 'bg-primary/10'
+          'flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white/10 group rounded-xl mx-2 my-1 border border-transparent hover:border-white/10',
+          selectedId === conv.id && 'bg-white/15 border-white/20 shadow-lg'
         )}
       >
         <Avatar
@@ -354,25 +354,25 @@ export function ConversationList({
   );
 
   return (
-    <div className="flex flex-col h-full bg-card">
+    <div className="flex flex-col h-full bg-white/5 backdrop-blur-md border-r border-white/10">
       {/* Header */}
-      <div className="p-3 border-b border-border">
-        <div className="flex items-center gap-3 mb-3">
+      <div className="p-4 border-b border-white/10 bg-white/5">
+        <div className="flex items-center gap-3 mb-1">
           <Button
             variant="ghost"
             size="icon"
             onClick={onMenuClick}
-            className="shrink-0"
+            className="shrink-0 text-white/70 hover:text-white hover:bg-white/10"
           >
             <Menu className="h-5 w-5" />
           </Button>
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             <Input
-              placeholder="Search"
+              placeholder="Search chats..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-secondary border-0"
+              className="pl-9 bg-white/10 border-white/5 text-white placeholder:text-white/30 focus-visible:ring-primary/50 rounded-xl transition-all"
             />
           </div>
         </div>
