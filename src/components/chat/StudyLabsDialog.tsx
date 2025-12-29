@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     X, FlaskConical, Zap, Trophy, Coins, Play,
-    ChevronRight, Brain, Clock, Star, Users
+    ChevronRight, Brain, Clock, Star, Users, Activity
 } from 'lucide-react';
 import {
     Dialog,
@@ -13,6 +13,7 @@ import { useGameLeaderboard } from '@/hooks/useGameLeaderboard';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { MedicalTermScramble } from '@/components/chat/games/MedicalTermScramble';
+import { AnatomyBlitz } from '@/components/chat/games/AnatomyBlitz';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface StudyLabsDialogProps {
@@ -27,7 +28,8 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
     const { balance } = useStudyTokens();
     const [activeView, setActiveView] = useState<GameView>('hub');
     const [hubTab, setHubTab] = useState<'games' | 'leaderboard'>('games');
-    const { leaderboard, loading: scoresLoading } = useGameLeaderboard('term-scramble');
+    const [leaderboardGameId, setLeaderboardGameId] = useState<'term-scramble' | 'anatomy-blitz'>('term-scramble');
+    const { leaderboard, loading: scoresLoading } = useGameLeaderboard(leaderboardGameId);
 
     if (!open) return null;
 
@@ -124,26 +126,57 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                             </div>
                         </button>
 
-                        {/* Anatomy Blitz (Coming Soon) */}
-                        <div className="w-full p-5 rounded-[32px] bg-white/[0.01] border border-white/[0.04] opacity-40 transition-all text-left flex items-center gap-4 relative grayscale pointer-events-none">
-                            <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 shrink-0">
-                                <Star className="h-8 w-8 text-white/20" />
+                        {/* Anatomy Blitz */}
+                        <button
+                            onClick={() => setActiveView('anatomy')}
+                            className="w-full p-5 rounded-[32px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/20 transition-all group/game text-left flex items-center gap-4 relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-600/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-emerald-600/20 transition-all" />
+
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center border border-emerald-500/30 group-hover:scale-105 transition-transform shrink-0">
+                                <Activity className="h-8 w-8 text-emerald-400" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <h4 className="font-black text-lg text-white/50 uppercase tracking-tight">Anatomy Blitz</h4>
-                                <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">Coming Next Week</p>
+                                <h4 className="font-black text-lg text-white/90 group-hover:text-white transition-colors uppercase tracking-tight">Anatomy Blitz</h4>
+                                <div className="flex items-center gap-3 mt-1">
+                                    <div className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-white/30" />
+                                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Blitz Speed</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Zap className="h-3 w-3 text-emerald-500 fill-emerald-500/20" />
+                                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Up to 5 TK</span>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="px-3 py-1 rounded-full bg-white/5 border border-white/5">
-                                <span className="text-[8px] font-black text-white/40 uppercase">Locked</span>
+                            <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center group-hover:bg-white transition-all group-hover:rotate-[-12deg]">
+                                <Play className="h-4 w-4 text-white/40 group-hover:text-black fill-current" />
                             </div>
-                        </div>
+                        </button>
                     </div>
                 ) : (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 px-2">
                         <div className="flex items-center justify-between px-2 mb-4">
                             <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">Global Board</h3>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Term Scramble Only</span>
+                            <div className="flex bg-white/5 rounded-full p-1 border border-white/10">
+                                <button
+                                    onClick={() => setLeaderboardGameId('term-scramble')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-full text-[8px] font-black transition-all",
+                                        leaderboardGameId === 'term-scramble' ? "bg-purple-500 text-white" : "text-white/40"
+                                    )}
+                                >
+                                    SCRAMBLE
+                                </button>
+                                <button
+                                    onClick={() => setLeaderboardGameId('anatomy-blitz')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-full text-[8px] font-black transition-all",
+                                        leaderboardGameId === 'anatomy-blitz' ? "bg-emerald-500 text-white" : "text-white/40"
+                                    )}
+                                >
+                                    BLITZ
+                                </button>
                             </div>
                         </div>
 
@@ -219,6 +252,12 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
 
                 {activeView === 'scramble' && (
                     <MedicalTermScramble
+                        onExit={() => setActiveView('hub')}
+                    />
+                )}
+
+                {activeView === 'anatomy' && (
+                    <AnatomyBlitz
                         onExit={() => setActiveView('hub')}
                     />
                 )}
