@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { ICE_SERVERS } from '@/lib/webrtc';
 export interface Call {
   id: string;
   conversation_id: string;
@@ -38,15 +39,8 @@ export interface RemoteStream {
   stream: MediaStream;
 }
 
-// ICE servers for STUN/TURN
-const servers = {
-  iceServers: [
-    {
-      urls: ['stun:stun1.l.google.com:19302', 'stun:stun2.l.google.com:19302'],
-    },
-  ],
-  iceCandidatePoolSize: 10,
-};
+// ICE servers for STUN/TURN - Now using centralized config
+const servers = ICE_SERVERS;
 
 export function useCalls(conversationId: string | null) {
   const { user } = useAuth();
@@ -276,39 +270,56 @@ export function useCalls(conversationId: string | null) {
       setIsVideoOff(callType === 'voice');
 
       // CRITICAL: Add participant to database BEFORE signaling starts (otherwise RLS rejects signals)
-      const { data: existingParticipant } = await supabase
-        .from('call_participants')
-        .select('id')
-        .eq('call_id', callId)
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
+      // Retry logic added to handle potential RLS lag
+      let participantAdded = false;
+      let joinRetries = 0;
+      const maxJoinRetries = 3;
 
-      if (existingParticipant?.id) {
-        console.log('Re-joining: Updating existing participant record before signaling');
-        await supabase
-          .from('call_participants')
-          .update({
-            is_video_off: callType === 'voice',
-            left_at: null
-          })
-          .eq('id', existingParticipant.id);
-      } else {
-        console.log('Joining: Creating new participant record before signaling');
-        const { error: insertError } = await supabase
-          .from('call_participants')
-          .insert({
-            call_id: callId,
-            user_id: user.id,
-            is_video_off: callType === 'voice',
-            left_at: null
-          });
+      while (!participantAdded && joinRetries < maxJoinRetries) {
+        try {
+          const { data: existingParticipant } = await supabase
+            .from('call_participants')
+            .select('id')
+            .eq('call_id', callId)
+            .eq('user_id', user.id)
+            .limit(1)
+            .maybeSingle();
 
-        if (insertError) {
-          console.error('Error creating participant record:', insertError);
-          throw insertError;
+          if (existingParticipant?.id) {
+            console.log(`Re-joining (Attempt ${joinRetries + 1}): Updating existing participant record`);
+            const { error: updateError } = await supabase
+              .from('call_participants')
+              .update({
+                is_video_off: callType === 'voice',
+                left_at: null
+              })
+              .eq('id', existingParticipant.id);
+
+            if (updateError) throw updateError;
+          } else {
+            console.log(`Joining (Attempt ${joinRetries + 1}): Creating new participant record`);
+            const { error: insertError } = await supabase
+              .from('call_participants')
+              .insert({
+                call_id: callId,
+                user_id: user.id,
+                is_video_off: callType === 'voice',
+                left_at: null
+              });
+
+            if (insertError) throw insertError;
+          }
+          participantAdded = true;
+          console.log('✅ Participant record synchronized successfully');
+        } catch (err) {
+          console.warn(`Join synchronization failed (Attempt ${joinRetries + 1}):`, err);
+          joinRetries++;
+          if (joinRetries < maxJoinRetries) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          } else {
+            throw err;
+          }
         }
-        console.log('Participant added successfully');
       }
 
       setIsInCall(true);
@@ -349,11 +360,55 @@ export function useCalls(conversationId: string | null) {
       };
 
       pc.oniceconnectionstatechange = () => {
-        console.log('ICE connection state:', pc.iceConnectionState);
-        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-          setConnectionStatus('connected');
-        } else if (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed') {
-          setConnectionStatus('disconnected');
+        console.log('🌐 ICE connection state:', pc.iceConnectionState);
+
+        switch (pc.iceConnectionState) {
+          case 'connected':
+          case 'completed':
+            setConnectionStatus('connected');
+            break;
+          case 'disconnected':
+            // Don't immediately fail, wait to see if it reconnects
+            console.log('📶 ICE disconnected, waiting for auto-recovery...');
+            setConnectionStatus('connecting');
+            break;
+          case 'failed':
+            console.error('❌ ICE connection failed. Triggering restart...');
+            setConnectionStatus('connecting');
+            // Trigger ICE restart if supported
+            if (isCreator) {
+              handleIceRestart(pc, callId);
+            } else {
+              // Joiner just waits for the new offer
+              setConnectionStatus('connecting');
+            }
+            break;
+          case 'closed':
+            setConnectionStatus('disconnected');
+            break;
+        }
+      };
+
+      // Helper for ICE restart
+      const handleIceRestart = async (conn: RTCPeerConnection, cId: string) => {
+        try {
+          console.log('🔄 Creating new offer with ICE restart...');
+          const offer = await conn.createOffer({ iceRestart: true });
+          await conn.setLocalDescription(offer);
+
+          await supabase.from('call_signals').insert({
+            call_id: cId,
+            from_user: user.id,
+            to_user: null,
+            signal_type: 'offer',
+            signal_data: {
+              sdp: offer.sdp,
+              type: offer.type,
+            } as any
+          });
+        } catch (err) {
+          console.error('Failed to restart ICE:', err);
+          toast.error('Connection lost. Please try re-joining.');
         }
       };
 
