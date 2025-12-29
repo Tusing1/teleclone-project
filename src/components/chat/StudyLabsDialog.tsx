@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     X, FlaskConical, Zap, Trophy, Coins, Play,
-    ChevronRight, Brain, Clock, Star
+    ChevronRight, Brain, Clock, Star, Users
 } from 'lucide-react';
 import {
     Dialog,
@@ -9,8 +9,11 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useStudyTokens } from '@/hooks/useStudyTokens';
+import { useGameLeaderboard } from '@/hooks/useGameLeaderboard';
+import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { MedicalTermScramble } from '@/components/chat/games/MedicalTermScramble';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface StudyLabsDialogProps {
     open: boolean;
@@ -20,8 +23,11 @@ interface StudyLabsDialogProps {
 type GameView = 'hub' | 'scramble' | 'anatomy' | 'nclex';
 
 export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
+    const { profile } = useAuth();
     const { balance } = useStudyTokens();
     const [activeView, setActiveView] = useState<GameView>('hub');
+    const [hubTab, setHubTab] = useState<'games' | 'leaderboard'>('games');
+    const { leaderboard, loading: scoresLoading } = useGameLeaderboard('term-scramble');
 
     if (!open) return null;
 
@@ -60,51 +66,133 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                 </div>
             </header>
 
-            {/* Game Menu */}
-            <div className="flex-1 space-y-4 px-2 pb-10 overflow-y-auto custom-scrollbar">
-                <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] px-4">Available Experiments</h3>
-
-                {/* Medical Term Scramble */}
+            {/* Hub Tabs */}
+            <div className="flex gap-1 p-1 bg-white/[0.03] border border-white/[0.08] rounded-2xl mx-4 mb-6 relative z-10">
                 <button
-                    onClick={() => setActiveView('scramble')}
-                    className="w-full p-5 rounded-[32px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/20 transition-all group/game text-left flex items-center gap-4 relative overflow-hidden"
+                    onClick={() => setHubTab('games')}
+                    className={cn(
+                        "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        hubTab === 'games' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white/60"
+                    )}
                 >
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-purple-600/20 transition-all" />
+                    <Play className={cn("h-3 w-3", hubTab === 'games' ? "fill-current" : "")} />
+                    Experiments
+                </button>
+                <button
+                    onClick={() => setHubTab('leaderboard')}
+                    className={cn(
+                        "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        hubTab === 'leaderboard' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white/60"
+                    )}
+                >
+                    <Trophy className="h-3 w-3" />
+                    Rankings
+                </button>
+            </div>
 
-                    <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border border-purple-500/30 group-hover:scale-105 transition-transform shrink-0">
-                        <Brain className="h-8 w-8 text-purple-400" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h4 className="font-black text-lg text-white/90 group-hover:text-white transition-colors uppercase tracking-tight">Term Scramble</h4>
-                        <div className="flex items-center gap-3 mt-1">
-                            <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-white/30" />
-                                <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">3-5 Min</span>
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-10">
+                {hubTab === 'games' ? (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                        <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] px-4">Available Lab Tests</h3>
+
+                        {/* Medical Term Scramble */}
+                        <button
+                            onClick={() => setActiveView('scramble')}
+                            className="w-full p-5 rounded-[32px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/20 transition-all group/game text-left flex items-center gap-4 relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-purple-600/20 transition-all" />
+
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 flex items-center justify-center border border-purple-500/30 group-hover:scale-105 transition-transform shrink-0">
+                                <Brain className="h-8 w-8 text-purple-400" />
                             </div>
-                            <div className="flex items-center gap-1">
-                                <Zap className="h-3 w-3 text-pink-500 fill-pink-500/20" />
-                                <span className="text-[9px] font-black text-pink-500 uppercase tracking-widest">Up to 50 TK</span>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-black text-lg text-white/90 group-hover:text-white transition-colors uppercase tracking-tight">Term Scramble</h4>
+                                <div className="flex items-center gap-3 mt-1">
+                                    <div className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-white/30" />
+                                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">3 Levels</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Zap className="h-3 w-3 text-pink-500 fill-pink-500/20" />
+                                        <span className="text-[9px] font-black text-pink-500 uppercase tracking-widest">Up to 5 TK</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center group-hover:bg-white transition-all group-hover:rotate-[-12deg]">
+                                <Play className="h-4 w-4 text-white/40 group-hover:text-black fill-current" />
+                            </div>
+                        </button>
+
+                        {/* Anatomy Blitz (Coming Soon) */}
+                        <div className="w-full p-5 rounded-[32px] bg-white/[0.01] border border-white/[0.04] opacity-40 transition-all text-left flex items-center gap-4 relative grayscale pointer-events-none">
+                            <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 shrink-0">
+                                <Star className="h-8 w-8 text-white/20" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-black text-lg text-white/50 uppercase tracking-tight">Anatomy Blitz</h4>
+                                <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">Coming Next Week</p>
+                            </div>
+                            <div className="px-3 py-1 rounded-full bg-white/5 border border-white/5">
+                                <span className="text-[8px] font-black text-white/40 uppercase">Locked</span>
                             </div>
                         </div>
                     </div>
-                    <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center group-hover:bg-white transition-all group-hover:rotate-[-12deg]">
-                        <Play className="h-4 w-4 text-white/40 group-hover:text-black fill-current" />
-                    </div>
-                </button>
+                ) : (
+                    <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 px-2">
+                        <div className="flex items-center justify-between px-2 mb-4">
+                            <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">Global Board</h3>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-black text-purple-400 uppercase tracking-widest">Term Scramble Only</span>
+                            </div>
+                        </div>
 
-                {/* NCLEX Blitz (Locked/Coming Soon) */}
-                <div className="w-full p-5 rounded-[32px] bg-white/[0.01] border border-white/[0.04] opacity-40 transition-all text-left flex items-center gap-4 relative grayscale pointer-events-none">
-                    <div className="w-16 h-16 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 shrink-0">
-                        <Star className="h-8 w-8 text-white/20" />
+                        {scoresLoading ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-4">
+                                <div className="h-8 w-8 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
+                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Calculating Ranking...</span>
+                            </div>
+                        ) : leaderboard.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
+                                <Users className="h-10 w-10 text-white/10" />
+                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">No experimental data yet.</span>
+                            </div>
+                        ) : (
+                            <div className="space-y-2">
+                                {leaderboard.map((entry, idx) => (
+                                    <div
+                                        key={entry.user_id}
+                                        className={cn(
+                                            "flex items-center gap-4 p-4 rounded-3xl border transition-all",
+                                            entry.user_id === profile?.user_id
+                                                ? "bg-purple-500/10 border-purple-500/30 shadow-lg shadow-purple-500/5 rotate-[-1deg]"
+                                                : "bg-white/[0.02] border-white/[0.06]"
+                                        )}
+                                    >
+                                        <div className="w-8 flex justify-center">
+                                            {entry.rank === 1 ? (
+                                                <Trophy className="h-5 w-5 text-yellow-500" />
+                                            ) : (
+                                                <span className="text-xs font-black text-white/40">#{entry.rank}</span>
+                                            )}
+                                        </div>
+                                        <Avatar className="h-10 w-10 border border-white/10">
+                                            <AvatarImage src={entry.avatar_url || undefined} />
+                                            <AvatarFallback className="bg-white/5 text-[10px] font-black">{entry.username[0]}</AvatarFallback>
+                                        </Avatar>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="text-sm font-black text-white uppercase truncate">{entry.username}</p>
+                                            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Scientific Score</span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-lg font-black text-white italic tracking-tighter tabular-nums">{entry.score}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <h4 className="font-black text-lg text-white/50 uppercase tracking-tight">NCLEX Dash</h4>
-                        <p className="text-[9px] font-bold text-white/20 uppercase tracking-[0.2em] mt-1">Coming Next Week</p>
-                    </div>
-                    <div className="px-3 py-1 rounded-full bg-white/5 border border-white/5">
-                        <span className="text-[8px] font-black text-white/40 uppercase">Locked</span>
-                    </div>
-                </div>
+                )}
             </div>
         </div>
     );
