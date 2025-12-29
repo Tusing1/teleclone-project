@@ -187,7 +187,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           className={cn(
-            "w-full max-w-[380px] bg-[#0d0d12] rounded-[32px] shadow-2xl overflow-hidden touch-none border border-white/[0.08] select-none relative group/card h-[520px] md:h-[580px]",
+            "w-full max-w-[380px] bg-[#0d0d12] rounded-[32px] shadow-2xl overflow-hidden touch-none border border-white/[0.08] select-none relative group/card h-[440px] md:h-[580px]",
             !isDragging && "transition-all duration-300 ease-out"
           )}
           style={{
@@ -204,8 +204,8 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-6">
-                <div className="w-28 h-28 rounded-[38px] bg-white/[0.03] flex items-center justify-center border border-white/[0.08] transform rotate-[-4deg]">
-                  <span className="text-5xl font-black text-white/20">
+                <div className="w-24 h-24 rounded-[34px] bg-white/[0.03] flex items-center justify-center border border-white/[0.08] transform rotate-[-4deg]">
+                  <span className="text-4xl font-black text-white/20">
                     {(currentProfile.full_name || currentProfile.username)[0].toUpperCase()}
                   </span>
                 </div>
@@ -229,7 +229,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
             <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/60 to-transparent z-10" />
 
             {/* Profile info overlay (Integrated) */}
-            <div className="absolute bottom-6 left-6 right-6 text-white z-20 space-y-4">
+            <div className="absolute bottom-5 left-5 right-5 text-white z-20 space-y-3">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-3">
                   <h3 className="text-4xl font-black tracking-tighter italic leading-none drop-shadow-2xl">
@@ -291,9 +291,9 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
         </div>
 
         {/* Action Controls - Compact Trio */}
-        <div className="flex items-center justify-center gap-8 mt-6 w-full relative z-30 px-4">
+        <div className="flex items-center justify-center gap-8 mt-4 w-full relative z-30 px-4">
           <button
-            className="w-14 h-14 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-2xl flex items-center justify-center group/btn transition-all hover:scale-110 active:scale-90 hover:bg-pink-600 hover:border-pink-500 shadow-xl"
+            className="w-12 h-12 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-2xl flex items-center justify-center group/btn transition-all hover:scale-110 active:scale-90 hover:bg-pink-600 hover:border-pink-500 shadow-xl"
             onClick={() => handleSwipe('left')}
             disabled={!!swipeDirection}
           >
@@ -301,7 +301,7 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           </button>
 
           <button
-            className="w-16 h-16 rounded-[24px] bg-white flex items-center justify-center group/heart transition-all hover:scale-110 active:scale-90 shadow-[0_15px_35px_-10px_rgba(255,255,255,0.3)] hover:rotate-[-4deg]"
+            className="w-14 h-14 rounded-[20px] bg-white flex items-center justify-center group/heart transition-all hover:scale-110 active:scale-90 shadow-[0_12px_24px_-8px_rgba(255,255,255,0.3)] hover:rotate-[-4deg]"
             onClick={() => handleSwipe('right')}
             disabled={!!swipeDirection}
           >
@@ -500,63 +500,55 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
           <div className="absolute inset-0 opacity-[0.03] pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
         </div>
 
-        <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full relative z-10 px-4 pt-6 md:pt-10">
+        <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full relative z-10 px-4 pt-2 md:pt-10">
           {/* Minimalist Close Button */}
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 p-2.5 rounded-full bg-white/[0.03] border border-white/[0.08] text-white/30 hover:text-white transition-all hover:bg-white/[0.08] hover:border-white/20 active:scale-90 z-[110] backdrop-blur-3xl"
+            className="absolute right-4 top-2 p-2 rounded-full bg-white/[0.03] border border-white/[0.08] text-white/30 hover:text-white transition-all hover:bg-white/[0.08] hover:border-white/20 active:scale-90 z-[110] backdrop-blur-3xl"
           >
             <X className="w-5 h-5" />
           </button>
 
-          <header className="mb-6 text-center">
-            <div className="inline-flex items-center gap-4 mb-2 group">
-              <div className="w-10 h-10 rounded-[18px] bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 flex items-center justify-center transform rotate-[-6deg] shadow-lg transition-transform group-hover:rotate-[0deg] duration-500">
-                <Heart className="h-5 w-5 text-white fill-white" />
+          <header className="mb-2 text-center">
+            <div className="inline-flex items-center gap-3 mb-1 group mt-2">
+              <div className="w-8 h-8 rounded-[14px] bg-gradient-to-br from-pink-500 via-rose-500 to-purple-600 flex items-center justify-center transform rotate-[-6deg] shadow-lg transition-transform group-hover:rotate-[0deg] duration-500">
+                <Heart className="h-4 w-4 text-white fill-white" />
               </div>
               <div className="text-left">
-                <h2 className="text-2xl font-black italic tracking-tighter leading-none bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/70">
+                <h2 className="text-xl font-black italic tracking-tighter leading-none bg-clip-text text-transparent bg-gradient-to-r from-white via-white to-white/70">
                   STUDYBUDDIES
                 </h2>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="h-[1.5px] w-3 bg-pink-500/50 rounded-full" />
-                  <p className="text-[9px] font-black text-pink-500 uppercase tracking-[0.3em] leading-tight">
-                    Discovery
-                  </p>
-                </div>
               </div>
             </div>
 
-            {/* Advanced Glassmorphic Tabs */}
-            <div className="mt-6 flex bg-white/[0.02] backdrop-blur-3xl rounded-full p-1.5 border border-white/[0.06] shadow-xl">
+            {/* Advanced Glassmorphic Tabs - Ultra Compact */}
+            <div className="mt-2 flex bg-white/[0.02] backdrop-blur-3xl rounded-full p-1 border border-white/[0.06] shadow-xl">
               <button
                 onClick={() => setActiveTab('discover')}
                 className={cn(
-                  "flex-1 py-2.5 px-4 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
+                  "flex-1 py-1.5 px-3 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
                   activeTab === 'discover'
                     ? "bg-white text-black shadow-md"
                     : "text-white/30 hover:text-white/80"
                 )}
               >
                 <div className="flex items-center justify-center gap-2 relative z-10">
-                  <Sparkles className={cn("h-3 w-3 transition-transform group-hover/tab:rotate-12", activeTab === 'discover' ? "text-pink-600" : "text-white/10")} />
                   Discover
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('matches')}
                 className={cn(
-                  "flex-1 py-2.5 px-4 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
+                  "flex-1 py-1.5 px-3 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
                   activeTab === 'matches'
                     ? "bg-white text-black shadow-md"
                     : "text-white/30 hover:text-white/80"
                 )}
               >
                 <div className="flex items-center justify-center gap-2 relative z-10">
-                  <Users className={cn("h-3 w-3 transition-transform group-hover/tab:scale-110", activeTab === 'matches' ? "text-purple-600" : "text-white/10")} />
                   Matches
                   {matches.length > 0 && (
-                    <span className="flex h-4 w-4 items-center justify-center rounded-full bg-pink-500 text-[8px] font-black text-white ms-2 animate-pulse">
+                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-pink-500 text-[7px] font-black text-white ms-2 animate-pulse">
                       {matches.length}
                     </span>
                   )}
@@ -565,14 +557,13 @@ export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFri
               <button
                 onClick={() => setActiveTab('likes')}
                 className={cn(
-                  "flex-1 py-2.5 px-4 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
+                  "flex-1 py-1.5 px-3 text-[9px] font-black uppercase tracking-[0.2em] transition-all rounded-full relative overflow-hidden group/tab",
                   activeTab === 'likes'
                     ? "bg-white text-black shadow-md"
                     : "text-white/30 hover:text-white/80"
                 )}
               >
                 <div className="flex items-center justify-center gap-2 relative z-10">
-                  <Heart className={cn("h-3 w-3 transition-transform group-hover/tab:scale-125", activeTab === 'likes' ? "text-rose-600 fill-rose-600/20" : "text-white/10")} />
                   Likes
                 </div>
               </button>
