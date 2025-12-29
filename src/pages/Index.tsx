@@ -31,12 +31,9 @@ import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
 import { StudyBuddiesDialog } from '@/components/chat/StudyBuddiesDialog';
 import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
-import { RecordingsDialog } from '@/components/chat/RecordingsDialog';
-import { ForwardRecordingDialog } from '@/components/chat/ForwardRecordingDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
-import { Recording } from '@/hooks/useRecordings';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -111,8 +108,6 @@ export default function Index() {
   const [showStudyBuddies, setShowStudyBuddies] = useState(false);
   const [showStudyLabs, setShowStudyLabs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showRecordings, setShowRecordings] = useState(false);
-  const [forwardRecording, setForwardRecording] = useState<Recording | null>(null);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
@@ -380,251 +375,248 @@ export default function Index() {
   const showChat = !isMobile || selectedConversationId;
 
   return (
-    <div className="flex h-full h-[100dvh] overflow-hidden bg-background safe-top safe-bottom">
-      {/* Sidebar menu */}
-      <Sidebar
-        open={showSidebar}
-        onClose={() => setShowSidebar(false)}
-        onOpenContacts={() => setShowContacts(true)}
-        onOpenCreateGroup={() => setShowCreateGroup(true)}
-        onOpenCreateChannel={() => setShowCreateChannel(true)}
-        onOpenInviteFriends={() => setShowInviteFriends(true)}
-        onOpenFindFriends={() => setShowFindFriends(true)}
-        onOpenEditProfile={() => setShowEditProfile(true)}
-        onOpenCallsInbox={() => setShowCallsInbox(true)}
-        onOpenStudyTokens={() => setShowStudyTokens(true)}
-        onOpenGlobalSearch={() => setShowGlobalSearch(true)}
-        onOpenAdminPanel={() => setShowAdminPanel(true)}
-        onOpenAskAI={() => setShowAskAI(true)}
-        onOpenFriendRequests={() => setShowFriendRequests(true)}
-        onOpenStudyBuddies={() => setShowStudyBuddies(true)}
-        onOpenStudyLabs={() => setShowStudyLabs(true)}
-        onOpenSettings={() => setShowSettings(true)}
-        onOpenRecordings={() => setShowRecordings(true)}
-      />
+    <div className="flex h-full h-[100dvh] overflow-hidden bg-[#0a0a0f] relative safe-top safe-bottom">
+      {/* Immersive Animated Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] animate-blob" />
+        <div className="absolute top-[20%] right-[-5%] w-[35%] h-[35%] bg-blue-600/10 rounded-full blur-[120px] animate-blob animation-delay-2000" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[45%] h-[45%] bg-pink-600/10 rounded-full blur-[120px] animate-blob animation-delay-4000" />
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
+      </div>
 
-      {/* Conversation list */}
-      <div
-        className={cn(
-          'relative w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 transition-all',
-          !showChatList && 'hidden md:block'
-        )}
-      >
-        <ConversationList
-          conversations={conversations}
-          selectedId={selectedConversationId}
-          onSelect={setSelectedConversationId}
-          onNewChat={() => setShowNewChat(true)}
-          onMenuClick={() => setShowSidebar(true)}
-          onDeleteConversation={handleDeleteConversation}
-          getUserRole={getUserRole}
-          onRefresh={refetchConversations}
-          onOpenAskAI={() => setShowAskAI(true)}
+      {/* Main Glassmorphic Shell */}
+      <div className="flex w-full h-full relative z-10 backdrop-blur-[2px]">
+        {/* Sidebar menu */}
+        <Sidebar
+          open={showSidebar}
+          onClose={() => setShowSidebar(false)}
+          onOpenContacts={() => setShowContacts(true)}
+          onOpenCreateGroup={() => setShowCreateGroup(true)}
+          onOpenCreateChannel={() => setShowCreateChannel(true)}
+          onOpenInviteFriends={() => setShowInviteFriends(true)}
           onOpenFindFriends={() => setShowFindFriends(true)}
-          onOpenMessageFriends={() => setShowMessageFriends(true)}
-          pendingLikesCount={totalLikesCount}
-          loading={convLoading}
+          onOpenEditProfile={() => setShowEditProfile(true)}
+          onOpenCallsInbox={() => setShowCallsInbox(true)}
+          onOpenStudyTokens={() => setShowStudyTokens(true)}
+          onOpenGlobalSearch={() => setShowGlobalSearch(true)}
+          onOpenAdminPanel={() => setShowAdminPanel(true)}
+          onOpenAskAI={() => setShowAskAI(true)}
+          onOpenFriendRequests={() => setShowFriendRequests(true)}
+          onOpenStudyBuddies={() => setShowStudyBuddies(true)}
+          onOpenStudyLabs={() => setShowStudyLabs(true)}
+          onOpenSettings={() => setShowSettings(true)}
         />
-      </div>
 
-      {/* Chat view */}
-      <div
-        className={cn(
-          'flex-1 min-w-0 md:p-0',
-          !showChat && 'hidden md:block'
-        )}
-      >
-        {selectedConversation ? (
-          isDiscussionGroup ? (
-            <DiscussionView
-              conversation={selectedConversation}
-              parentChannel={parentChannel}
-              replyToMessage={discussionContext?.replyToMessage}
-              onBack={() => {
-                // Go back to parent channel if available
-                if (parentChannel) {
-                  setSelectedConversationId(parentChannel.id);
-                } else {
-                  setSelectedConversationId(null);
-                }
-                setDiscussionContext(null);
-              }}
-              onRefreshConversations={refetchConversations}
-              onOpenBrowser={(url) => setBrowserUrl(url)}
-            />
+        {/* Conversation list */}
+        <div
+          className={cn(
+            'relative w-full md:w-80 lg:w-96 border-r border-border flex-shrink-0 transition-all',
+            !showChatList && 'hidden md:block'
+          )}
+        >
+          <ConversationList
+            conversations={conversations}
+            selectedId={selectedConversationId}
+            onSelect={setSelectedConversationId}
+            onNewChat={() => setShowNewChat(true)}
+            onMenuClick={() => setShowSidebar(true)}
+            onDeleteConversation={handleDeleteConversation}
+            getUserRole={getUserRole}
+            onRefresh={refetchConversations}
+            onOpenAskAI={() => setShowAskAI(true)}
+            onOpenFindFriends={() => setShowFindFriends(true)}
+            onOpenMessageFriends={() => setShowMessageFriends(true)}
+            pendingLikesCount={totalLikesCount}
+            loading={convLoading}
+          />
+        </div>
+
+        {/* Chat view */}
+        <div
+          className={cn(
+            'flex-1 min-w-0 md:p-0',
+            !showChat && 'hidden md:block'
+          )}
+        >
+          {selectedConversation ? (
+            isDiscussionGroup ? (
+              <DiscussionView
+                conversation={selectedConversation}
+                parentChannel={parentChannel}
+                replyToMessage={discussionContext?.replyToMessage}
+                onBack={() => {
+                  // Go back to parent channel if available
+                  if (parentChannel) {
+                    setSelectedConversationId(parentChannel.id);
+                  } else {
+                    setSelectedConversationId(null);
+                  }
+                  setDiscussionContext(null);
+                }}
+                onRefreshConversations={refetchConversations}
+                onOpenBrowser={(url) => setBrowserUrl(url)}
+              />
+            ) : (
+              <ChatView
+                conversation={selectedConversation}
+                onBack={() => setSelectedConversationId(null)}
+                onForwardMessage={handleForwardMessage}
+                onNavigateToDiscussion={(discussionId, msg) => {
+                  handleNavigateToDiscussion(discussionId, selectedConversation, msg);
+                }}
+                onRefreshConversations={refetchConversations}
+                onOpenBrowser={(url) => setBrowserUrl(url)}
+              />
+            )
           ) : (
-            <ChatView
-              conversation={selectedConversation}
-              onBack={() => setSelectedConversationId(null)}
-              onForwardMessage={handleForwardMessage}
-              onNavigateToDiscussion={(discussionId, msg) => {
-                handleNavigateToDiscussion(discussionId, selectedConversation, msg);
-              }}
-              onRefreshConversations={refetchConversations}
-              onOpenBrowser={(url) => setBrowserUrl(url)}
-            />
-          )
-        ) : (
-          <EmptyState />
+            <EmptyState />
+          )}
+        </div>
+
+        {/* Dialogs */}
+        <NewChatDialog
+          open={showNewChat}
+          onClose={() => setShowNewChat(false)}
+          onSelectUser={handleSelectUser}
+        />
+
+
+        <ContactsDialog
+          open={showContacts}
+          onClose={() => setShowContacts(false)}
+          onSelectUser={handleSelectUser}
+          onOpenInvite={() => setShowInviteFriends(true)}
+        />
+
+        <InviteFriendsDialog
+          open={showInviteFriends}
+          onClose={() => setShowInviteFriends(false)}
+        />
+
+        <CreateGroupDialog
+          open={showCreateGroup}
+          onClose={() => setShowCreateGroup(false)}
+          onCreateGroup={handleCreateGroup}
+        />
+
+        <CreateChannelDialog
+          open={showCreateChannel}
+          onClose={() => setShowCreateChannel(false)}
+          onCreateChannel={handleCreateChannel}
+        />
+
+        <ForwardMessageDialog
+          open={!!forwardDialogMessage}
+          onClose={() => setForwardDialogMessage(null)}
+          message={forwardDialogMessage}
+          conversations={conversations}
+          onForward={handleForwardToConversation}
+        />
+
+        <FindFriendsDialog
+          open={showFindFriends}
+          onClose={() => setShowFindFriends(false)}
+          onOpenConversation={(conversationId) => {
+            refetchConversations();
+            setSelectedConversationId(conversationId);
+          }}
+        />
+
+        <EditProfileDialog
+          open={showEditProfile}
+          onClose={() => setShowEditProfile(false)}
+        />
+
+
+        <CallsInboxDialog
+          open={showCallsInbox}
+          onClose={() => setShowCallsInbox(false)}
+          onOpenConversation={(conversationId) => {
+            setSelectedConversationId(conversationId);
+          }}
+        />
+
+        {/* Invite join dialog */}
+        <InviteJoinDialog
+          open={!!pendingInviteCode}
+          onClose={() => setPendingInviteCode(null)}
+          inviteCode={pendingInviteCode || ''}
+          onJoined={handleInviteJoined}
+        />
+
+        <StudyTokensDialog
+          open={showStudyTokens}
+          onClose={() => setShowStudyTokens(false)}
+          onOpenBrowser={(url) => setBrowserUrl(url)}
+        />
+
+        <GlobalSearchDialog
+          open={showGlobalSearch}
+          onClose={() => setShowGlobalSearch(false)}
+          onSelectUser={handleSelectUser}
+        />
+
+        <AdminPanelDialog
+          open={showAdminPanel}
+          onClose={() => setShowAdminPanel(false)}
+        />
+
+        <AskAIDialog
+          open={showAskAI}
+          onClose={() => setShowAskAI(false)}
+        />
+
+        <FriendRequestsDialog
+          open={showFriendRequests}
+          onClose={() => setShowFriendRequests(false)}
+          onOpenConversation={(conversationId) => {
+            refetchConversations();
+            setSelectedConversationId(conversationId);
+            setShowFriendRequests(false);
+          }}
+        />
+
+        <MessageFriendsDialog
+          open={showMessageFriends}
+          onClose={() => setShowMessageFriends(false)}
+          onSelectConversation={(conversationId) => {
+            setSelectedConversationId(conversationId);
+          }}
+        />
+
+        <StudyBuddiesDialog
+          open={showStudyBuddies}
+          onClose={() => setShowStudyBuddies(false)}
+          onSelectUser={handleSelectUser}
+        />
+
+        <StudyLabsDialog
+          open={showStudyLabs}
+          onClose={() => setShowStudyLabs(false)}
+        />
+
+        <SettingsDialog
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+        />
+
+        <InAppBrowser
+          open={!!browserUrl}
+          url={browserUrl || ''}
+          onClose={() => setBrowserUrl(null)}
+        />
+        {/* Interests Onboarding - Mandatory */}
+        {user && (
+          <InterestsOnboarding
+            open={showInterestsOnboarding}
+            onComplete={() => {
+              setShowInterestsOnboarding(false);
+              window.location.reload(); // Refresh to get updated profile
+            }}
+            userId={user.id}
+          />
         )}
       </div>
-
-      {/* Dialogs */}
-      <NewChatDialog
-        open={showNewChat}
-        onClose={() => setShowNewChat(false)}
-        onSelectUser={handleSelectUser}
-      />
-
-
-      <ContactsDialog
-        open={showContacts}
-        onClose={() => setShowContacts(false)}
-        onSelectUser={handleSelectUser}
-        onOpenInvite={() => setShowInviteFriends(true)}
-      />
-
-      <InviteFriendsDialog
-        open={showInviteFriends}
-        onClose={() => setShowInviteFriends(false)}
-      />
-
-      <CreateGroupDialog
-        open={showCreateGroup}
-        onClose={() => setShowCreateGroup(false)}
-        onCreateGroup={handleCreateGroup}
-      />
-
-      <CreateChannelDialog
-        open={showCreateChannel}
-        onClose={() => setShowCreateChannel(false)}
-        onCreateChannel={handleCreateChannel}
-      />
-
-      <ForwardMessageDialog
-        open={!!forwardDialogMessage}
-        onClose={() => setForwardDialogMessage(null)}
-        message={forwardDialogMessage}
-        conversations={conversations}
-        onForward={handleForwardToConversation}
-      />
-
-      <FindFriendsDialog
-        open={showFindFriends}
-        onClose={() => setShowFindFriends(false)}
-        onOpenConversation={(conversationId) => {
-          refetchConversations();
-          setSelectedConversationId(conversationId);
-        }}
-      />
-
-      <EditProfileDialog
-        open={showEditProfile}
-        onClose={() => setShowEditProfile(false)}
-      />
-
-
-      <CallsInboxDialog
-        open={showCallsInbox}
-        onClose={() => setShowCallsInbox(false)}
-        onOpenConversation={(conversationId) => {
-          setSelectedConversationId(conversationId);
-        }}
-      />
-
-      {/* Invite join dialog */}
-      <InviteJoinDialog
-        open={!!pendingInviteCode}
-        onClose={() => setPendingInviteCode(null)}
-        inviteCode={pendingInviteCode || ''}
-        onJoined={handleInviteJoined}
-      />
-
-      <StudyTokensDialog
-        open={showStudyTokens}
-        onClose={() => setShowStudyTokens(false)}
-        onOpenBrowser={(url) => setBrowserUrl(url)}
-      />
-
-      <GlobalSearchDialog
-        open={showGlobalSearch}
-        onClose={() => setShowGlobalSearch(false)}
-        onSelectUser={handleSelectUser}
-      />
-
-      <AdminPanelDialog
-        open={showAdminPanel}
-        onClose={() => setShowAdminPanel(false)}
-      />
-
-      <AskAIDialog
-        open={showAskAI}
-        onClose={() => setShowAskAI(false)}
-      />
-
-      <FriendRequestsDialog
-        open={showFriendRequests}
-        onClose={() => setShowFriendRequests(false)}
-        onOpenConversation={(conversationId) => {
-          refetchConversations();
-          setSelectedConversationId(conversationId);
-          setShowFriendRequests(false);
-        }}
-      />
-
-      <MessageFriendsDialog
-        open={showMessageFriends}
-        onClose={() => setShowMessageFriends(false)}
-        onSelectConversation={(conversationId) => {
-          setSelectedConversationId(conversationId);
-        }}
-      />
-
-      <StudyBuddiesDialog
-        open={showStudyBuddies}
-        onClose={() => setShowStudyBuddies(false)}
-        onSelectUser={handleSelectUser}
-      />
-
-      <StudyLabsDialog
-        open={showStudyLabs}
-        onClose={() => setShowStudyLabs(false)}
-      />
-
-      <SettingsDialog
-        open={showSettings}
-        onClose={() => setShowSettings(false)}
-      />
-
-      <RecordingsDialog
-        open={showRecordings}
-        onClose={() => setShowRecordings(false)}
-        onForwardRecording={(recording) => setForwardRecording(recording)}
-      />
-
-      <ForwardRecordingDialog
-        open={!!forwardRecording}
-        onClose={() => setForwardRecording(null)}
-        recording={forwardRecording}
-        conversations={conversations}
-      />
-
-      <InAppBrowser
-        open={!!browserUrl}
-        url={browserUrl || ''}
-        onClose={() => setBrowserUrl(null)}
-      />
-      {/* Interests Onboarding - Mandatory */}
-      {user && (
-        <InterestsOnboarding
-          open={showInterestsOnboarding}
-          onComplete={() => {
-            setShowInterestsOnboarding(false);
-            window.location.reload(); // Refresh to get updated profile
-          }}
-          userId={user.id}
-        />
-      )}
     </div>
   );
 }
