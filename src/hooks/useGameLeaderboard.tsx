@@ -18,49 +18,64 @@ export function useGameLeaderboard(gameId: string) {
     const fetchLeaderboard = useCallback(async () => {
         setLoading(true);
         try {
-            // We'll look for token_transactions of activity_type 'game_score'
-            // and parse the gameId from the description or use specific activity_type like 'game_score_{gameId}'
-            const { data, error } = await supabase
+            // STEP 1: Fetch top scores from token_transactions
+            const { data: scoresData, error: scoresError } = await supabase
                 .from('token_transactions')
-                .select(`
-                    amount,
-                    description,
-                    user_id,
-                    profiles:user_id (
-                        username,
-                        avatar_url
-                    )
-                `)
+                .select('amount, user_id') // Removed profile join to fix FK error
                 .eq('activity_type', `game_score_${gameId}`)
                 .order('amount', { ascending: false })
                 .limit(20);
 
-            if (error) throw error;
+            if (scoresError) throw scoresError;
 
-            if (data) {
+            if (scoresData && scoresData.length > 0) {
                 // Group by user and take their best score
-                const userBestScores: { [key: string]: LeaderboardEntry } = {};
+                const userBestScores: { [key: string]: number } = {};
+                const userIds = new Set<string>();
 
-                data.forEach((tx: any) => {
-                    if (!userBestScores[tx.user_id] || tx.amount > userBestScores[tx.user_id].score) {
-                        userBestScores[tx.user_id] = {
-                            user_id: tx.user_id,
-                            username: tx.profiles?.username || 'Student',
-                            avatar_url: tx.profiles?.avatar_url,
-                            score: tx.amount,
-                            rank: 0 // Will assign after sorting
-                        };
+                scoresData.forEach((tx: any) => {
+                    if (!userBestScores[tx.user_id] || tx.amount > userBestScores[tx.user_id]) {
+                        userBestScores[tx.user_id] = tx.amount;
+                        userIds.add(tx.user_id);
                     }
                 });
 
-                const sorted = Object.values(userBestScores)
+                // STEP 2: Fetch profiles for these users
+                const { data: profilesData, error: profilesError } = await supabase
+                    .from('profiles')
+                    .select('user_id, username, avatar_url')
+                    .in('user_id', Array.from(userIds));
+
+                if (profilesError) throw profilesError;
+
+                // Create a map for easy profile lookup
+                const profileMap: { [key: string]: { username: string, avatar_url: string | null } } = {};
+                profilesData?.forEach(p => {
+                    profileMap[p.user_id] = {
+                        username: p.username || 'Student',
+                        avatar_url: p.avatar_url
+                    };
+                });
+
+                // Combine scores and profiles
+                const combinedLeaderboard: LeaderboardEntry[] = Object.entries(userBestScores)
+                    .map(([userId, score]) => ({
+                        user_id: userId,
+                        username: profileMap[userId]?.username || 'Student',
+                        avatar_url: profileMap[userId]?.avatar_url || null,
+                        score: score,
+                        rank: 0
+                    }))
                     .sort((a, b) => b.score - a.score)
                     .map((entry, index) => ({ ...entry, rank: index + 1 }));
 
-                setLeaderboard(sorted);
+                setLeaderboard(combinedLeaderboard);
+            } else {
+                setLeaderboard([]);
             }
         } catch (error) {
             console.error('Error fetching leaderboard:', error);
+            // Don't show toast error here to avoid spamming the user if table is empty
         } finally {
             setLoading(false);
         }
