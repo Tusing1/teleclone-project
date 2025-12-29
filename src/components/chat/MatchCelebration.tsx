@@ -153,38 +153,46 @@ export function MatchCelebration({ matchedUser, onClose, onSendMessage, onKeepSw
           <Heart className="w-20 h-20 text-pink-500 fill-pink-500 animate-heart-burst drop-shadow-lg" />
         </div>
 
-        <h1 className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-400 to-pink-400 mb-2">
+        <h1 className="text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-500 to-rose-400 mb-2 drop-shadow-sm tracking-tighter italic">
           It's a Match!
         </h1>
 
-        <div className="flex items-center gap-1 mb-6">
-          <Sparkles className="w-4 h-4 text-yellow-400" />
-          <p className="text-white/80 text-sm text-center">You and {matchedUser.full_name || matchedUser.username} liked each other</p>
-          <Sparkles className="w-4 h-4 text-yellow-400" />
+        <div className="flex items-center gap-2 mb-8 bg-white/5 px-4 py-1.5 rounded-full border border-white/10 backdrop-blur-sm">
+          <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+          <p className="text-white/90 text-xs font-bold uppercase tracking-widest">
+            You and {matchedUser.full_name || matchedUser.username} are synced
+          </p>
+          <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
         </div>
 
         {/* AI Icebreakers Section */}
-        <div className="w-full mb-8 space-y-3">
-          <div className="flex items-center gap-2 px-1">
-            <Wand2 className="w-4 h-4 text-pink-400" />
-            <span className="text-[10px] font-bold text-pink-200 uppercase tracking-widest">AI Icebreakers</span>
+        <div className="w-full mb-8 space-y-4">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
+                <Wand2 className="w-3 h-3 text-pink-400" />
+              </div>
+              <span className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">AI Icebreakers</span>
+            </div>
+            {icebreakers.length > 0 && <span className="text-[9px] font-bold text-pink-400/60">TAP TO COPY</span>}
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {loadingIcebreakers ? (
-              <div className="space-y-2">
-                <div className="h-12 w-full bg-white/5 animate-pulse rounded-xl border border-white/10" />
-                <div className="h-12 w-full bg-white/5 animate-pulse rounded-xl border border-white/10" />
+              <div className="space-y-3">
+                <div className="h-14 w-full bg-white/5 animate-pulse rounded-2xl border border-white/10" />
+                <div className="h-14 w-full bg-white/5 animate-pulse rounded-2xl border border-white/10" />
               </div>
             ) : (
-              icebreakers.slice(0, 2).map((text, idx) => (
+              icebreakers.slice(0, 3).map((text, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleCopyIcebreaker(text)}
-                  className="w-full text-left p-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 hover:border-pink-500/50 transition-all group relative"
+                  className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-white/10 to-transparent hover:from-white/15 border border-white/10 hover:border-pink-500/50 transition-all group relative overflow-hidden active:scale-95"
                 >
-                  <p className="text-sm text-white/90 pr-8 italic leading-tight">"{text}"</p>
-                  <Copy className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20 group-hover:text-pink-400 transition-colors" />
+                  <div className="absolute top-0 left-0 w-1 h-full bg-pink-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <p className="text-[13px] text-white/90 pr-8 font-medium leading-snug">"{text}"</p>
+                  <Copy className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20 group-hover:text-pink-400 transition-colors" />
                 </button>
               ))
             )}
