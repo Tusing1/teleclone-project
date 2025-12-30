@@ -51,10 +51,7 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
             // 2. Fetch messages from this conversation that are recordings
             const { data: messages, error } = await supabase
                 .from('messages')
-                .select(`
-          *,
-          sender:profiles(*)
-        `)
+                .select('*')
                 .eq('conversation_id', convData.id)
                 .eq('message_type', 'file')
                 .order('created_at', { ascending: false });
