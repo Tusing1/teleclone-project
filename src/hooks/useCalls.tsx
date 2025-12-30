@@ -486,8 +486,30 @@ export function useCalls(conversationId: string | null) {
               if (signal.from_user === user.id) return;
 
               try {
-                if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
+                if (signal.signal_type === 'offer' && !isCreator) {
+                  console.log('📥 Received new offer (ICE Restart) via Realtime');
+                  const offerDescription = new RTCSessionDescription(signal.signal_data as any);
+                  await pc.setRemoteDescription(offerDescription);
+
+                  const answerDescription = await pc.createAnswer();
+                  await pc.setLocalDescription(answerDescription);
+
+                  await supabase.from('call_signals').insert({
+                    call_id: callId,
+                    from_user: user.id,
+                    to_user: signal.from_user,
+                    signal_type: 'answer',
+                    signal_data: {
+                      sdp: answerDescription.sdp,
+                      type: answerDescription.type,
+                    } as any
+                  });
+                } else if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
                   console.log('📥 Received answer via Realtime');
+                  const answerDescription = new RTCSessionDescription(signal.signal_data as any);
+                  await pc.setRemoteDescription(answerDescription);
+                } else if (signal.signal_type === 'answer' && pc.currentRemoteDescription && isCreator) {
+                  console.log('📥 Received answer for ICE Restart');
                   const answerDescription = new RTCSessionDescription(signal.signal_data as any);
                   await pc.setRemoteDescription(answerDescription);
                 } else if (signal.signal_type === 'ice-candidate') {
