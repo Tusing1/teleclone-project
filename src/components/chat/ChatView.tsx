@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, User } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
@@ -139,6 +140,19 @@ export function ChatView({
     startRecording,
     stopRecording
   } = useCalls(isChannel ? null : conversation.id); // Don't use for channels
+
+  const location = useLocation();
+
+  // Auto-join logic if coming from Accepted Call notification
+  useEffect(() => {
+    const state = location.state as { autoJoin?: boolean; callId?: string; callType?: 'voice' } | null;
+    if (state?.autoJoin && state.callId && activeCall?.id === state.callId) {
+      console.log('🚀 Auto-joining accepted call:', state.callId);
+      handleJoinCall();
+      // Clear autoJoin state to prevent re-joining on re-render
+      window.history.replaceState({ ...location.state, autoJoin: false }, document.title);
+    }
+  }, [location.state, activeCall?.id]);
 
   // Live stream for channels
   const {
