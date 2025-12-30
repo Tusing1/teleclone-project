@@ -33,6 +33,7 @@ import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
+import { RecordingsView } from '@/components/chat/RecordingsView';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -108,6 +109,7 @@ export default function Index() {
   const [showStudyBuddies, setShowStudyBuddies] = useState(false);
   const [showStudyLabs, setShowStudyLabs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showRecordings, setShowRecordings] = useState(false);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
@@ -349,6 +351,10 @@ export default function Index() {
           onOpenStudyBuddies={() => setShowStudyBuddies(true)}
           onOpenStudyLabs={() => setShowStudyLabs(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenRecordings={() => {
+            setSelectedConversationId(null);
+            setShowRecordings(true);
+          }}
         />
 
         {/* Conversation list */}
@@ -361,7 +367,10 @@ export default function Index() {
           <ConversationList
             conversations={conversations}
             selectedId={selectedConversationId}
-            onSelect={setSelectedConversationId}
+            onSelect={(id) => {
+              setSelectedConversationId(id);
+              setShowRecordings(false);
+            }}
             onNewChat={() => setShowNewChat(true)}
             onMenuClick={() => setShowSidebar(true)}
             onDeleteConversation={handleDeleteConversation}
@@ -412,6 +421,8 @@ export default function Index() {
                 onOpenBrowser={(url) => setBrowserUrl(url)}
               />
             )
+          ) : showRecordings ? (
+            <RecordingsView onBack={() => setShowRecordings(false)} />
           ) : (
             <EmptyState />
           )}
