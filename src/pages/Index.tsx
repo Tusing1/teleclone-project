@@ -33,9 +33,6 @@ import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
-import { RecordingsView } from '@/components/chat/RecordingsView';
-import { ForwardRecordingDialog } from '@/components/chat/ForwardRecordingDialog';
-import { Recording } from '@/hooks/useRecordings';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -111,8 +108,6 @@ export default function Index() {
   const [showStudyBuddies, setShowStudyBuddies] = useState(false);
   const [showStudyLabs, setShowStudyLabs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [showRecordings, setShowRecordings] = useState(false);
-  const [forwardRecording, setForwardRecording] = useState<Recording | null>(null);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
@@ -174,66 +169,10 @@ export default function Index() {
 
     console.log('🔔 Initializing global call listener for user:', user.id);
 
-    // Listen for new calls
-    const callsSubscription = supabase
-      .channel('global-calls')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'calls' },
-        async (payload) => {
-          const newCall = payload.new;
-          if (newCall.started_by === user.id) return;
-
-          // Check if user is participant in this conversation
-          const isParticipant = conversations.some(c => c.id === newCall.conversation_id);
-          if (isParticipant) {
-            const conv = conversations.find(c => c.id === newCall.conversation_id);
-            toast(
-              `Incoming ${newCall.call_type} call from ${conv?.name || 'someone'}`,
-              {
-                icon: <Phone className="h-4 w-4 text-green-500" />,
-                action: {
-                  label: 'Join',
-                  onClick: () => setSelectedConversationId(newCall.conversation_id)
-                },
-                duration: 10000
-              }
-            );
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'livestreams' },
-        async (payload) => {
-          const newStream = payload.new;
-          if (newStream.requested_by === user.id) return;
-
-          // Check if user is participant in this conversation
-          const isParticipant = conversations.some(c => c.id === newStream.conversation_id);
-          if (isParticipant) {
-            const conv = conversations.find(c => c.id === newStream.conversation_id);
-            toast(
-              `Live Stream started in ${conv?.name || 'Channel'}`,
-              {
-                icon: <Radio className="h-4 w-4 text-primary animate-pulse" />,
-                description: newStream.livestream_title || 'Join the live broadcast!',
-                action: {
-                  label: 'View',
-                  onClick: () => setSelectedConversationId(newStream.conversation_id)
-                },
-                duration: 8000
-              }
-            );
-          }
-        }
-      )
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(callsSubscription);
+      // Clean up any remaining global subscriptions if needed
     };
-  }, [user, conversations]);
+  }, [user]);
 
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 768);
@@ -410,10 +349,6 @@ export default function Index() {
           onOpenStudyBuddies={() => setShowStudyBuddies(true)}
           onOpenStudyLabs={() => setShowStudyLabs(true)}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenRecordings={() => {
-            setSelectedConversationId(null);
-            setShowRecordings(true);
-          }}
         />
 
         {/* Conversation list */}
@@ -447,12 +382,7 @@ export default function Index() {
             !showChat && 'hidden md:block'
           )}
         >
-          {showRecordings ? (
-            <RecordingsView
-              onBack={() => setShowRecordings(false)}
-              onForwardRecording={(recording) => setForwardRecording(recording)}
-            />
-          ) : selectedConversation ? (
+          {selectedConversation ? (
             isDiscussionGroup ? (
               <DiscussionView
                 conversation={selectedConversation}
@@ -612,14 +542,6 @@ export default function Index() {
         <SettingsDialog
           open={showSettings}
           onClose={() => setShowSettings(false)}
-        />
-
-
-        <ForwardRecordingDialog
-          open={!!forwardRecording}
-          onClose={() => setForwardRecording(null)}
-          recording={forwardRecording}
-          conversations={conversations}
         />
 
         <InAppBrowser
