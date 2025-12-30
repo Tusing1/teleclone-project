@@ -33,7 +33,7 @@ import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
 import { SettingsDialog } from '@/components/chat/SettingsDialog';
 import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
-import { RecordingsDialog } from '@/components/chat/RecordingsDialog';
+import { RecordingsView } from '@/components/chat/RecordingsView';
 import { ForwardRecordingDialog } from '@/components/chat/ForwardRecordingDialog';
 import { Recording } from '@/hooks/useRecordings';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
@@ -410,7 +410,10 @@ export default function Index() {
           onOpenStudyBuddies={() => setShowStudyBuddies(true)}
           onOpenStudyLabs={() => setShowStudyLabs(true)}
           onOpenSettings={() => setShowSettings(true)}
-          onOpenRecordings={() => setShowRecordings(true)}
+          onOpenRecordings={() => {
+            setSelectedConversationId(null);
+            setShowRecordings(true);
+          }}
         />
 
         {/* Conversation list */}
@@ -444,7 +447,12 @@ export default function Index() {
             !showChat && 'hidden md:block'
           )}
         >
-          {selectedConversation ? (
+          {showRecordings ? (
+            <RecordingsView
+              onBack={() => setShowRecordings(false)}
+              onForwardRecording={(recording) => setForwardRecording(recording)}
+            />
+          ) : selectedConversation ? (
             isDiscussionGroup ? (
               <DiscussionView
                 conversation={selectedConversation}
@@ -606,11 +614,6 @@ export default function Index() {
           onClose={() => setShowSettings(false)}
         />
 
-        <RecordingsDialog
-          open={showRecordings}
-          onClose={() => setShowRecordings(false)}
-          onForwardRecording={(recording) => setForwardRecording(recording)}
-        />
 
         <ForwardRecordingDialog
           open={!!forwardRecording}
