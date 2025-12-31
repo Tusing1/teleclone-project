@@ -317,8 +317,8 @@ export default function Index() {
     return null;
   }
 
-  const showChatList = !isMobile || !selectedConversationId;
-  const showChat = !isMobile || selectedConversationId;
+  const showChatList = !isMobile || (!selectedConversationId && !showRecordings);
+  const showChat = !isMobile || selectedConversationId || showRecordings;
 
   return (
     <div className="flex h-full h-[100dvh] overflow-hidden bg-[#0a0a0f] relative safe-top safe-bottom">
