@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
-import { MessageWithSender } from '@/types/chat';
 import { ChannelAudioPlayer } from './ChannelAudioPlayer';
-import { Search, ArrowLeft, Mic, Clock, Calendar, Download, Trash2, MoreVertical } from 'lucide-react';
+import { Search, ArrowLeft, Mic, Clock, Calendar, Download, Trash2, MoreVertical, Video, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -15,60 +14,98 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
+interface Recording {
+    id: string;
+    title: string;
+    url: string;
+    created_at: string;
+    type: 'call' | 'livestream' | 'voice_message';
+    duration?: number;
+    file_size?: number;
+}
+
 interface RecordingsViewProps {
     onBack: () => void;
 }
 
 export function RecordingsView({ onBack }: RecordingsViewProps) {
     const { user } = useAuth();
-    const [recordings, setRecordings] = useState<MessageWithSender[]>([]);
+    const [recordings, setRecordings] = useState<Recording[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
     useEffect(() => {
         if (user) {
-            fetchRecordings();
+            fetchAllRecordings();
         }
     }, [user]);
 
-    const fetchRecordings = async () => {
+    const fetchAllRecordings = async () => {
         if (!user) return;
         setLoading(true);
 
         try {
-            // 1. Get the "Saved Messages" conversation ID
-            // We use the edge function to ensure the conversation exists
-            const { data: convData } = await supabase.functions.invoke('create-conversation', {
-                body: { type: 'saved' }
-            });
+            const allRecordings: Recording[] = [];
 
-            if (!convData?.id) {
-                setRecordings([]);
-                setLoading(false);
-                return;
+            // 1. Fetch call recordings from calls table
+            const { data: callRecordings, error: callError } = await supabase
+                .from('calls')
+                .select('*')
+                .not('recording_url', 'is', null)
+                .order('started_at', { ascending: false });
+
+            if (callError) {
+                console.error('Error fetching call recordings:', callError);
+            } else if (callRecordings) {
+                callRecordings.forEach(call => {
+                    if (call.recording_url) {
+                        allRecordings.push({
+                            id: call.id,
+                            title: call.recording_title || call.livestream_title || `${call.call_type === 'livestream' ? 'Livestream' : 'Call'} Recording`,
+                            url: call.recording_url,
+                            created_at: call.started_at,
+                            type: call.call_type === 'livestream' ? 'livestream' : 'call',
+                        });
+                    }
+                });
             }
 
-            // 2. Fetch messages from this conversation that are recordings
-            const { data: messages, error } = await supabase
+            // 2. Fetch voice messages from messages table (audio files)
+            const { data: voiceMessages, error: msgError } = await supabase
                 .from('messages')
                 .select('*')
-                .eq('conversation_id', convData.id)
                 .eq('message_type', 'file')
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (msgError) {
+                console.error('Error fetching voice messages:', msgError);
+            } else if (voiceMessages) {
+                voiceMessages.forEach(msg => {
+                    if (msg.file_url && (
+                        msg.file_url.toLowerCase().endsWith('.webm') ||
+                        msg.file_url.toLowerCase().endsWith('.mp3') ||
+                        msg.file_url.toLowerCase().endsWith('.m4a') ||
+                        msg.file_url.toLowerCase().endsWith('.ogg') ||
+                        msg.file_url.toLowerCase().endsWith('.wav') ||
+                        msg.content?.toLowerCase().includes('recording') ||
+                        msg.content?.toLowerCase().includes('voice')
+                    )) {
+                        allRecordings.push({
+                            id: msg.id,
+                            title: msg.file_name?.replace(/\.[^/.]+$/, '') || msg.content || 'Voice Recording',
+                            url: msg.file_url,
+                            created_at: msg.created_at,
+                            type: 'voice_message',
+                            file_size: msg.file_size || undefined,
+                        });
+                    }
+                });
+            }
 
-            // Filter for audio recordings (typically .webm from our WebRTC recorder)
-            const filtered = (messages || []).filter(m =>
-                m.file_url && (
-                    m.file_url.toLowerCase().endsWith('.webm') ||
-                    m.file_url.toLowerCase().endsWith('.mp3') ||
-                    m.file_url.toLowerCase().endsWith('.m4a') ||
-                    m.content?.toLowerCase().includes('recording')
-                )
-            );
+            // Sort all recordings by date (newest first)
+            allRecordings.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-            setRecordings(filtered as unknown as MessageWithSender[]);
+            setRecordings(allRecordings);
         } catch (error) {
             console.error('Error fetching recordings:', error);
             toast.error('Failed to load recordings');
@@ -77,16 +114,26 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
         }
     };
 
-    const handleDelete = async (id: string) => {
+    const handleDelete = async (recording: Recording) => {
         try {
-            const { error } = await supabase
-                .from('messages')
-                .delete()
-                .eq('id', id);
+            if (recording.type === 'voice_message') {
+                const { error } = await supabase
+                    .from('messages')
+                    .delete()
+                    .eq('id', recording.id);
 
-            if (error) throw error;
+                if (error) throw error;
+            } else {
+                // For call recordings, just clear the recording URL
+                const { error } = await supabase
+                    .from('calls')
+                    .update({ recording_url: null, recording_title: null })
+                    .eq('id', recording.id);
 
-            setRecordings(prev => prev.filter(r => r.id !== id));
+                if (error) throw error;
+            }
+
+            setRecordings(prev => prev.filter(r => r.id !== recording.id));
             toast.success('Recording deleted');
         } catch (error) {
             console.error('Error deleting recording:', error);
@@ -94,10 +141,41 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
         }
     };
 
+    const getTypeIcon = (type: Recording['type']) => {
+        switch (type) {
+            case 'call':
+                return <Video className="h-6 w-6 text-blue-400" />;
+            case 'livestream':
+                return <Radio className="h-6 w-6 text-red-400" />;
+            default:
+                return <Mic className="h-6 w-6 text-primary" />;
+        }
+    };
+
+    const getTypeBadge = (type: Recording['type']) => {
+        switch (type) {
+            case 'call':
+                return <span className="px-2 py-0.5 bg-blue-500/20 text-blue-400 text-[10px] font-medium rounded-full">Call</span>;
+            case 'livestream':
+                return <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-[10px] font-medium rounded-full">Live</span>;
+            default:
+                return <span className="px-2 py-0.5 bg-primary/20 text-primary text-[10px] font-medium rounded-full">Voice</span>;
+        }
+    };
+
     const filteredRecordings = recordings.filter(r =>
-        r.content?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        r.file_name?.toLowerCase().includes(searchQuery.toLowerCase())
+        r.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
+
+    // Group recordings by date
+    const groupedRecordings = filteredRecordings.reduce((groups, recording) => {
+        const date = format(new Date(recording.created_at), 'yyyy-MM-dd');
+        if (!groups[date]) {
+            groups[date] = [];
+        }
+        groups[date].push(recording);
+        return groups;
+    }, {} as Record<string, Recording[]>);
 
     return (
         <div className="flex flex-col h-full bg-[#0f111a]/80 backdrop-blur-xl md:rounded-2xl md:m-2 md:shadow-2xl border border-white/5 overflow-hidden">
@@ -111,7 +189,7 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                         <Mic className="h-5 w-5 text-primary" />
                         My Vault
                     </h2>
-                    <p className="text-xs text-muted-foreground">{recordings.length} recordings saved</p>
+                    <p className="text-xs text-muted-foreground">{recordings.length} recordings from all sources</p>
                 </div>
                 <div className="relative w-full max-w-xs hidden sm:block">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -125,11 +203,11 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 scrollbar-thin">
                 {loading ? (
                     <div className="flex flex-col items-center justify-center h-full gap-4">
                         <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                        <p className="text-muted-foreground animate-pulse">Scanning your recordings...</p>
+                        <p className="text-muted-foreground animate-pulse">Scanning all your recordings...</p>
                     </div>
                 ) : filteredRecordings.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-center p-8">
@@ -140,66 +218,79 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                             {searchQuery ? 'No recordings found' : 'No recordings yet'}
                         </h3>
                         <p className="text-muted-foreground max-w-xs mx-auto">
-                            {searchQuery ? 'Try a different search term.' : 'Your call recordings and voice notes will appear here once you save them during calls.'}
+                            {searchQuery ? 'Try a different search term.' : 'Your call recordings, livestream recordings, and voice messages will appear here.'}
                         </p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                        {filteredRecordings.map((recording) => (
-                            <div
-                                key={recording.id}
-                                className="group relative bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-4 transition-all duration-300 hover:scale-[1.01]"
-                            >
-                                <div className="flex items-start gap-4">
-                                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/10 flex items-center justify-center shrink-0 border border-white/10 shadow-lg shadow-black/20">
-                                        <Mic className="h-6 w-6 text-primary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-center justify-between gap-2 mb-1">
-                                            <h3 className="font-semibold text-white truncate text-base">
-                                                {recording.file_name?.replace(/\.[^/.]+$/, '') || recording.content || 'Untitled Recording'}
-                                            </h3>
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <MoreVertical className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-white">
-                                                    <DropdownMenuItem onClick={() => recording.file_url && window.open(recording.file_url, '_blank')} className="gap-2 cursor-pointer">
-                                                        <Download className="h-4 w-4" /> Download
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onClick={() => handleDelete(recording.id)} className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
-                                                        <Trash2 className="h-4 w-4" /> Delete
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </div>
-
-                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-4">
-                                            <div className="flex items-center gap-1">
-                                                <Calendar className="h-3 w-3 text-primary/60" />
-                                                {format(new Date(recording.created_at), 'MMM d, yyyy')}
-                                            </div>
-                                            <div className="flex items-center gap-1">
-                                                <Clock className="h-3 w-3 text-primary/60" />
-                                                {format(new Date(recording.created_at), 'h:mm a')}
-                                            </div>
-                                            {recording.file_size && (
-                                                <span className="opacity-60">{(recording.file_size / (1024 * 1024)).toFixed(1)} MB</span>
-                                            )}
-                                        </div>
-
-                                        <ChannelAudioPlayer
-                                            url={recording.file_url!}
-                                            title=""
-                                            className="bg-black/40 border-white/5 rounded-xl p-2 shadow-inner"
-                                        />
-                                    </div>
-                                </div>
+                    Object.entries(groupedRecordings).map(([date, dateRecordings]) => (
+                        <div key={date}>
+                            {/* Date Header */}
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="h-px flex-1 bg-white/10" />
+                                <span className="text-xs font-medium text-muted-foreground px-3 py-1 bg-white/5 rounded-full">
+                                    {format(new Date(date), 'EEEE, MMMM d, yyyy')}
+                                </span>
+                                <div className="h-px flex-1 bg-white/10" />
                             </div>
-                        ))}
-                    </div>
+
+                            {/* Recordings for this date */}
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                                {dateRecordings.map((recording) => (
+                                    <div
+                                        key={recording.id}
+                                        className="group relative bg-white/5 hover:bg-white/10 border border-white/5 rounded-2xl p-4 transition-all duration-300 hover:scale-[1.01]"
+                                    >
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-blue-500/10 flex items-center justify-center shrink-0 border border-white/10 shadow-lg shadow-black/20">
+                                                {getTypeIcon(recording.type)}
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center justify-between gap-2 mb-1">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        <h3 className="font-semibold text-white truncate text-base">
+                                                            {recording.title}
+                                                        </h3>
+                                                        {getTypeBadge(recording.type)}
+                                                    </div>
+                                                    <DropdownMenu>
+                                                        <DropdownMenuTrigger asChild>
+                                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <MoreVertical className="h-4 w-4" />
+                                                            </Button>
+                                                        </DropdownMenuTrigger>
+                                                        <DropdownMenuContent align="end" className="bg-slate-900 border-white/10 text-white">
+                                                            <DropdownMenuItem onClick={() => window.open(recording.url, '_blank')} className="gap-2 cursor-pointer">
+                                                                <Download className="h-4 w-4" /> Download
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem onClick={() => handleDelete(recording)} className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
+                                                                <Trash2 className="h-4 w-4" /> Delete
+                                                            </DropdownMenuItem>
+                                                        </DropdownMenuContent>
+                                                    </DropdownMenu>
+                                                </div>
+
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mb-4">
+                                                    <div className="flex items-center gap-1">
+                                                        <Clock className="h-3 w-3 text-primary/60" />
+                                                        {format(new Date(recording.created_at), 'h:mm a')}
+                                                    </div>
+                                                    {recording.file_size && (
+                                                        <span className="opacity-60">{(recording.file_size / (1024 * 1024)).toFixed(1)} MB</span>
+                                                    )}
+                                                </div>
+
+                                                <ChannelAudioPlayer
+                                                    url={recording.url}
+                                                    title=""
+                                                    className="bg-black/40 border-white/5 rounded-xl p-2 shadow-inner"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))
                 )}
             </div>
         </div>
