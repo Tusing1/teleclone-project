@@ -9,14 +9,16 @@ export const ICE_SERVERS: RTCConfiguration = {
     iceServers: [
         {
             urls: [
+                'stun:stun.l.google.com:19302',
                 'stun:stun1.l.google.com:19302',
                 'stun:stun2.l.google.com:19302',
                 'stun:stun3.l.google.com:19302',
                 'stun:stun4.l.google.com:19302',
+                'stun:stun.services.mozilla.com',
             ],
         },
-        // Optional: Add TURN servers here for "long-distance" calls.
         // Using OpenRelay (free) to enable cross-network communication.
+        // For production, consider a paid provider like Twilio, Cloudflare, or Metered.ca
         {
             urls: [
                 'turn:openrelay.metered.ca:80',
@@ -33,9 +35,11 @@ export const ICE_SERVERS: RTCConfiguration = {
 
 /**
  * Common peer connection options
+ * Using 'all' for iceTransportPolicy allows both relay (TURN) and host/srflx (STUN) candidates.
  */
 export const PC_OPTIONS: RTCConfiguration = {
     ...ICE_SERVERS,
-    // Force ICE connection to be established even if local candidate fails
     iceTransportPolicy: 'all',
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require',
 };
