@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import { ICE_SERVERS } from '@/lib/webrtc';
+import { ICE_SERVERS, PC_OPTIONS } from '@/lib/webrtc';
 export interface Call {
   id: string;
   conversation_id: string;
@@ -39,8 +39,8 @@ export interface RemoteStream {
   stream: MediaStream;
 }
 
-// ICE servers for STUN/TURN - Now using centralized config
-const servers = ICE_SERVERS;
+// ICE configuration - Using centralized config
+const servers = PC_OPTIONS;
 
 export function useCalls(conversationId: string | null) {
   const { user } = useAuth();
@@ -325,7 +325,8 @@ export function useCalls(conversationId: string | null) {
       setIsInCall(true);
       await fetchActiveCall();
 
-      // Create peer connection
+      // Create peer connection with full PC_OPTIONS
+      console.log('📡 Initializing RTCPeerConnection with config:', servers);
       const pc = new RTCPeerConnection(servers);
       peerConnection.current = pc;
 
