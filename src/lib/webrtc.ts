@@ -19,15 +19,16 @@ export const FALLBACK_ICE_SERVERS: RTCConfiguration = {
                 'stun:stun4.l.google.com:19302',
             ],
         },
-        // OpenRelay as fallback TURN
+        // User's Metered.ca fallback (if dynamic fetch fails)
         {
             urls: [
-                'turn:openrelay.metered.ca:80',
-                'turn:openrelay.metered.ca:443',
-                'turns:openrelay.metered.ca:443',
+                'turn:global.relay.metered.ca:80',
+                'turn:global.relay.metered.ca:80?transport=tcp',
+                'turn:global.relay.metered.ca:443',
+                'turns:global.relay.metered.ca:443?transport=tcp',
             ],
-            username: 'openrelayproject',
-            credential: 'openrelayproject',
+            username: 'da73ef4f9a2521323f6c7d98',
+            credential: 'bg4DqkRBQWOhnk5S',
         },
     ],
     iceCandidatePoolSize: 10,
@@ -45,29 +46,29 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  */
 export async function getTurnCredentials(): Promise<RTCConfiguration> {
     const now = Date.now();
-    
+
     // Return cached config if still valid
     if (cachedConfig && now < cacheExpiry) {
         console.log('📡 Using cached TURN credentials');
         return cachedConfig;
     }
-    
+
     try {
         console.log('📡 Fetching fresh TURN credentials...');
         const { data, error } = await supabase.functions.invoke('get-turn-credentials');
-        
+
         if (error) {
             console.error('Failed to fetch TURN credentials:', error);
             return FALLBACK_ICE_SERVERS;
         }
-        
+
         if (data && data.iceServers) {
             console.log('📡 Received TURN credentials with', data.iceServers.length, 'servers');
             cachedConfig = data as RTCConfiguration;
             cacheExpiry = now + CACHE_DURATION;
             return cachedConfig;
         }
-        
+
         console.warn('Invalid TURN credentials response, using fallback');
         return FALLBACK_ICE_SERVERS;
     } catch (err) {
