@@ -507,6 +507,10 @@ export function useCalls(conversationId: string | null) {
                     } as any
                   });
                 } else if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
+                  if (pc.signalingState === 'stable') {
+                    console.warn('⚠️ Received answer but connection is already stable. Ignoring.');
+                    return;
+                  }
                   console.log('📥 Received answer via Realtime');
                   const answerDescription = new RTCSessionDescription(signal.signal_data as any);
                   await pc.setRemoteDescription(answerDescription);
@@ -522,6 +526,12 @@ export function useCalls(conversationId: string | null) {
                   }
                   candidateQueue.length = 0; // Clear queue
                 } else if (signal.signal_type === 'answer' && pc.currentRemoteDescription && isCreator) {
+                  if (pc.signalingState === 'stable') {
+                    // If we are stable, we might have already processed this answer or it's a late arrival
+                    // However, if we did an ICE restart (sent a new offer), we should be in 'have-local-offer'
+                    console.warn('⚠️ Received answer for ICE restart but state is stable. Ignoring.');
+                    return;
+                  }
                   console.log('📥 Received answer for ICE Restart');
                   const answerDescription = new RTCSessionDescription(signal.signal_data as any);
                   await pc.setRemoteDescription(answerDescription);
