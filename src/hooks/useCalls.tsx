@@ -467,6 +467,9 @@ export function useCalls(conversationId: string | null) {
           }
         }
 
+        // Queue for ICE candidates that arrive before the answer
+        const candidateQueue: RTCIceCandidate[] = [];
+
         // Listen for answer and ICE candidates via Realtime
         const channel = supabase
           .channel(`call-${callId}`)
@@ -507,14 +510,31 @@ export function useCalls(conversationId: string | null) {
                   console.log('📥 Received answer via Realtime');
                   const answerDescription = new RTCSessionDescription(signal.signal_data as any);
                   await pc.setRemoteDescription(answerDescription);
+
+                  // Process queued candidates
+                  console.log(`Processing ${candidateQueue.length} queued ICE candidates`);
+                  for (const candidate of candidateQueue) {
+                    try {
+                      await pc.addIceCandidate(candidate);
+                    } catch (err) {
+                      console.error('Error adding queued candidate:', err);
+                    }
+                  }
+                  candidateQueue.length = 0; // Clear queue
                 } else if (signal.signal_type === 'answer' && pc.currentRemoteDescription && isCreator) {
                   console.log('📥 Received answer for ICE Restart');
                   const answerDescription = new RTCSessionDescription(signal.signal_data as any);
                   await pc.setRemoteDescription(answerDescription);
                 } else if (signal.signal_type === 'ice-candidate') {
-                  console.log('📥 Received ICE candidate via Realtime');
                   const candidate = new RTCIceCandidate(signal.signal_data as any);
-                  await pc.addIceCandidate(candidate);
+
+                  if (pc.remoteDescription) {
+                    console.log('📥 Received ICE candidate via Realtime');
+                    await pc.addIceCandidate(candidate);
+                  } else {
+                    console.log('📥 Queuing ICE candidate (waiting for answer)');
+                    candidateQueue.push(candidate);
+                  }
                 }
               } catch (error) {
                 console.error('Error processing realtime signal:', error);
