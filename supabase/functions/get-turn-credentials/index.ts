@@ -13,8 +13,11 @@ serve(async (req) => {
 
   try {
     const METERED_API_KEY = Deno.env.get('METERED_API_KEY');
-    
-    if (!METERED_API_KEY) {
+
+    // Use configured key or fallback to provided key
+    const apiKey = METERED_API_KEY || '4602cf2044c45b6a125619fbe65069e42b52';
+
+    if (!apiKey) {
       console.error('METERED_API_KEY is not configured');
       // Return fallback STUN-only configuration if no API key
       return new Response(JSON.stringify({
@@ -36,7 +39,7 @@ serve(async (req) => {
 
     // Fetch dynamic TURN credentials from Metered.ca
     const response = await fetch(
-      `https://studybuddy.metered.live/api/v1/turn/credentials?apiKey=${METERED_API_KEY}`
+      `https://studdybuddyapp.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
     );
 
     if (!response.ok) {
@@ -69,7 +72,7 @@ serve(async (req) => {
     });
   } catch (error) {
     console.error('Error fetching TURN credentials:', error);
-    
+
     // Return fallback configuration with free TURN servers
     const fallbackConfig = {
       iceServers: [
@@ -80,15 +83,16 @@ serve(async (req) => {
             'stun:stun2.l.google.com:19302',
           ],
         },
-        // Fallback to OpenRelay (may have limited availability)
+        // User's Metered.ca fallback (if dynamic fetch fails)
         {
           urls: [
-            'turn:openrelay.metered.ca:80',
-            'turn:openrelay.metered.ca:443',
-            'turns:openrelay.metered.ca:443',
+            'turn:global.relay.metered.ca:80',
+            'turn:global.relay.metered.ca:80?transport=tcp',
+            'turn:global.relay.metered.ca:443',
+            'turns:global.relay.metered.ca:443?transport=tcp',
           ],
-          username: 'openrelayproject',
-          credential: 'openrelayproject',
+          username: 'da73ef4f9a2521323f6c7d98',
+          credential: 'bg4DqkRBQWOhnk5S',
         },
       ],
       iceCandidatePoolSize: 10,
@@ -96,7 +100,7 @@ serve(async (req) => {
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
     };
-    
+
     return new Response(JSON.stringify(fallbackConfig), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
