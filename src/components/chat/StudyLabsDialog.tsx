@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
     X, FlaskConical, Zap, Trophy, Coins, Play,
-    ChevronRight, Brain, Clock, Star, Users, Activity
+    ChevronRight, Brain, Clock, Star, Users, Activity, Pill
 } from 'lucide-react';
 import {
     Dialog,
@@ -14,6 +14,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { MedicalTermScramble } from '@/components/chat/games/MedicalTermScramble';
 import { AnatomyBlitz } from '@/components/chat/games/AnatomyBlitz';
+import { PharmMatch } from '@/components/chat/games/PharmMatch';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 
 interface StudyLabsDialogProps {
@@ -21,14 +22,14 @@ interface StudyLabsDialogProps {
     onClose: () => void;
 }
 
-type GameView = 'hub' | 'scramble' | 'anatomy' | 'nclex';
+type GameView = 'hub' | 'scramble' | 'anatomy' | 'nclex' | 'pharma';
 
 export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
     const { profile } = useAuth();
     const { balance } = useStudyTokens();
     const [activeView, setActiveView] = useState<GameView>('hub');
     const [hubTab, setHubTab] = useState<'games' | 'leaderboard'>('games');
-    const [leaderboardGameId, setLeaderboardGameId] = useState<'term-scramble' | 'anatomy-blitz'>('term-scramble');
+    const [leaderboardGameId, setLeaderboardGameId] = useState<'term-scramble' | 'anatomy-blitz' | 'pharm-match'>('term-scramble');
     const { leaderboard, loading: scoresLoading } = useGameLeaderboard(leaderboardGameId);
 
     if (!open) return null;
@@ -153,6 +154,34 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                                 <Play className="h-4 w-4 text-white/40 group-hover:text-black fill-current" />
                             </div>
                         </button>
+
+                        {/* PharmMatch */}
+                        <button
+                            onClick={() => setActiveView('pharma')}
+                            className="w-full p-5 rounded-[32px] bg-white/[0.02] border border-white/[0.06] hover:bg-white/[0.04] hover:border-white/20 transition-all group/game text-left flex items-center gap-4 relative overflow-hidden"
+                        >
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-teal-600/10 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-teal-600/20 transition-all" />
+
+                            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal-500/20 to-emerald-500/20 flex items-center justify-center border border-teal-500/30 group-hover:scale-105 transition-transform shrink-0">
+                                <Pill className="h-8 w-8 text-teal-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-black text-lg text-white/90 group-hover:text-white transition-colors uppercase tracking-tight">PharmMatch</h4>
+                                <div className="flex items-center gap-3 mt-1">
+                                    <div className="flex items-center gap-1">
+                                        <Clock className="h-3 w-3 text-white/30" />
+                                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">3 Levels</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Zap className="h-3 w-3 text-teal-500 fill-teal-500/20" />
+                                        <span className="text-[9px] font-black text-teal-500 uppercase tracking-widest">Up to 5 TK</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="w-10 h-10 rounded-full bg-white/[0.05] flex items-center justify-center group-hover:bg-white transition-all group-hover:rotate-[-12deg]">
+                                <Play className="h-4 w-4 text-white/40 group-hover:text-black fill-current" />
+                            </div>
+                        </button>
                     </div>
                 ) : (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 px-2">
@@ -176,6 +205,15 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                                     )}
                                 >
                                     BLITZ
+                                </button>
+                                <button
+                                    onClick={() => setLeaderboardGameId('pharm-match')}
+                                    className={cn(
+                                        "px-3 py-1.5 rounded-full text-[8px] font-black transition-all",
+                                        leaderboardGameId === 'pharm-match' ? "bg-teal-500 text-white" : "text-white/40"
+                                    )}
+                                >
+                                    PHARMA
                                 </button>
                             </div>
                         </div>
@@ -258,6 +296,12 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
 
                 {activeView === 'anatomy' && (
                     <AnatomyBlitz
+                        onExit={() => setActiveView('hub')}
+                    />
+                )}
+
+                {activeView === 'pharma' && (
+                    <PharmMatch
                         onExit={() => setActiveView('hub')}
                     />
                 )}
