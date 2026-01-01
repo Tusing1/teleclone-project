@@ -452,23 +452,45 @@ export function useCalls(conversationId: string | null) {
           .neq('from_user', user.id)
           .in('signal_type', ['answer', 'ice-candidate']);
 
-        // Process any signals that were already sent
-        for (const signal of existingSignals || []) {
-          try {
-            if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
-              console.log('📥 Processing delayed answer');
-              await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data as any));
-            } else if (signal.signal_type === 'ice-candidate') {
-              console.log('📥 Processing delayed ICE candidate');
-              await pc.addIceCandidate(new RTCIceCandidate(signal.signal_data as any));
-            }
-          } catch (error) {
-            console.error('Error processing existing signal:', error);
-          }
-        }
-
         // Queue for ICE candidates that arrive before the answer
         const candidateQueue: RTCIceCandidate[] = [];
+
+        // Process any signals that were already sent
+        if (existingSignals) {
+          // Sort signals: Answer first, then candidates (or others)
+          const sortedSignals = existingSignals.sort((a, b) => {
+            if (a.signal_type === 'answer') return -1;
+            if (b.signal_type === 'answer') return 1;
+            return 0;
+          });
+
+          for (const signal of sortedSignals) {
+            try {
+              if (signal.signal_type === 'answer' && !pc.currentRemoteDescription) {
+                if (pc.signalingState === 'stable') {
+                  console.warn('⚠️ (Existing) Signal answer ignored: Connection already stable.');
+                  continue;
+                }
+                console.log('📥 Processing delayed answer');
+                await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data as any));
+
+                // If we just set the remote description, flush any candidates we might have unnecessarily queued locally (though above sort handles most)
+                // But more importantly, now we can process the rest of the loop which might be candidates
+              } else if (signal.signal_type === 'ice-candidate') {
+                const candidate = new RTCIceCandidate(signal.signal_data as any);
+                if (pc.remoteDescription) {
+                  console.log('📥 Processing delayed ICE candidate');
+                  await pc.addIceCandidate(candidate);
+                } else {
+                  console.log('📥 Queuing delayed ICE candidate (waiting for answer)');
+                  candidateQueue.push(candidate);
+                }
+              }
+            } catch (error) {
+              console.error('Error processing existing signal:', error);
+            }
+          }
+        }
 
         // Listen for answer and ICE candidates via Realtime
         const channel = supabase
