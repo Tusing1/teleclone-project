@@ -18,5 +18,5 @@ verify_jwt = false
 [functions.streak-reminder]
 verify_jwt = true
 
-[functions.agora-token]
+[functions.get-turn-credentials]
 verify_jwt = false
