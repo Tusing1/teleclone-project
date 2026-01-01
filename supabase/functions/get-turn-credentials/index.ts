@@ -53,13 +53,13 @@ serve(async (req) => {
     // Add Google STUN servers as fallback
     const fullConfig = {
       iceServers: [
+        ...iceServers,
         {
           urls: [
             'stun:stun.l.google.com:19302',
             'stun:stun1.l.google.com:19302',
           ],
         },
-        ...iceServers,
       ],
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
