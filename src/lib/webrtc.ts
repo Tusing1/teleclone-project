@@ -10,15 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 // Fallback configuration if dynamic fetch fails
 export const FALLBACK_ICE_SERVERS: RTCConfiguration = {
     iceServers: [
-        {
-            urls: [
-                'stun:stun.l.google.com:19302',
-                'stun:stun1.l.google.com:19302',
-                'stun:stun2.l.google.com:19302',
-                'stun:stun3.l.google.com:19302',
-                'stun:stun4.l.google.com:19302',
-            ],
-        },
         // User's Metered.ca fallback (if dynamic fetch fails)
         {
             urls: [
@@ -29,6 +20,15 @@ export const FALLBACK_ICE_SERVERS: RTCConfiguration = {
             ],
             username: 'da73ef4f9a2521323f6c7d98',
             credential: 'bg4DqkRBQWOhnk5S',
+        },
+        {
+            urls: [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+                'stun:stun3.l.google.com:19302',
+                'stun:stun4.l.google.com:19302',
+            ],
         },
     ],
     iceCandidatePoolSize: 10,
