@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
-import { ICE_SERVERS, PC_OPTIONS } from '@/lib/webrtc';
+import { getTurnCredentials, FALLBACK_ICE_SERVERS } from '@/lib/webrtc';
 export interface Call {
   id: string;
   conversation_id: string;
@@ -38,9 +38,6 @@ export interface RemoteStream {
   oderId: string;
   stream: MediaStream;
 }
-
-// ICE configuration - Using centralized config
-const servers = PC_OPTIONS;
 
 export function useCalls(conversationId: string | null) {
   const { user } = useAuth();
@@ -325,9 +322,10 @@ export function useCalls(conversationId: string | null) {
       setIsInCall(true);
       await fetchActiveCall();
 
-      // Create peer connection with full PC_OPTIONS
-      console.log('📡 Initializing RTCPeerConnection with config:', servers);
-      const pc = new RTCPeerConnection(servers);
+      // Fetch dynamic TURN credentials for better cross-network connectivity
+      const turnConfig = await getTurnCredentials();
+      console.log('📡 Initializing RTCPeerConnection with dynamic TURN config');
+      const pc = new RTCPeerConnection(turnConfig);
       peerConnection.current = pc;
 
       // Add local tracks to peer connection

@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { CallParticipant } from './useCalls';
 import { toast } from 'sonner';
-import { ICE_SERVERS } from '@/lib/webrtc';
+import { getTurnCredentials, FALLBACK_ICE_SERVERS } from '@/lib/webrtc';
 
 export interface LiveStream {
   id: string;
@@ -98,16 +98,21 @@ export function useLiveStream(conversationId: string | null) {
     setIsRecording(false);
   }, [conversationId, user]);
 
-  // ICE servers for STUN/STUN - Now using centralized config
-  const servers = ICE_SERVERS;
+  // Store cached TURN config
+  const turnConfigRef = useRef<RTCConfiguration | null>(null);
 
-  const getOrCreatePC = useCallback((remoteUserId: string, stream: MediaStream, callId: string) => {
+  const getOrCreatePC = useCallback(async (remoteUserId: string, stream: MediaStream, callId: string) => {
     if (peerConnections.current.has(remoteUserId)) {
       return peerConnections.current.get(remoteUserId)!;
     }
 
-    console.log(`📡 Creating PeerConnection for user: ${remoteUserId}`);
-    const pc = new RTCPeerConnection(servers);
+    // Fetch TURN credentials if not cached
+    if (!turnConfigRef.current) {
+      turnConfigRef.current = await getTurnCredentials();
+    }
+
+    console.log(`📡 Creating PeerConnection for user: ${remoteUserId} with dynamic TURN`);
+    const pc = new RTCPeerConnection(turnConfigRef.current);
     peerConnections.current.set(remoteUserId, pc);
 
     // Add local tracks
@@ -430,7 +435,7 @@ export function useLiveStream(conversationId: string | null) {
 
             console.log(`📥 Received signal ${signal.signal_type} from ${signal.from_user}`);
 
-            const pc = getOrCreatePC(signal.from_user, stream, callId);
+            const pc = await getOrCreatePC(signal.from_user, stream, callId);
 
             try {
               if (signal.signal_type === 'offer') {
@@ -460,7 +465,7 @@ export function useLiveStream(conversationId: string | null) {
 
       // Initiate connections to existing participants
       for (const remoteUserId of otherUserIds) {
-        const pc = getOrCreatePC(remoteUserId, stream, callId);
+        const pc = await getOrCreatePC(remoteUserId, stream, callId);
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await supabase.from('call_signals').insert({
