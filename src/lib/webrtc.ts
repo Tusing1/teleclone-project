@@ -10,17 +10,6 @@ import { supabase } from '@/integrations/supabase/client';
 // Fallback configuration if dynamic fetch fails
 export const FALLBACK_ICE_SERVERS: RTCConfiguration = {
     iceServers: [
-        // User's Metered.ca fallback (if dynamic fetch fails)
-        {
-            urls: [
-                'turn:global.relay.metered.ca:80',
-                'turn:global.relay.metered.ca:80?transport=tcp',
-                'turn:global.relay.metered.ca:443',
-                'turns:global.relay.metered.ca:443?transport=tcp',
-            ],
-            username: 'da73ef4f9a2521323f6c7d98',
-            credential: 'bg4DqkRBQWOhnk5S',
-        },
         {
             urls: [
                 'stun:stun.l.google.com:19302',

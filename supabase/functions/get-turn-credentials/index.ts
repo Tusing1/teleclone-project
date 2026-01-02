@@ -12,34 +12,35 @@ serve(async (req) => {
   }
 
   try {
-    const METERED_API_KEY = Deno.env.get('METERED_API_KEY');
-
-    // Use configured key or fallback to provided key
-    const apiKey = METERED_API_KEY || '4602cf2044c45b6a125619fbe65069e42b52';
+    const apiKey = Deno.env.get('METERED_API_KEY') || Deno.env.get('METERED_API_KEY2');
+    const domain = Deno.env.get('METERED_DOMAIN') || 'studdybuddyapp.metered.live';
 
     if (!apiKey) {
-      console.error('METERED_API_KEY is not configured');
+      console.error('Metered API key is not configured');
       // Return fallback STUN-only configuration if no API key
-      return new Response(JSON.stringify({
-        iceServers: [
-          {
-            urls: [
-              'stun:stun.l.google.com:19302',
-              'stun:stun1.l.google.com:19302',
-              'stun:stun2.l.google.com:19302',
-            ],
-          },
-        ],
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      return new Response(
+        JSON.stringify({
+          iceServers: [
+            {
+              urls: [
+                'stun:stun.l.google.com:19302',
+                'stun:stun1.l.google.com:19302',
+                'stun:stun2.l.google.com:19302',
+              ],
+            },
+          ],
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
     }
 
-    console.log('Fetching TURN credentials from Metered.ca...');
+    console.log(`Fetching TURN credentials from Metered.ca domain: ${domain}`);
 
     // Fetch dynamic TURN credentials from Metered.ca
     const response = await fetch(
-      `https://studdybuddyapp.metered.live/api/v1/turn/credentials?apiKey=${apiKey}`
+      `https://${domain}/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`
     );
 
     if (!response.ok) {
@@ -47,18 +48,16 @@ serve(async (req) => {
       throw new Error(`Failed to fetch TURN credentials: ${response.status}`);
     }
 
-    const iceServers = await response.json();
-    console.log('Received TURN credentials:', JSON.stringify(iceServers).substring(0, 200));
+    const meterIceServers = await response.json();
+    const iceServers = Array.isArray(meterIceServers) ? meterIceServers : (meterIceServers?.iceServers ?? []);
 
-    // Add Google STUN servers as fallback
+    console.log('Received TURN credentials count:', Array.isArray(iceServers) ? iceServers.length : 0);
+
     const fullConfig = {
       iceServers: [
-        ...iceServers,
+        ...(Array.isArray(iceServers) ? iceServers : []),
         {
-          urls: [
-            'stun:stun.l.google.com:19302',
-            'stun:stun1.l.google.com:19302',
-          ],
+          urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'],
         },
       ],
       iceCandidatePoolSize: 10,
@@ -68,12 +67,16 @@ serve(async (req) => {
     };
 
     return new Response(JSON.stringify(fullConfig), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      },
     });
   } catch (error) {
     console.error('Error fetching TURN credentials:', error);
 
-    // Return fallback configuration with free TURN servers
+    // Return fallback STUN-only configuration if dynamic fetch fails
     const fallbackConfig = {
       iceServers: [
         {
@@ -83,17 +86,6 @@ serve(async (req) => {
             'stun:stun2.l.google.com:19302',
           ],
         },
-        // User's Metered.ca fallback (if dynamic fetch fails)
-        {
-          urls: [
-            'turn:global.relay.metered.ca:80',
-            'turn:global.relay.metered.ca:80?transport=tcp',
-            'turn:global.relay.metered.ca:443',
-            'turns:global.relay.metered.ca:443?transport=tcp',
-          ],
-          username: 'da73ef4f9a2521323f6c7d98',
-          credential: 'bg4DqkRBQWOhnk5S',
-        },
       ],
       iceCandidatePoolSize: 10,
       iceTransportPolicy: 'all',
@@ -102,7 +94,11 @@ serve(async (req) => {
     };
 
     return new Response(JSON.stringify(fallbackConfig), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+      },
     });
   }
 });
