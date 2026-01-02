@@ -510,21 +510,18 @@ export function useCalls(conversationId: string | null) {
               if (signal.from_user === user.id) return;
 
               try {
-                // GUARD: processing signals on a closed connection will throw errors
-                if (pc.connectionState === 'closed' || pc.iceConnectionState === 'closed') {
-                  console.log('⚠️ Ignoring signal for closed connection.');
+                // GUARD: processing signals on a closed/failed connection will throw errors
+                const connState = pc.connectionState;
+                const iceState = pc.iceConnectionState;
+                if (connState === 'failed' || connState === 'closed' || iceState === 'failed' || iceState === 'closed') {
+                  console.log('⚠️ Ignoring signal for closed/failed connection.');
                   return;
                 }
 
                 if (signal.signal_type === 'offer' && !isCreator) {
-                  // Double check state before proceeding with async heavy operations
-                  if (pc.connectionState === 'closed' || pc.iceConnectionState === 'closed') return;
-
                   console.log('📥 Received new offer (ICE Restart) via Realtime');
                   const offerDescription = new RTCSessionDescription(signal.signal_data as any);
                   await pc.setRemoteDescription(offerDescription);
-
-                  if (pc.connectionState === 'closed' || pc.iceConnectionState === 'closed') return;
 
                   const answerDescription = await pc.createAnswer();
                   await pc.setLocalDescription(answerDescription);
