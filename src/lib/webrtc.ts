@@ -33,17 +33,17 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
  * Uses caching to avoid excessive API calls.
  * Falls back to static configuration if fetch fails.
  */
-export async function getTurnCredentials(): Promise<RTCConfiguration> {
+export async function getTurnCredentials(forceRefresh: boolean = false): Promise<RTCConfiguration> {
     const now = Date.now();
 
     // Return cached config if still valid
-    if (cachedConfig && now < cacheExpiry) {
+    if (!forceRefresh && cachedConfig && now < cacheExpiry) {
         console.log('📡 Using cached TURN credentials');
         return cachedConfig;
     }
 
     try {
-        console.log('📡 Fetching fresh TURN credentials...');
+        console.log(forceRefresh ? '📡 Force-refreshing TURN credentials...' : '📡 Fetching fresh TURN credentials...');
         const { data, error } = await supabase.functions.invoke('get-turn-credentials');
 
         if (error) {
@@ -52,7 +52,14 @@ export async function getTurnCredentials(): Promise<RTCConfiguration> {
         }
 
         if (data && data.iceServers) {
-            console.log('📡 Received TURN credentials with', data.iceServers.length, 'servers');
+            const servers = (data.iceServers as any[]) ?? [];
+            const hasTurn = servers.some((s) => {
+                const urls = Array.isArray((s as any).urls) ? (s as any).urls : [(s as any).urls];
+                return urls.some((u: unknown) => typeof u === 'string' && (u.startsWith('turn:') || u.startsWith('turns:')));
+            });
+
+            console.log('📡 Received TURN credentials with', servers.length, 'servers', hasTurn ? '(TURN enabled)' : '(STUN-only)');
+
             cachedConfig = data as RTCConfiguration;
             cacheExpiry = now + CACHE_DURATION;
             return cachedConfig;
