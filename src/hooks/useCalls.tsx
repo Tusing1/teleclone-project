@@ -59,8 +59,17 @@ export function useCalls(conversationId: string | null) {
   const unsubscribeCandidates = useRef<(() => void) | null>(null);
   const originalVideoTrack = useRef<MediaStreamTrack | null>(null);
 
+  const iceDisconnectTimer = useRef<number | null>(null);
+  const iceRestartAttempts = useRef(0);
+
   // Cleanup function
   const cleanup = useCallback(() => {
+    if (iceDisconnectTimer.current) {
+      window.clearTimeout(iceDisconnectTimer.current);
+      iceDisconnectTimer.current = null;
+    }
+    iceRestartAttempts.current = 0;
+
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
@@ -361,37 +370,65 @@ export function useCalls(conversationId: string | null) {
       pc.oniceconnectionstatechange = () => {
         console.log('🌐 ICE connection state:', pc.iceConnectionState);
 
-        switch (pc.iceConnectionState) {
-          case 'connected':
-          case 'completed':
-            setConnectionStatus('connected');
-            break;
-          case 'disconnected':
-            // Don't immediately fail, wait to see if it reconnects
-            console.log('📶 ICE disconnected, waiting for auto-recovery...');
-            setConnectionStatus('connecting');
-            break;
-          case 'failed':
-            console.error('❌ ICE connection failed. Triggering restart...');
-            setConnectionStatus('connecting');
-            // Trigger ICE restart if supported
-            if (isCreator) {
-              handleIceRestart(pc, callId);
-            } else {
-              // Joiner just waits for the new offer
-              setConnectionStatus('connecting');
-            }
-            break;
-          case 'closed':
-            setConnectionStatus('disconnected');
-            break;
+        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+          if (iceDisconnectTimer.current) {
+            window.clearTimeout(iceDisconnectTimer.current);
+            iceDisconnectTimer.current = null;
+          }
+          iceRestartAttempts.current = 0;
+          setConnectionStatus('connected');
+          return;
+        }
+
+        if (pc.iceConnectionState === 'disconnected') {
+          // Don't immediately fail, wait to see if it reconnects
+          console.log('📶 ICE disconnected, waiting for auto-recovery...');
+          setConnectionStatus('connecting');
+
+          // If it doesn't recover quickly, trigger ICE restart (creator only)
+          if (iceDisconnectTimer.current) {
+            window.clearTimeout(iceDisconnectTimer.current);
+          }
+          iceDisconnectTimer.current = window.setTimeout(() => {
+            if (pc.iceConnectionState !== 'disconnected') return;
+            if (!isCreator) return;
+            console.warn('⏱️ ICE still disconnected after delay, triggering ICE restart...');
+            handleIceRestart(pc, callId);
+          }, 6000);
+          return;
+        }
+
+        if (pc.iceConnectionState === 'failed') {
+          console.error('❌ ICE connection failed. Triggering restart...');
+          setConnectionStatus('connecting');
+          // Trigger ICE restart if supported
+          if (isCreator) {
+            handleIceRestart(pc, callId);
+          }
+          return;
+        }
+
+        if (pc.iceConnectionState === 'closed') {
+          if (iceDisconnectTimer.current) {
+            window.clearTimeout(iceDisconnectTimer.current);
+            iceDisconnectTimer.current = null;
+          }
+          setConnectionStatus('disconnected');
         }
       };
 
       // Helper for ICE restart
       const handleIceRestart = async (conn: RTCPeerConnection, cId: string) => {
         try {
-          console.log('🔄 Creating new offer with ICE restart...');
+          if (iceRestartAttempts.current >= 3) {
+            console.warn('🛑 ICE restart attempts exceeded, giving up');
+            toast.error('Connection lost. Please re-join the call.');
+            return;
+          }
+
+          iceRestartAttempts.current += 1;
+
+          console.log(`🔄 Creating new offer with ICE restart... (attempt ${iceRestartAttempts.current})`);
           const offer = await conn.createOffer({ iceRestart: true });
           await conn.setLocalDescription(offer);
 
@@ -510,11 +547,11 @@ export function useCalls(conversationId: string | null) {
               if (signal.from_user === user.id) return;
 
               try {
-                // GUARD: processing signals on a closed/failed connection will throw errors
+                // GUARD: if connection is closed, ignore signals
                 const connState = pc.connectionState;
                 const iceState = pc.iceConnectionState;
-                if (connState === 'failed' || connState === 'closed' || iceState === 'failed' || iceState === 'closed') {
-                  console.log('⚠️ Ignoring signal for closed/failed connection.');
+                if (connState === 'closed' || iceState === 'closed') {
+                  console.log('⚠️ Ignoring signal for closed connection.');
                   return;
                 }
 
@@ -687,7 +724,25 @@ export function useCalls(conversationId: string | null) {
               if (signal.from_user === user.id) return;
 
               try {
-                if (signal.signal_type === 'ice-candidate') {
+                if (signal.signal_type === 'offer') {
+                  console.log('📥 Received new offer (ICE Restart) via Realtime');
+                  const offerDescription = new RTCSessionDescription(signal.signal_data as any);
+                  await pc.setRemoteDescription(offerDescription);
+
+                  const answerDescription = await pc.createAnswer();
+                  await pc.setLocalDescription(answerDescription);
+
+                  await supabase.from('call_signals').insert({
+                    call_id: callId,
+                    from_user: user.id,
+                    to_user: signal.from_user,
+                    signal_type: 'answer',
+                    signal_data: {
+                      sdp: answerDescription.sdp,
+                      type: answerDescription.type,
+                    } as any
+                  });
+                } else if (signal.signal_type === 'ice-candidate') {
                   console.log('📥 Received ICE candidate via Realtime');
                   const candidate = new RTCIceCandidate(signal.signal_data as any);
                   await pc.addIceCandidate(candidate);
