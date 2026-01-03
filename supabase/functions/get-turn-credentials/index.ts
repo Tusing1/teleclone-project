@@ -12,10 +12,14 @@ serve(async (req) => {
   }
 
   try {
-    const apiKey = Deno.env.get('METERED_API_KEY') || Deno.env.get('METERED_API_KEY2');
+    const apiKeys = [
+      Deno.env.get('METERED_API_KEY'),
+      Deno.env.get('METERED_API_KEY2'),
+    ].filter((v): v is string => Boolean(v));
+
     const domain = Deno.env.get('METERED_DOMAIN') || 'studdybuddyapp.metered.live';
 
-    if (!apiKey) {
+    if (apiKeys.length === 0) {
       console.error('Metered API key is not configured');
       // Return fallback STUN-only configuration if no API key
       return new Response(
@@ -36,22 +40,41 @@ serve(async (req) => {
       );
     }
 
-    console.log(`Fetching TURN credentials from Metered.ca domain: ${domain}`);
+    let response: Response | null = null;
+    let usedKeyIndex = 0;
 
-    // Fetch dynamic TURN credentials from Metered.ca
-    const response = await fetch(
-      `https://${domain}/api/v1/turn/credentials?apiKey=${encodeURIComponent(apiKey)}`
-    );
+    for (let i = 0; i < apiKeys.length; i++) {
+      const key = apiKeys[i];
+      usedKeyIndex = i;
 
-    if (!response.ok) {
+      console.log(`Fetching TURN credentials from Metered.ca domain: ${domain} (key ${i + 1}/${apiKeys.length})`);
+
+      response = await fetch(
+        `https://${domain}/api/v1/turn/credentials?apiKey=${encodeURIComponent(key)}`
+      );
+
+      if (response.ok) break;
+
       console.error('Failed to fetch TURN credentials:', response.status, response.statusText);
-      throw new Error(`Failed to fetch TURN credentials: ${response.status}`);
+
+      // If the first key is invalid (401) and we have a second key, try the next.
+      if (response.status === 401 && i < apiKeys.length - 1) {
+        console.warn('Metered API key returned 401, trying next key...');
+        continue;
+      }
+
+      // For other errors, still try next key if available.
+      if (i < apiKeys.length - 1) continue;
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`Failed to fetch TURN credentials: ${response?.status ?? 'no response'}`);
     }
 
     const meterIceServers = await response.json();
     const iceServers = Array.isArray(meterIceServers) ? meterIceServers : (meterIceServers?.iceServers ?? []);
 
-    console.log('Received TURN credentials count:', Array.isArray(iceServers) ? iceServers.length : 0);
+    console.log('Received TURN credentials count:', Array.isArray(iceServers) ? iceServers.length : 0, `(used key ${usedKeyIndex + 1}/${apiKeys.length})`);
 
     const fullConfig = {
       iceServers: [

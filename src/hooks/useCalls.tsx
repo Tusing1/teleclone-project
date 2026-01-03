@@ -61,6 +61,7 @@ export function useCalls(conversationId: string | null) {
 
   const iceDisconnectTimer = useRef<number | null>(null);
   const iceRestartAttempts = useRef(0);
+  const lastIceRestartRequestAt = useRef(0);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -69,6 +70,7 @@ export function useCalls(conversationId: string | null) {
       iceDisconnectTimer.current = null;
     }
     iceRestartAttempts.current = 0;
+    lastIceRestartRequestAt.current = 0;
 
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
@@ -385,25 +387,32 @@ export function useCalls(conversationId: string | null) {
           console.log('📶 ICE disconnected, waiting for auto-recovery...');
           setConnectionStatus('connecting');
 
-          // If it doesn't recover quickly, trigger ICE restart (creator only)
+          // If it doesn't recover quickly, trigger ICE restart (creator) or request it (joiner)
           if (iceDisconnectTimer.current) {
             window.clearTimeout(iceDisconnectTimer.current);
           }
           iceDisconnectTimer.current = window.setTimeout(() => {
             if (pc.iceConnectionState !== 'disconnected') return;
-            if (!isCreator) return;
-            console.warn('⏱️ ICE still disconnected after delay, triggering ICE restart...');
-            handleIceRestart(pc, callId);
+
+            if (isCreator) {
+              console.warn('⏱️ ICE still disconnected after delay, triggering ICE restart...');
+              handleIceRestart(pc, callId);
+              return;
+            }
+
+            requestIceRestart(callId, 'disconnected');
           }, 6000);
           return;
         }
 
         if (pc.iceConnectionState === 'failed') {
-          console.error('❌ ICE connection failed. Triggering restart...');
+          console.error('❌ ICE connection failed. Triggering recovery...');
           setConnectionStatus('connecting');
-          // Trigger ICE restart if supported
+
           if (isCreator) {
             handleIceRestart(pc, callId);
+          } else {
+            requestIceRestart(callId, 'failed');
           }
           return;
         }
@@ -417,7 +426,27 @@ export function useCalls(conversationId: string | null) {
         }
       };
 
-      // Helper for ICE restart
+      const requestIceRestart = async (cId: string, reason: 'disconnected' | 'failed') => {
+        const now = Date.now();
+        if (now - lastIceRestartRequestAt.current < 10_000) return;
+        lastIceRestartRequestAt.current = now;
+
+        console.warn(`📨 Requesting ICE restart from call creator (reason: ${reason})...`);
+
+        try {
+          await supabase.from('call_signals').insert({
+            call_id: cId,
+            from_user: user.id,
+            to_user: null,
+            signal_type: 'ice-restart-request',
+            signal_data: { reason } as any,
+          });
+        } catch (err) {
+          console.error('Failed to send ICE restart request:', err);
+        }
+      };
+
+      // Helper for ICE restart (creator)
       const handleIceRestart = async (conn: RTCPeerConnection, cId: string) => {
         try {
           if (iceRestartAttempts.current >= 3) {
@@ -427,6 +456,19 @@ export function useCalls(conversationId: string | null) {
           }
 
           iceRestartAttempts.current += 1;
+
+          // Refresh TURN credentials before restarting ICE (important after network change)
+          const freshConfig = await getTurnCredentials(true);
+          try {
+            conn.setConfiguration({
+              ...conn.getConfiguration(),
+              ...freshConfig,
+              iceServers: freshConfig.iceServers ?? FALLBACK_ICE_SERVERS.iceServers,
+            });
+            console.log('📡 Updated RTCPeerConnection config before ICE restart');
+          } catch (cfgErr) {
+            console.warn('⚠️ Failed to update RTCPeerConnection config before ICE restart:', cfgErr);
+          }
 
           console.log(`🔄 Creating new offer with ICE restart... (attempt ${iceRestartAttempts.current})`);
           const offer = await conn.createOffer({ iceRestart: true });
@@ -552,6 +594,12 @@ export function useCalls(conversationId: string | null) {
                 const iceState = pc.iceConnectionState;
                 if (connState === 'closed' || iceState === 'closed') {
                   console.log('⚠️ Ignoring signal for closed connection.');
+                  return;
+                }
+
+                if (signal.signal_type === 'ice-restart-request' && isCreator) {
+                  console.warn('📨 Received ICE restart request. Initiating ICE restart...');
+                  handleIceRestart(pc, callId);
                   return;
                 }
 
