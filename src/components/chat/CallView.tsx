@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Phone, PhoneOff, Mic, MicOff, Users, Circle, Wifi, WifiOff, Volume2 } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, Users, Circle, Wifi, WifiOff, Volume2, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { CallParticipant } from '@/hooks/useCalls';
@@ -19,6 +19,17 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useCallSounds } from '@/hooks/useCallSounds';
 
+// Format seconds into MM:SS or HH:MM:SS
+const formatDuration = (seconds: number): string => {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  
+  if (hrs > 0) {
+    return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
 interface CallViewProps {
   callType: 'voice';
   participants: CallParticipant[];
@@ -73,8 +84,10 @@ export const CallView: React.FC<CallViewProps> = ({
   const { user } = useAuth();
   const [showRecordDialog, setShowRecordDialog] = useState(false);
   const [recordingTitle, setRecordingTitle] = useState('');
+  const [callDuration, setCallDuration] = useState(0);
   const { playJoinTone, playEndTone } = useCallSounds();
   const joinTonePlayed = useRef(false);
+  const durationInterval = useRef<NodeJS.Timeout | null>(null);
 
   // Play join sound on mount once
   useEffect(() => {
@@ -83,6 +96,26 @@ export const CallView: React.FC<CallViewProps> = ({
       joinTonePlayed.current = true;
     }
   }, [playJoinTone]);
+
+  // Track call duration when connected
+  useEffect(() => {
+    if (connectionStatus === 'connected') {
+      durationInterval.current = setInterval(() => {
+        setCallDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+        durationInterval.current = null;
+      }
+    }
+    
+    return () => {
+      if (durationInterval.current) {
+        clearInterval(durationInterval.current);
+      }
+    };
+  }, [connectionStatus]);
 
   const handleLeave = () => {
     playEndTone();
@@ -101,7 +134,15 @@ export const CallView: React.FC<CallViewProps> = ({
       case 'connecting':
         return <div className="text-yellow-500 flex items-center gap-1.5 font-medium animate-pulse"><Wifi className="h-3 w-3" /> Connecting...</div>;
       case 'connected':
-        return <div className="text-green-500 flex items-center gap-1.5 font-medium"><Wifi className="h-3 w-3" /> Secure</div>;
+        return (
+          <div className="text-green-500 flex items-center gap-2 font-medium">
+            <Wifi className="h-3 w-3" />
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-3 w-3" />
+              {formatDuration(callDuration)}
+            </span>
+          </div>
+        );
       default:
         return <div className="text-slate-400 flex items-center gap-1.5 font-medium"><WifiOff className="h-3 w-3" /> Waiting</div>;
     }
