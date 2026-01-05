@@ -25,7 +25,7 @@ export const IncomingCallListener = () => {
     const { user } = useAuth();
     const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
     const navigate = useNavigate();
-    const { playRingtone } = useCallSounds();
+    const { playRingtone, stopRingtone } = useCallSounds();
     const ringtoneInterval = useRef<NodeJS.Timeout | null>(null);
 
     useEffect(() => {
@@ -85,13 +85,16 @@ export const IncomingCallListener = () => {
                 clearInterval(ringtoneInterval.current);
                 ringtoneInterval.current = null;
             }
+            // Stop any playing ringtone sounds immediately
+            stopRingtone();
         }
         return () => {
             if (ringtoneInterval.current) {
                 clearInterval(ringtoneInterval.current);
             }
+            stopRingtone();
         };
-    }, [incomingCall, playRingtone]);
+    }, [incomingCall, playRingtone, stopRingtone]);
 
     useEffect(() => {
         if (!incomingCall) return;
