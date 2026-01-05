@@ -2,6 +2,8 @@ import { useRef, useCallback } from 'react';
 
 export function useCallSounds() {
     const audioContextRef = useRef<AudioContext | null>(null);
+    const activeOscillatorsRef = useRef<OscillatorNode[]>([]);
+    const activeGainsRef = useRef<GainNode[]>([]);
 
     const initCtx = () => {
         if (!audioContextRef.current) {
@@ -13,16 +15,49 @@ export function useCallSounds() {
         return audioContextRef.current;
     };
 
+    // Stop all active ringtone sounds immediately
+    const stopRingtone = useCallback(() => {
+        // Immediately ramp down all active gains to prevent audio pops
+        activeGainsRef.current.forEach(gain => {
+            try {
+                const ctx = audioContextRef.current;
+                if (ctx) {
+                    gain.gain.cancelScheduledValues(ctx.currentTime);
+                    gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.05);
+                }
+            } catch (e) {
+                // Ignore errors from already-stopped nodes
+            }
+        });
+
+        // Stop all oscillators
+        activeOscillatorsRef.current.forEach(osc => {
+            try {
+                osc.stop();
+            } catch (e) {
+                // Ignore errors from already-stopped oscillators
+            }
+        });
+
+        // Clear the arrays
+        activeOscillatorsRef.current = [];
+        activeGainsRef.current = [];
+    }, []);
+
     // Modern pleasant ringtone
     const playRingtone = useCallback(() => {
         const ctx = initCtx();
         const startTime = ctx.currentTime;
 
-        // Create a loop
         const playRound = (time: number) => {
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const gain = ctx.createGain();
+
+            // Track active nodes for cleanup
+            activeOscillatorsRef.current.push(osc1, osc2);
+            activeGainsRef.current.push(gain);
 
             osc1.type = 'sine';
             osc2.type = 'sine';
@@ -50,15 +85,20 @@ export function useCallSounds() {
             osc2.start(time);
             osc1.stop(time + 0.8);
             osc2.stop(time + 0.8);
+
+            // Clean up references after oscillators stop
+            osc1.onended = () => {
+                activeOscillatorsRef.current = activeOscillatorsRef.current.filter(o => o !== osc1);
+            };
+            osc2.onended = () => {
+                activeOscillatorsRef.current = activeOscillatorsRef.current.filter(o => o !== osc2);
+                activeGainsRef.current = activeGainsRef.current.filter(g => g !== gain);
+            };
         };
 
         // Play twice with a gap
         playRound(startTime);
         playRound(startTime + 1.2);
-
-        return () => {
-            // Cleanup would happen here if we used a more complex loop
-        };
     }, []);
 
     // Simple "Join" blip
@@ -101,5 +141,5 @@ export function useCallSounds() {
         osc.stop(now + 0.4);
     }, []);
 
-    return { playRingtone, playJoinTone, playEndTone };
+    return { playRingtone, stopRingtone, playJoinTone, playEndTone };
 }
