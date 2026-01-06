@@ -320,16 +320,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {isAdmin ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`rounded-full ${isMuted ? 'bg-gray-600' : 'bg-primary'}`}
-                onClick={onToggleMute}
-              >
-                {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
-              </Button>
-            ) : (
+            {/* Raise Hand for non-admins who are muted */}
+            {!isAdmin && currentUserParticipant?.is_muted && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -337,6 +329,17 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                 onClick={handRaised ? onLowerHand : onRaiseHand}
               >
                 <Hand className="h-4 w-4 text-white" />
+              </Button>
+            )}
+            {/* Mic toggle for admins OR unmuted participants */}
+            {(isAdmin || (currentUserParticipant && !currentUserParticipant.is_muted)) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`rounded-full ${isMuted ? 'bg-gray-600' : 'bg-primary'}`}
+                onClick={onToggleMute}
+              >
+                {isMuted ? <MicOff className="h-4 w-4 text-white" /> : <Mic className="h-4 w-4 text-white" />}
               </Button>
             )}
             <Button
@@ -627,9 +630,31 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
 
 
 
-        {/* Primary Action: Mute/Unmute or Raise Hand */}
-        <div className="flex flex-col items-center gap-2 group">
-          {effectiveAdmin || (currentUserParticipant && !currentUserParticipant.is_muted) ? (
+        {/* Raise Hand (for non-admins who are muted) */}
+        {!effectiveAdmin && currentUserParticipant?.is_muted && (
+          <div className="flex flex-col items-center gap-2 group">
+            <Button
+              variant="ghost"
+              size="lg"
+              className={cn(
+                "rounded-full w-14 h-14 transition-all duration-300 shadow-xl border-2 group-active:scale-90",
+                handRaised
+                  ? "bg-yellow-500 border-yellow-400 hover:bg-yellow-400"
+                  : "bg-white/5 hover:bg-white/10 border-white/5"
+              )}
+              onClick={handRaised ? onLowerHand : onRaiseHand}
+            >
+              <Hand className={cn("h-6 w-6", handRaised ? "text-white" : "text-white/70")} />
+            </Button>
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+              {handRaised ? 'Lower' : 'Raise'}
+            </span>
+          </div>
+        )}
+
+        {/* Primary Action: Mute/Unmute (for admins OR unmuted participants) */}
+        {(effectiveAdmin || (currentUserParticipant && !currentUserParticipant.is_muted)) && (
+          <div className="flex flex-col items-center gap-2 group">
             <Button
               variant="ghost"
               size="lg"
@@ -647,27 +672,11 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                 <Mic className="h-7 w-7 text-white" />
               )}
             </Button>
-          ) : (
-            <Button
-              variant="ghost"
-              size="lg"
-              className={cn(
-                "rounded-full w-16 h-16 transition-all duration-300 shadow-xl border-2 group-active:scale-90",
-                handRaised
-                  ? "bg-yellow-500 border-yellow-400 hover:bg-yellow-400"
-                  : "bg-primary border-primary hover:bg-primary/90"
-              )}
-              onClick={handRaised ? onLowerHand : onRaiseHand}
-            >
-              <Hand className="h-7 w-7 text-white" />
-            </Button>
-          )}
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-            {effectiveAdmin || (currentUserParticipant && !currentUserParticipant.is_muted)
-              ? (isMuted ? 'Unmute' : 'Mute')
-              : (handRaised ? 'Lower' : 'Raise')}
-          </span>
-        </div>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+              {isMuted ? 'Unmute' : 'Mute'}
+            </span>
+          </div>
+        )}
 
         {/* Leave Action */}
         <div className="flex flex-col items-center gap-2 group">
