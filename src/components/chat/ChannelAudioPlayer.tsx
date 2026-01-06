@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, Pause, Download, MoreVertical, Loader2, RotateCcw, RotateCw, Check, ArrowDownToLine } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFileCache } from '@/hooks/useFileCache';
+import { useGlobalAudio } from '@/hooks/useGlobalAudio';
 import { toast } from 'sonner';
 
 interface ChannelAudioPlayerProps {
@@ -30,17 +31,21 @@ export function ChannelAudioPlayer({
   duration: initialDuration,
   className 
 }: ChannelAudioPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(initialDuration || 0);
+  const { audioState, play, pause, seek, setSpeed, getSavedPosition, isCurrentAudio } = useGlobalAudio();
   const [isLoading, setIsLoading] = useState(true);
   const [isCached, setIsCached] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [localDuration, setLocalDuration] = useState(initialDuration || 0);
   
   const { isFileCached, getCachedFile, downloadAndCache, clearFileCache } = useFileCache();
+
+  // Check if this audio is currently playing
+  const isThisAudio = isCurrentAudio(audioUrl || url);
+  const isPlaying = isThisAudio && audioState?.isPlaying;
+  const currentTime = isThisAudio ? (audioState?.currentTime || 0) : getSavedPosition(audioUrl || url);
+  const duration = isThisAudio && audioState?.duration ? audioState.duration : localDuration;
+  const playbackSpeed = isThisAudio ? (audioState?.playbackSpeed || 1) : 1;
 
   // Check cache and load audio
   useEffect(() => {
@@ -80,6 +85,19 @@ export function ChannelAudioPlayer({
     };
   }, [url]);
 
+  // Load duration from a temporary audio element if not playing
+  useEffect(() => {
+    if (!isThisAudio && audioUrl && !localDuration) {
+      const tempAudio = new Audio(audioUrl);
+      tempAudio.addEventListener('loadedmetadata', () => {
+        setLocalDuration(tempAudio.duration);
+      });
+      return () => {
+        tempAudio.src = '';
+      };
+    }
+  }, [audioUrl, isThisAudio, localDuration]);
+
   const handleDownloadToCache = async () => {
     if (isCached) {
       toast.info('Already downloaded');
@@ -102,63 +120,45 @@ export function ChannelAudioPlayer({
     }
   };
 
-  const handlePlay = async () => {
-    if (!audioRef.current) return;
-    audioRef.current.play();
-    setIsPlaying(true);
-  };
-
-  const handlePause = () => {
-    if (!audioRef.current) return;
-    audioRef.current.pause();
-    setIsPlaying(false);
-  };
-
   const togglePlay = () => {
+    if (!audioUrl) return;
+    
     if (isPlaying) {
-      handlePause();
+      pause();
     } else {
-      handlePlay();
+      play(audioUrl, title, channelName);
     }
   };
 
-  const handleTimeUpdate = () => {
-    if (!audioRef.current) return;
-    setCurrentTime(audioRef.current.currentTime);
-  };
-
-  const handleLoadedMetadata = () => {
-    if (!audioRef.current) return;
-    setDuration(audioRef.current.duration);
-  };
-
-  const handleEnded = () => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-  };
-
   const handleSeek = (value: number[]) => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = value[0];
-    setCurrentTime(value[0]);
+    if (!audioUrl) return;
+    
+    // If this audio isn't currently loaded, play it first at the seek position
+    if (!isThisAudio) {
+      play(audioUrl, title, channelName, value[0]);
+    } else {
+      seek(value[0]);
+    }
   };
 
   const skipBackward = () => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
-    setCurrentTime(audioRef.current.currentTime);
+    if (!isThisAudio) return;
+    seek(Math.max(0, currentTime - 10));
   };
 
   const skipForward = () => {
-    if (!audioRef.current) return;
-    audioRef.current.currentTime = Math.min(duration, audioRef.current.currentTime + 10);
-    setCurrentTime(audioRef.current.currentTime);
+    if (!isThisAudio) return;
+    seek(Math.min(duration, currentTime + 10));
   };
 
-  const setSpeed = (speed: number) => {
-    if (!audioRef.current) return;
-    audioRef.current.playbackRate = speed;
-    setPlaybackSpeed(speed);
+  const handleSetSpeed = (speed: number) => {
+    if (!audioUrl) return;
+    
+    // If not currently playing this audio, start it first
+    if (!isThisAudio) {
+      play(audioUrl, title, channelName);
+    }
+    setSpeed(speed);
   };
 
   const formatTime = (time: number) => {
@@ -201,23 +201,16 @@ export function ChannelAudioPlayer({
 
   return (
     <div className={cn('rounded-lg bg-slate-800/80 overflow-hidden', className)}>
-      {audioUrl && (
-        <audio
-          ref={audioRef}
-          src={audioUrl}
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleLoadedMetadata}
-          onEnded={handleEnded}
-        />
-      )}
-      
       <div className="p-2.5 flex items-start gap-2.5">
-        {/* Play/Pause button with download indicator - removed audio icon */}
+        {/* Play/Pause button with download indicator */}
         <div className="relative shrink-0">
           <Button
             size="icon"
             variant="ghost"
-            className="h-10 w-10 rounded-full bg-sky-500 hover:bg-sky-500/90"
+            className={cn(
+              "h-10 w-10 rounded-full",
+              isPlaying ? "bg-emerald-500 hover:bg-emerald-500/90" : "bg-sky-500 hover:bg-sky-500/90"
+            )}
             onClick={togglePlay}
           >
             {isPlaying ? (
@@ -289,7 +282,7 @@ export function ChannelAudioPlayer({
                 {PLAYBACK_SPEEDS.map((speed) => (
                   <DropdownMenuItem 
                     key={speed}
-                    onClick={() => setSpeed(speed)} 
+                    onClick={() => handleSetSpeed(speed)} 
                     className={cn(
                       "text-slate-200 focus:bg-slate-700 focus:text-slate-200",
                       playbackSpeed === speed && "bg-slate-700"
@@ -307,9 +300,14 @@ export function ChannelAudioPlayer({
             <span>{formatTime(currentTime)}</span>
             <span>/</span>
             <span>{formatTime(duration)}</span>
-            {playbackSpeed !== 1 && (
+            {playbackSpeed !== 1 && isThisAudio && (
               <span className="ml-1 px-1 py-0.5 bg-slate-700 rounded text-[10px]">
                 {playbackSpeed}x
+              </span>
+            )}
+            {currentTime > 0 && !isThisAudio && (
+              <span className="ml-1 px-1 py-0.5 bg-sky-500/20 text-sky-400 rounded text-[10px]">
+                Resume
               </span>
             )}
           </div>
@@ -324,6 +322,7 @@ export function ChannelAudioPlayer({
             variant="ghost"
             className="h-5 w-5 text-slate-400 hover:text-white shrink-0"
             onClick={skipBackward}
+            disabled={!isThisAudio}
           >
             <RotateCcw className="h-3 w-3" />
           </Button>
@@ -341,6 +340,7 @@ export function ChannelAudioPlayer({
             variant="ghost"
             className="h-5 w-5 text-slate-400 hover:text-white shrink-0"
             onClick={skipForward}
+            disabled={!isThisAudio}
           >
             <RotateCw className="h-3 w-3" />
           </Button>
