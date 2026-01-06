@@ -73,13 +73,26 @@ export const IncomingCallListener = () => {
         };
     }, [user]);
 
-    // Handle ringtone looping
+    // Handle ringtone looping and vibration
     useEffect(() => {
+        let vibrationInterval: NodeJS.Timeout | null = null;
+        
         if (incomingCall) {
             playRingtone();
             ringtoneInterval.current = setInterval(() => {
                 playRingtone();
             }, 3000);
+            
+            // Vibrate on mobile devices
+            if ('vibrate' in navigator) {
+                // Initial vibration pattern: vibrate 500ms, pause 200ms, vibrate 500ms
+                navigator.vibrate([500, 200, 500]);
+                
+                // Repeat vibration every 2 seconds
+                vibrationInterval = setInterval(() => {
+                    navigator.vibrate([500, 200, 500]);
+                }, 2000);
+            }
         } else {
             if (ringtoneInterval.current) {
                 clearInterval(ringtoneInterval.current);
@@ -87,12 +100,24 @@ export const IncomingCallListener = () => {
             }
             // Stop any playing ringtone sounds immediately
             stopRingtone();
+            
+            // Stop vibration
+            if ('vibrate' in navigator) {
+                navigator.vibrate(0);
+            }
         }
         return () => {
             if (ringtoneInterval.current) {
                 clearInterval(ringtoneInterval.current);
             }
+            if (vibrationInterval) {
+                clearInterval(vibrationInterval);
+            }
             stopRingtone();
+            // Stop vibration on cleanup
+            if ('vibrate' in navigator) {
+                navigator.vibrate(0);
+            }
         };
     }, [incomingCall, playRingtone, stopRingtone]);
 
