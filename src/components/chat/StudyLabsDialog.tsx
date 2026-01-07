@@ -33,7 +33,7 @@ export function StudyLabsDialog({ open, onOpenChange }: StudyLabsDialogProps) {
     const { profile } = useAuth();
     const [activeView, setActiveView] = useState<GameView>('hub');
     const { balance: tokens } = useStudyTokens();
-    const [leaderboardTab, setLeaderboardTab] = useState('scramble');
+    const [leaderboardTab, setLeaderboardTab] = useState('term-scramble');
     const { leaderboard: leaders, loading: leadersLoading } = useGameLeaderboard(leaderboardTab);
 
     const games = [
@@ -192,18 +192,25 @@ export function StudyLabsDialog({ open, onOpenChange }: StudyLabsDialogProps) {
                 <TabsContent value="leaderboard" className="flex-1 min-h-0 outline-none mt-0">
                     <div className="flex-1 overflow-y-auto custom-scrollbar h-full">
                         <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-none">
-                            {['scramble', 'blitz', 'pharma', 'clinical', 'triage', 'labflip'].map((id) => (
+                            {[
+                                { id: 'term-scramble', label: 'SCRAMBLE' },
+                                { id: 'anatomy-blitz', label: 'BLITZ' },
+                                { id: 'pharm-match', label: 'PHARMA' },
+                                { id: 'clinical', label: 'CASE' },
+                                { id: 'triage', label: 'TRIAGE' },
+                                { id: 'lab-flip', label: 'LAB' }
+                            ].map((game) => (
                                 <button
-                                    key={id}
-                                    onClick={() => setLeaderboardTab(id)}
+                                    key={game.id}
+                                    onClick={() => setLeaderboardTab(game.id)}
                                     className={cn(
                                         "px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-colors",
-                                        leaderboardTab === id
+                                        leaderboardTab === game.id
                                             ? "bg-white text-black"
                                             : "bg-white/5 text-white/40 hover:bg-white/10 hover:text-white"
                                     )}
                                 >
-                                    {id === 'clinical' ? 'Case' : id === 'labflip' ? 'Lab' : id.toUpperCase()}
+                                    {game.label}
                                 </button>
                             ))}
                         </div>
