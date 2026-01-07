@@ -268,7 +268,7 @@ export function StudyLabsDialog({ open, onOpenChange }: StudyLabsDialogProps) {
             onOpenChange(val);
         }}>
             <DialogContent className="sm:max-w-md h-[90vh] sm:h-[600px] p-0 gap-0 bg-[#09090b] border-white/10 overflow-hidden [&>button]:hidden">
-                <div className="h-full w-full p-4 overflow-hidden relative">
+                <div className="h-full w-full p-4 overflow-y-auto relative">
                     {/* Background Effects */}
                     <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-[100px] opacity-20 pointer-events-none" />
                     <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/10 rounded-full blur-[100px] opacity-20 pointer-events-none" />
