@@ -35,7 +35,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
     if (!open) return null;
 
     const renderHub = () => (
-        <div className="flex flex-col h-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="flex flex-col h-full min-h-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <header className="mb-8 relative z-20 pt-4">
                 <div className="flex flex-col items-center text-center">
                     <div className="w-16 h-16 rounded-[24px] bg-gradient-to-br from-purple-500 via-pink-500 to-orange-500 flex items-center justify-center transform rotate-[-6deg] shadow-2xl mb-4 animate-float-expert">
@@ -44,7 +44,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                     <h2 className="text-3xl font-black italic tracking-tighter leading-none text-white uppercase">
                         StudyLabs
                     </h2>
-                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-[0.4em] mt-2">
+                    <p className="text-xs font-black text-purple-400 uppercase tracking-[0.4em] mt-2">
                         Play to Earn
                     </p>
                 </div>
@@ -57,14 +57,14 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                             <Coins className="h-5 w-5 text-yellow-500" />
                         </div>
                         <div className="text-left">
-                            <span className="block text-[8px] font-black text-white/30 uppercase tracking-widest leading-none mb-1">Your Balance</span>
-                            <span className="block text-xl font-black text-white tabular-nums">{balance} <span className="text-[10px] text-yellow-500 tracking-normal italic uppercase">TK</span></span>
+                            <span className="block text-xs font-black text-white/30 uppercase tracking-widest leading-none mb-1">Your Balance</span>
+                            <span className="block text-xl font-black text-white tabular-nums">{balance} <span className="text-xs text-yellow-500 tracking-normal italic uppercase">TK</span></span>
                         </div>
                     </div>
                     <div className="h-8 w-px bg-white/[0.08]" />
                     <div className="flex flex-col items-end relative z-10">
                         <Trophy className="h-5 w-5 text-purple-400 mb-1" />
-                        <span className="text-[8px] font-black text-purple-400/60 uppercase tracking-widest">Rewards Ready</span>
+                        <span className="text-xs font-black text-purple-400/60 uppercase tracking-widest">Rewards Ready</span>
                     </div>
                 </div>
             </header>
@@ -74,7 +74,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                 <button
                     onClick={() => setHubTab('games')}
                     className={cn(
-                        "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
                         hubTab === 'games' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white/60"
                     )}
                 >
@@ -84,7 +84,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                 <button
                     onClick={() => setHubTab('leaderboard')}
                     className={cn(
-                        "flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
+                        "flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2",
                         hubTab === 'leaderboard' ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white/60"
                     )}
                 >
@@ -97,7 +97,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
             <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-10">
                 {hubTab === 'games' ? (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em] px-4">Available Lab Tests</h3>
+                        <h3 className="text-xs font-black text-white/20 uppercase tracking-[0.3em] px-4">Available Lab Tests</h3>
 
                         {/* Medical Term Scramble */}
                         <button
@@ -114,11 +114,11 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                                 <div className="flex items-center gap-3 mt-1">
                                     <div className="flex items-center gap-1">
                                         <Clock className="h-3 w-3 text-white/30" />
-                                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">3 Levels</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">3 Levels</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <Zap className="h-3 w-3 text-pink-500 fill-pink-500/20" />
-                                        <span className="text-[9px] font-black text-pink-500 uppercase tracking-widest">Up to 5 TK</span>
+                                        <span className="text-[10px] font-black text-pink-500 uppercase tracking-widest">Up to 5 TK</span>
                                     </div>
                                 </div>
                             </div>
@@ -142,11 +142,11 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                                 <div className="flex items-center gap-3 mt-1">
                                     <div className="flex items-center gap-1">
                                         <Clock className="h-3 w-3 text-white/30" />
-                                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Blitz Speed</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">Blitz Speed</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <Zap className="h-3 w-3 text-emerald-500 fill-emerald-500/20" />
-                                        <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Up to 5 TK</span>
+                                        <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">Up to 5 TK</span>
                                     </div>
                                 </div>
                             </div>
@@ -170,11 +170,11 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                                 <div className="flex items-center gap-3 mt-1">
                                     <div className="flex items-center gap-1">
                                         <Clock className="h-3 w-3 text-white/30" />
-                                        <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">3 Levels</span>
+                                        <span className="text-[10px] font-bold text-white/40 uppercase tracking-widest">3 Levels</span>
                                     </div>
                                     <div className="flex items-center gap-1">
                                         <Zap className="h-3 w-3 text-teal-500 fill-teal-500/20" />
-                                        <span className="text-[9px] font-black text-teal-500 uppercase tracking-widest">Up to 5 TK</span>
+                                        <span className="text-[10px] font-black text-teal-500 uppercase tracking-widest">Up to 5 TK</span>
                                     </div>
                                 </div>
                             </div>
@@ -186,7 +186,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                 ) : (
                     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 px-2">
                         <div className="flex items-center justify-between px-2 mb-4">
-                            <h3 className="text-[10px] font-black text-white/20 uppercase tracking-[0.3em]">Global Board</h3>
+                            <h3 className="text-xs font-black text-white/20 uppercase tracking-[0.3em]">Global Board</h3>
                             <div className="flex bg-white/5 rounded-full p-1 border border-white/10">
                                 <button
                                     onClick={() => setLeaderboardGameId('term-scramble')}
@@ -221,12 +221,12 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                         {scoresLoading ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4">
                                 <div className="h-8 w-8 border-2 border-purple-500/20 border-t-purple-500 rounded-full animate-spin" />
-                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">Calculating Ranking...</span>
+                                <span className="text-xs font-black text-white/20 uppercase tracking-widest">Calculating Ranking...</span>
                             </div>
                         ) : leaderboard.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-20 gap-4 text-center">
                                 <Users className="h-10 w-10 text-white/10" />
-                                <span className="text-[10px] font-black text-white/20 uppercase tracking-widest">No experimental data yet.</span>
+                                <span className="text-xs font-black text-white/20 uppercase tracking-widest">No experimental data yet.</span>
                             </div>
                         ) : (
                             <div className="space-y-2">
@@ -253,7 +253,7 @@ export function StudyLabsDialog({ open, onClose }: StudyLabsDialogProps) {
                                         </Avatar>
                                         <div className="flex-1 min-w-0">
                                             <p className="text-sm font-black text-white uppercase truncate">{entry.username}</p>
-                                            <span className="text-[8px] font-black text-white/20 uppercase tracking-widest">Scientific Score</span>
+                                            <span className="text-xs font-black text-white/20 uppercase tracking-widest">Scientific Score</span>
                                         </div>
                                         <div className="text-right">
                                             <span className="text-lg font-black text-white italic tracking-tighter tabular-nums">{entry.score}</span>
