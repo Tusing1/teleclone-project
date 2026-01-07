@@ -517,6 +517,35 @@ export type Database = {
           },
         ]
       }
+      message_views: {
+        Row: {
+          id: string
+          message_id: string
+          user_id: string
+          viewed_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          user_id: string
+          viewed_at?: string
+        }
+        Update: {
+          id?: string
+          message_id?: string
+          user_id?: string
+          viewed_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_views_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string | null
@@ -957,6 +986,10 @@ export type Database = {
         Args: { _profile_user_id: string; _viewer_id: string }
         Returns: boolean
       }
+      increment_view_count: {
+        Args: { message_id: string; viewer_id: string }
+        Returns: undefined
+      }
       is_conversation_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: boolean
@@ -964,6 +997,10 @@ export type Database = {
       join_channel_with_invite_code: {
         Args: { invite_code: string }
         Returns: Json
+      }
+      record_message_view: {
+        Args: { p_message_id: string; p_user_id: string }
+        Returns: boolean
       }
     }
     Enums: {

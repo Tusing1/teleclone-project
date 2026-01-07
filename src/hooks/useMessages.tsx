@@ -76,6 +76,21 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
         .update({ is_read: true })
         .in('id', unreadMessageIds);
     }
+
+    // Record views for messages from others (uses unique view tracking)
+    const messagesToRecordView = messagesData
+      .filter(m => m.sender_id !== user?.id)
+      .map(m => m.id);
+
+    if (messagesToRecordView.length > 0 && user?.id) {
+      // Record view for each message (function handles duplicates)
+      for (const msgId of messagesToRecordView) {
+        supabase.rpc('record_message_view', { 
+          p_message_id: msgId, 
+          p_user_id: user.id 
+        });
+      }
+    }
   }, [conversationId, fetchCommentCounts, user]);
 
   useEffect(() => {
