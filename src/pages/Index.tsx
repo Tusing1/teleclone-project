@@ -278,7 +278,9 @@ export default function Index() {
     return success;
   };
 
-  const handleNavigateToDiscussion = (discussionId: string, parentChannel?: ConversationWithDetails, replyToMessage?: MessageWithSender) => {
+  const handleNavigateToDiscussion = async (discussionId: string, parentChannel?: ConversationWithDetails, replyToMessage?: MessageWithSender) => {
+    // Refetch conversations to ensure the discussion group appears in the list
+    await refetchConversations();
     setSelectedConversationId(discussionId);
     if (parentChannel) {
       setDiscussionContext({ parentChannel, replyToMessage: replyToMessage || null });

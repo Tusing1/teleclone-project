@@ -681,7 +681,21 @@ export function ChatView({
                     message={message}
                     reactions={reactions[message.id] || []}
                     onToggleReaction={(emoji) => toggleReaction(message.id, emoji)}
-                    onOpenComments={conversation.linked_discussion_id ? () => {
+                    onOpenComments={conversation.linked_discussion_id ? async () => {
+                      // Sync user to discussion group before navigating (for members)
+                      if (!isAdminOrOwner && user?.id) {
+                        try {
+                          await supabase.functions.invoke('sync-discussion-members', {
+                            body: {
+                              channelId: conversation.id,
+                              userId: user.id,
+                              action: 'add'
+                            }
+                          });
+                        } catch (error) {
+                          console.error('Failed to sync to discussion:', error);
+                        }
+                      }
                       onNavigateToDiscussion?.(conversation.linked_discussion_id!, message);
                     } : undefined}
                     onForward={onForwardMessage ? () => onForwardMessage(message) : undefined}
