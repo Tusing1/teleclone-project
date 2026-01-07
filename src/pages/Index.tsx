@@ -549,7 +549,7 @@ export default function Index() {
 
         <StudyLabsDialog
           open={showStudyLabs}
-          onClose={() => setShowStudyLabs(false)}
+          onOpenChange={setShowStudyLabs}
         />
 
         <SettingsDialog
