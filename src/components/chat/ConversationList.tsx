@@ -358,14 +358,17 @@ export function ConversationList({
       {/* Header */}
       <div className="p-4 border-b border-white/10 bg-white/5">
         <div className="flex items-center gap-3 mb-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onMenuClick}
-            className="shrink-0 text-white/70 hover:text-white hover:bg-white/10"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
+          <div className="relative shrink-0">
+            <div className="absolute inset-0 bg-primary/40 rounded-md animate-ping duration-[2000ms]" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMenuClick}
+              className="relative z-10 text-white/70 hover:text-white hover:bg-white/10"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             <Input
