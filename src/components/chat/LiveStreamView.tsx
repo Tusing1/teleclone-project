@@ -321,7 +321,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
           </div>
           <div className="flex items-center gap-2">
             {/* Raise Hand for non-admins who are muted */}
-            {!isAdmin && currentUserParticipant?.is_muted && (
+            {!effectiveAdmin && currentUserParticipant?.is_muted && (
               <Button
                 variant="ghost"
                 size="sm"
@@ -332,7 +332,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               </Button>
             )}
             {/* Mic toggle for admins OR unmuted participants */}
-            {(isAdmin || (currentUserParticipant && !currentUserParticipant.is_muted)) && (
+            {(effectiveAdmin || (currentUserParticipant && !currentUserParticipant.is_muted)) && (
               <Button
                 variant="ghost"
                 size="sm"

@@ -5,6 +5,7 @@ import { useAuth } from './useAuth';
 export interface LeaderboardEntry {
     user_id: string;
     username: string;
+    full_name: string | null;
     avatar_url: string | null;
     score: number;
     rank: number;
@@ -43,16 +44,17 @@ export function useGameLeaderboard(gameId: string) {
                 // STEP 2: Fetch profiles for these users
                 const { data: profilesData, error: profilesError } = await supabase
                     .from('profiles')
-                    .select('user_id, username, avatar_url')
+                    .select('user_id, username, full_name, avatar_url')
                     .in('user_id', Array.from(userIds));
 
                 if (profilesError) throw profilesError;
 
                 // Create a map for easy profile lookup
-                const profileMap: { [key: string]: { username: string, avatar_url: string | null } } = {};
+                const profileMap: { [key: string]: { username: string, full_name: string | null, avatar_url: string | null } } = {};
                 profilesData?.forEach(p => {
                     profileMap[p.user_id] = {
                         username: p.username || 'Student',
+                        full_name: p.full_name,
                         avatar_url: p.avatar_url
                     };
                 });
@@ -62,6 +64,7 @@ export function useGameLeaderboard(gameId: string) {
                     .map(([userId, score]) => ({
                         user_id: userId,
                         username: profileMap[userId]?.username || 'Student',
+                        full_name: profileMap[userId]?.full_name || null,
                         avatar_url: profileMap[userId]?.avatar_url || null,
                         score: score,
                         rank: 0
