@@ -243,7 +243,7 @@ export function StudyLabsDialog({ open, onOpenChange }: StudyLabsDialogProps) {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="font-bold text-white text-sm truncate">
-                                                {profile?.user_id === leader.user_id ? 'You' : `Agent ${leader.user_id.slice(0, 4)}`}
+                                                {profile?.user_id === leader.user_id ? 'You' : (leader.full_name || leader.username)}
                                             </div>
                                             <div className="text-[10px] text-white/30 font-medium uppercase tracking-wide">
                                                 Scientific Score
