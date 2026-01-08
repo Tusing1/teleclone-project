@@ -2,11 +2,18 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { MessageWithSender, Profile } from '@/types/chat';
+import { useEncryption } from './useEncryption';
+import { EncryptionMetadata } from '@/lib/encryption';
 
-export function useMessages(conversationId: string | null, linkedDiscussionId?: string | null) {
+export function useMessages(
+  conversationId: string | null, 
+  linkedDiscussionId?: string | null,
+  recipientUserId?: string | null // For direct messages to enable E2EE
+) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<MessageWithSender[]>([]);
   const [loading, setLoading] = useState(true);
+  const { isInitialized: encryptionReady, encryptForUser, decryptMessage: decryptContent } = useEncryption();
 
   const fetchCommentCounts = useCallback(async (messageIds: string[]) => {
     if (!linkedDiscussionId || messageIds.length === 0) return {};
@@ -55,14 +62,38 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
     const messageIds = messagesData.map(m => m.id);
     const commentCounts = await fetchCommentCounts(messageIds);
 
-    const messagesWithSenders: MessageWithSender[] = messagesData.map(msg => ({
-      ...msg,
-      message_type: msg.message_type as 'text' | 'image' | 'file' | 'system',
-      sender: profiles?.find(p => p.user_id === msg.sender_id) as Profile,
-      commentCount: commentCounts[msg.id] || 0
-    }));
+    // Decrypt encrypted messages
+    const decryptedMessages = await Promise.all(
+      messagesData.map(async (msg) => {
+        let content = msg.content;
+        
+        // Check if message is encrypted and we can decrypt it
+        if (msg.is_encrypted && msg.encryption_metadata && encryptionReady) {
+          try {
+            const metadata = msg.encryption_metadata as unknown as EncryptionMetadata;
+            const decrypted = await decryptContent(msg.content || '', metadata);
+            if (decrypted) {
+              content = decrypted;
+            } else {
+              content = '🔒 [Encrypted message - unable to decrypt]';
+            }
+          } catch (err) {
+            console.error('Failed to decrypt message:', err);
+            content = '🔒 [Encrypted message - decryption failed]';
+          }
+        }
+        
+        return {
+          ...msg,
+          content,
+          message_type: msg.message_type as 'text' | 'image' | 'file' | 'system',
+          sender: profiles?.find(p => p.user_id === msg.sender_id) as Profile,
+          commentCount: commentCounts[msg.id] || 0
+        };
+      })
+    );
 
-    setMessages(messagesWithSenders);
+    setMessages(decryptedMessages);
     setLoading(false);
 
     // Mark unread messages from others as read
@@ -91,7 +122,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
         });
       }
     }
-  }, [conversationId, fetchCommentCounts, user]);
+  }, [conversationId, fetchCommentCounts, user, encryptionReady, decryptContent]);
 
   useEffect(() => {
     fetchMessages();
@@ -121,8 +152,25 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
             .eq('user_id', newMessage.sender_id)
             .single();
 
+          // Decrypt if encrypted
+          let content = newMessage.content;
+          if (newMessage.is_encrypted && newMessage.encryption_metadata && encryptionReady) {
+            try {
+              const decrypted = await decryptContent(newMessage.content, newMessage.encryption_metadata as EncryptionMetadata);
+              if (decrypted) {
+                content = decrypted;
+              } else {
+                content = '🔒 [Encrypted message - unable to decrypt]';
+              }
+            } catch (err) {
+              console.error('Failed to decrypt realtime message:', err);
+              content = '🔒 [Encrypted message - decryption failed]';
+            }
+          }
+
           const messageWithSender: MessageWithSender = {
             ...newMessage,
+            content,
             message_type: newMessage.message_type as 'text' | 'image' | 'file' | 'system',
             sender: profile as Profile,
             commentCount: 0
@@ -161,7 +209,7 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, user]);
+  }, [conversationId, user, encryptionReady, decryptContent]);
 
   const sendMessage = async (
     content: string, 
@@ -171,11 +219,32 @@ export function useMessages(conversationId: string | null, linkedDiscussionId?: 
   ) => {
     if (!user || !conversationId) return null;
 
+    let finalContent = type === 'text' || type === 'system' ? content : null;
+    let isEncrypted = false;
+    let encryptionMetadata: EncryptionMetadata | null = null;
+
+    // Try to encrypt for direct messages
+    if (recipientUserId && encryptionReady && type === 'text' && finalContent) {
+      try {
+        const encrypted = await encryptForUser(finalContent, recipientUserId);
+        if (encrypted) {
+          finalContent = encrypted.encryptedContent;
+          encryptionMetadata = encrypted.metadata;
+          isEncrypted = true;
+          console.log('🔐 Message encrypted for E2EE');
+        }
+      } catch (err) {
+        console.warn('Failed to encrypt message, sending unencrypted:', err);
+      }
+    }
+
     const messageData: any = {
       conversation_id: conversationId,
       sender_id: user.id,
-      content: type === 'text' || type === 'system' ? content : null,
+      content: finalContent,
       message_type: type,
+      is_encrypted: isEncrypted,
+      encryption_metadata: encryptionMetadata,
     };
 
     if (fileData) {

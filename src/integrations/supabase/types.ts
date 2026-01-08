@@ -551,10 +551,12 @@ export type Database = {
           content: string | null
           conversation_id: string
           created_at: string
+          encryption_metadata: Json | null
           file_name: string | null
           file_size: number | null
           file_url: string | null
           id: string
+          is_encrypted: boolean | null
           is_read: boolean | null
           message_type: string
           reply_to_channel_message_id: string | null
@@ -566,10 +568,12 @@ export type Database = {
           content?: string | null
           conversation_id: string
           created_at?: string
+          encryption_metadata?: Json | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null
           id?: string
+          is_encrypted?: boolean | null
           is_read?: boolean | null
           message_type?: string
           reply_to_channel_message_id?: string | null
@@ -581,10 +585,12 @@ export type Database = {
           content?: string | null
           conversation_id?: string
           created_at?: string
+          encryption_metadata?: Json | null
           file_name?: string | null
           file_size?: number | null
           file_url?: string | null
           id?: string
+          is_encrypted?: boolean | null
           is_read?: boolean | null
           message_type?: string
           reply_to_channel_message_id?: string | null
@@ -846,6 +852,30 @@ export type Database = {
           description?: string | null
           id?: string
           transaction_type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_encryption_keys: {
+        Row: {
+          created_at: string
+          id: string
+          key_created_at: string
+          public_key: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key_created_at?: string
+          public_key: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key_created_at?: string
+          public_key?: string
           user_id?: string
         }
         Relationships: []
