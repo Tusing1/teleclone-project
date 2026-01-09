@@ -35,6 +35,7 @@ import { InAppBrowser } from '@/components/chat/InAppBrowser';
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
 import { RecordingsView } from '@/components/chat/RecordingsView';
 import { EncryptionInitializer } from '@/components/chat/EncryptionInitializer';
+import { PWAUpdatePrompt } from '@/components/chat/PWAUpdatePrompt';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -327,6 +328,8 @@ export default function Index() {
     <div className="flex h-full h-[100dvh] overflow-hidden bg-[#0a0a0f] relative safe-top safe-bottom">
       {/* E2EE Encryption Initializer */}
       <EncryptionInitializer />
+      {/* PWA Update Prompt */}
+      <PWAUpdatePrompt />
       {/* Immersive Animated Background */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] animate-blob" />
