@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Download, Moon, Sun, Bell, Shield, HelpCircle, Info, ExternalLink, Smartphone } from 'lucide-react';
+import { Download, Moon, Sun, Shield, HelpCircle, Info, Smartphone } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -130,21 +130,25 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
               </div>
 
               <button
-                onClick={() => window.open('https://help.example.com', '_blank')}
+                onClick={() => {
+                  navigate('/help');
+                  onClose();
+                }}
                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
               >
                 <HelpCircle className="h-5 w-5 text-muted-foreground" />
                 <span className="flex-1 text-left">Help & Support</span>
-                <ExternalLink className="h-4 w-4 text-muted-foreground" />
               </button>
 
               <button
-                onClick={() => window.open('https://privacy.example.com', '_blank')}
+                onClick={() => {
+                  navigate('/privacy');
+                  onClose();
+                }}
                 className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors"
               >
                 <Shield className="h-5 w-5 text-muted-foreground" />
                 <span className="flex-1 text-left">Privacy Policy</span>
-                <ExternalLink className="h-4 w-4 text-muted-foreground" />
               </button>
             </div>
           </div>
