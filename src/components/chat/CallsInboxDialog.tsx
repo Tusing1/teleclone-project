@@ -190,11 +190,11 @@ export function CallsInboxDialog({ open, onClose, onOpenConversation }: CallsInb
               </p>
             </div>
           ) : (
-            <div className="space-y-1">
+            <div className="divide-y divide-border">
               {calls.map((call) => (
                 <div
                   key={call.id}
-                  className="flex items-center gap-3 p-3 rounded-lg hover:bg-secondary/50 transition-colors cursor-pointer"
+                  className="flex items-center gap-3 p-4 hover:bg-secondary/50 transition-colors cursor-pointer border-l-2 border-l-transparent hover:border-l-primary"
                   onClick={() => handleCallBack(call)}
                 >
                   {/* Avatar */}
@@ -206,39 +206,52 @@ export function CallsInboxDialog({ open, onClose, onOpenConversation }: CallsInb
 
                   {/* Call info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium truncate text-foreground">
                         {call.participant?.full_name || call.participant?.username || 'Unknown'}
                       </span>
                       {call.is_active && (
-                        <Badge variant="default" className="bg-green-500 text-xs">
+                        <Badge variant="default" className="bg-green-500 text-xs shrink-0">
                           Active
                         </Badge>
                       )}
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      {getCallIcon(call)}
-                      <span className={cn(call.isMissed && "text-destructive")}>
-                        {call.isMissed ? 'Missed' : call.isOutgoing ? 'Outgoing' : 'Incoming'}
-                      </span>
-                      {call.call_type === 'video' ? (
-                        <Video className="w-3 h-3" />
-                      ) : (
-                        <Phone className="w-3 h-3" />
-                      )}
+                    
+                    {/* Call details - stacked layout */}
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1 shrink-0">
+                        {getCallIcon(call)}
+                        <span className={cn("font-medium", call.isMissed && "text-destructive")}>
+                          {call.isMissed ? 'Missed' : call.isOutgoing ? 'Outgoing' : 'Incoming'}
+                        </span>
+                      </div>
+                      
+                      <span className="text-muted-foreground/50">•</span>
+                      
+                      <div className="flex items-center gap-1 shrink-0">
+                        {call.call_type === 'video' ? (
+                          <Video className="w-3 h-3" />
+                        ) : (
+                          <Phone className="w-3 h-3" />
+                        )}
+                        <span>{call.call_type === 'video' ? 'Video' : 'Voice'}</span>
+                      </div>
+                      
                       {call.duration && (
                         <>
-                          <span className="text-muted-foreground">•</span>
-                          <Clock className="w-3 h-3" />
-                          <span>{formatDuration(call.duration)}</span>
+                          <span className="text-muted-foreground/50">•</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <Clock className="w-3 h-3" />
+                            <span>{formatDuration(call.duration)}</span>
+                          </div>
                         </>
                       )}
                     </div>
                   </div>
 
-                  {/* Time */}
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground">
+                  {/* Time - right aligned */}
+                  <div className="text-right shrink-0 pl-2">
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">
                       {formatDistanceToNow(new Date(call.started_at), { addSuffix: true })}
                     </span>
                   </div>
