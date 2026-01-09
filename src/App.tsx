@@ -10,6 +10,8 @@ import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Install from "./pages/Install";
 import Invite from "./pages/Invite";
+import HelpSupport from "./pages/HelpSupport";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import { useEffect } from "react";
 import { IncomingCallListener } from "@/components/chat/IncomingCallListener";
@@ -33,6 +35,8 @@ const App = () => (
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/invite/:code" element={<Invite />} />
                 <Route path="/install" element={<Install />} />
+                <Route path="/help" element={<HelpSupport />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
