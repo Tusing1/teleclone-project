@@ -116,10 +116,14 @@ export function useMessages(
     if (messagesToRecordView.length > 0 && user?.id) {
       // Record view for each message (function handles duplicates)
       for (const msgId of messagesToRecordView) {
-        supabase.rpc('record_message_view', { 
-          p_message_id: msgId, 
-          p_user_id: user.id 
-        });
+        try {
+          await supabase.rpc('record_message_view', { 
+            p_message_id: msgId, 
+            p_user_id: user.id 
+          });
+        } catch (err) {
+          console.error('Failed to record view for message:', msgId, err);
+        }
       }
     }
   }, [conversationId, fetchCommentCounts, user, encryptionReady, decryptContent]);
@@ -178,12 +182,22 @@ export function useMessages(
 
           setMessages(prev => [...prev, messageWithSender]);
 
-          // Mark message as read if it's from someone else
+          // Mark message as read and record view if it's from someone else
           if (newMessage.sender_id !== user?.id) {
             await supabase
               .from('messages')
               .update({ is_read: true })
               .eq('id', newMessage.id);
+            
+            // Record view for this message
+            try {
+              await supabase.rpc('record_message_view', { 
+                p_message_id: newMessage.id, 
+                p_user_id: user?.id 
+              });
+            } catch (err) {
+              console.error('Failed to record view:', err);
+            }
           }
         }
       )
