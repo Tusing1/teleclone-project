@@ -286,36 +286,72 @@ export function StudyLabsDialog({ open, onOpenChange }: StudyLabsDialogProps) {
 
                     {activeView === 'scramble' && (
                         <div className="absolute inset-0 z-10 bg-[#09090b]">
+                            <button
+                                onClick={() => setActiveView('hub')}
+                                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-5 w-5 text-white" />
+                            </button>
                             <MedicalTermScramble onExit={() => setActiveView('hub')} />
                         </div>
                     )}
 
                     {activeView === 'blitz' && (
                         <div className="absolute inset-0 z-10 bg-[#09090b]">
+                            <button
+                                onClick={() => setActiveView('hub')}
+                                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-5 w-5 text-white" />
+                            </button>
                             <AnatomyBlitz onExit={() => setActiveView('hub')} />
                         </div>
                     )}
 
                     {activeView === 'pharma' && (
                         <div className="absolute inset-0 z-10 bg-[#09090b]">
+                            <button
+                                onClick={() => setActiveView('hub')}
+                                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-5 w-5 text-white" />
+                            </button>
                             <PharmMatch onExit={() => setActiveView('hub')} />
                         </div>
                     )}
 
                     {activeView === 'clinical' && (
                         <div className="absolute inset-0 z-10 bg-[#09090b]">
+                            <button
+                                onClick={() => setActiveView('hub')}
+                                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-5 w-5 text-white" />
+                            </button>
                             <ClinicalCaseCracker onExit={() => setActiveView('hub')} />
                         </div>
                     )}
 
                     {activeView === 'triage' && (
                         <div className="absolute inset-0 z-10 bg-[#09090b]">
+                            <button
+                                onClick={() => setActiveView('hub')}
+                                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-5 w-5 text-white" />
+                            </button>
                             <TriageMaster onExit={() => setActiveView('hub')} />
                         </div>
                     )}
 
                     {activeView === 'labflip' && (
                         <div className="absolute inset-0 z-10 bg-[#09090b]">
+                            <button
+                                onClick={() => setActiveView('hub')}
+                                className="absolute top-4 right-4 z-20 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                            >
+                                <X className="h-5 w-5 text-white" />
+                            </button>
                             <LabValueFlip onExit={() => setActiveView('hub')} />
                         </div>
                     )}
