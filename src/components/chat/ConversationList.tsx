@@ -136,7 +136,9 @@ export function ConversationList({
     return role === 'admin' || role === 'owner';
   };
 
-  const renderConversationItem = (conv: ConversationWithDetails) => {
+  const renderConversationItem = (conv: ConversationWithDetails, index: number) => {
+    const animationDelay = `${index * 50}ms`;
+    
     // Group conversation rendering
     if (conv.type === 'group') {
       const lastMessageTime = conv.lastMessage?.created_at || conv.updated_at;
@@ -147,25 +149,31 @@ export function ConversationList({
         <div
           key={conv.id}
           onClick={() => onSelect(conv.id)}
+          style={{ animationDelay }}
           className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white/10 group rounded-xl mx-2 my-1 border border-transparent hover:border-white/10',
-            selectedId === conv.id && 'bg-white/15 border-white/20 shadow-lg'
+            'flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group rounded-xl mx-2 my-1',
+            'border border-transparent',
+            'hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5',
+            'hover:border-white/20 hover:shadow-lg hover:shadow-primary/5',
+            'hover:scale-[1.02] active:scale-[0.98]',
+            'animate-fade-in opacity-0 [animation-fill-mode:forwards]',
+            selectedId === conv.id && 'bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30 shadow-lg shadow-primary/10'
           )}
         >
           {conv.avatar_url ? (
             <img
               src={conv.avatar_url}
               alt={conv.name || 'Group'}
-              className="w-12 h-12 rounded-full object-cover"
+              className="w-12 h-12 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-primary/30 transition-all"
             />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center ring-2 ring-white/10 group-hover:ring-emerald-400/50 transition-all shadow-lg shadow-emerald-500/20">
               <Users className="w-6 h-6 text-white" />
             </div>
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <span className="font-medium truncate">{conv.name}</span>
+              <span className="font-medium truncate group-hover:text-white transition-colors">{conv.name}</span>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-muted-foreground">
                   {formatTime(lastMessageTime)}
@@ -214,25 +222,31 @@ export function ConversationList({
         <div
           key={conv.id}
           onClick={() => onSelect(conv.id)}
+          style={{ animationDelay }}
           className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white/10 group rounded-xl mx-2 my-1 border border-transparent hover:border-white/10',
-            selectedId === conv.id && 'bg-white/15 border-white/20 shadow-lg'
+            'flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group rounded-xl mx-2 my-1',
+            'border border-transparent',
+            'hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5',
+            'hover:border-white/20 hover:shadow-lg hover:shadow-primary/5',
+            'hover:scale-[1.02] active:scale-[0.98]',
+            'animate-fade-in opacity-0 [animation-fill-mode:forwards]',
+            selectedId === conv.id && 'bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30 shadow-lg shadow-primary/10'
           )}
         >
           {conv.avatar_url ? (
             <img
               src={conv.avatar_url}
               alt={conv.name || 'Channel'}
-              className="w-12 h-12 rounded-full object-cover"
+              className="w-12 h-12 rounded-full object-cover ring-2 ring-white/10 group-hover:ring-primary/30 transition-all"
             />
           ) : (
-            <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-400 to-violet-600 flex items-center justify-center ring-2 ring-white/10 group-hover:ring-violet-400/50 transition-all shadow-lg shadow-violet-500/20">
               <Radio className="w-6 h-6 text-white" />
             </div>
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <span className="font-medium truncate">{conv.name}</span>
+              <span className="font-medium truncate group-hover:text-white transition-colors">{conv.name}</span>
               <div className="flex items-center gap-1">
                 <span className="text-xs text-muted-foreground">
                   {formatTime(lastMessageTime)}
@@ -284,19 +298,27 @@ export function ConversationList({
       <div
         key={conv.id}
         onClick={() => onSelect(conv.id)}
+        style={{ animationDelay }}
         className={cn(
-          'flex items-center gap-3 p-3 cursor-pointer transition-all hover:bg-white/10 group rounded-xl mx-2 my-1 border border-transparent hover:border-white/10',
-          selectedId === conv.id && 'bg-white/15 border-white/20 shadow-lg'
+          'flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group rounded-xl mx-2 my-1',
+          'border border-transparent',
+          'hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5',
+          'hover:border-white/20 hover:shadow-lg hover:shadow-primary/5',
+          'hover:scale-[1.02] active:scale-[0.98]',
+          'animate-fade-in opacity-0 [animation-fill-mode:forwards]',
+          selectedId === conv.id && 'bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30 shadow-lg shadow-primary/10'
         )}
       >
-        <Avatar
-          src={otherProfile.avatar_url}
-          name={displayName}
-          isOnline={otherProfile.is_online}
-        />
+        <div className="ring-2 ring-white/10 group-hover:ring-primary/30 transition-all rounded-full">
+          <Avatar
+            src={otherProfile.avatar_url}
+            name={displayName}
+            isOnline={otherProfile.is_online}
+          />
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between">
-            <span className="font-medium truncate">{displayName}</span>
+            <span className="font-medium truncate group-hover:text-white transition-colors">{displayName}</span>
             <div className="flex items-center gap-1">
               <span className="text-xs text-muted-foreground">
                 {formatTime(lastMessageTime)}
@@ -354,9 +376,9 @@ export function ConversationList({
   );
 
   return (
-    <div className="flex flex-col h-full bg-white/5 backdrop-blur-md border-r border-white/10">
-      {/* Header */}
-      <div className="p-4 border-b border-white/10 bg-white/5">
+    <div className="flex flex-col h-full bg-gradient-to-b from-white/5 to-transparent backdrop-blur-xl border-r border-white/10">
+      {/* Header with glassmorphism */}
+      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-xl">
         <div className="flex items-center gap-3 mb-1">
           <div className="relative shrink-0">
             <div className="absolute inset-0 bg-primary/40 rounded-md animate-ping duration-[2000ms]" />
@@ -364,19 +386,23 @@ export function ConversationList({
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className="relative z-10 text-white/70 hover:text-white hover:bg-white/10"
+              className="relative z-10 text-white/70 hover:text-white hover:bg-white/10 transition-all"
             >
               <Menu className="h-5 w-5" />
             </Button>
           </div>
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
-            <Input
-              placeholder="Search chats..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 bg-white/10 border-white/5 text-white placeholder:text-white/30 focus-visible:ring-primary/50 rounded-xl transition-all"
-            />
+          {/* Glassmorphism search bar */}
+          <div className="relative flex-1 group">
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-violet-500/20 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40 group-focus-within:text-primary transition-colors" />
+              <Input
+                placeholder="Search chats..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 bg-white/10 backdrop-blur-xl border-white/10 text-white placeholder:text-white/40 focus-visible:ring-primary/50 focus-visible:border-primary/30 focus-visible:bg-white/15 rounded-xl transition-all duration-300 shadow-inner shadow-black/10"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -428,7 +454,7 @@ export function ConversationList({
               </Button>
             </div>
           ) : (
-            filteredConversations.map(renderConversationItem)
+            filteredConversations.map((conv, index) => renderConversationItem(conv, index))
           )}
         </div>
       </div>
