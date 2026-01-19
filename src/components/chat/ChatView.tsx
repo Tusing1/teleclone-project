@@ -642,10 +642,18 @@ export function ChatView({
             <div className="animate-pulse text-muted-foreground">Loading messages...</div>
           </div>
         ) : messages.length === 0 ? (
-          <>
-            <p>No messages yet</p>
-            <p className="text-sm">Send a message to start the conversation</p>
-          </>
+          <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+              <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center backdrop-blur-sm border border-primary/20 shadow-lg shadow-primary/10">
+                <MessageCircle className="w-10 h-10 text-primary" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">No messages yet</h3>
+            <p className="text-muted-foreground/70 text-sm text-center max-w-[250px]">
+              Send a message to start the conversation
+            </p>
+          </div>
         ) : (
           <div className="px-3 space-y-4">
             {messages.map((message, index) => {

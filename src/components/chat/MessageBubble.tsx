@@ -161,7 +161,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        'flex gap-1.5 px-2 py-0.5 animate-fade-in group',
+        'flex gap-1 px-2 py-0.5 animate-fade-in group',
         isOwn ? 'justify-end' : 'justify-start'
       )}
       onMouseEnter={() => setShowMenu(true)}
@@ -169,8 +169,8 @@ export function MessageBubble({
         if (!menuOpen) setShowMenu(false);
       }}
     >
-      {/* Action menu for non-own messages */}
-      {!isOwn && (
+      {/* Action menu - placed on opposite side of bubble */}
+      {isOwn && (
         <DropdownMenu open={menuOpen} onOpenChange={(open) => {
           setMenuOpen(open);
           if (!open) setShowMenu(false);
@@ -180,14 +180,14 @@ export function MessageBubble({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-7 w-7 transition-opacity self-center",
+                "h-6 w-6 transition-all self-center shrink-0 hover:bg-white/10",
                 showMenu || menuOpen ? "opacity-100" : "opacity-0"
               )}
             >
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
+          <DropdownMenuContent align="start">
             {onReply && (
               <DropdownMenuItem onClick={() => onReply(message)}>
                 <Reply className="h-4 w-4 mr-2" />
@@ -210,14 +210,18 @@ export function MessageBubble({
                 Pin
               </DropdownMenuItem>
             )}
-            {isAdmin && onDelete && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onDelete(message)} className="text-destructive focus:text-destructive">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete
-                </DropdownMenuItem>
-              </>
+            <DropdownMenuSeparator />
+            {onEdit && (
+              <DropdownMenuItem onClick={() => onEdit(message)}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit
+              </DropdownMenuItem>
+            )}
+            {onDelete && (
+              <DropdownMenuItem onClick={() => onDelete(message)} className="text-destructive focus:text-destructive">
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -225,10 +229,10 @@ export function MessageBubble({
 
       <div
         className={cn(
-          'max-w-[80%] rounded-2xl px-3 py-2 shadow-sm relative',
+          'max-w-[85%] rounded-2xl px-4 py-2.5 relative transition-all',
           isOwn
-            ? 'bg-message-out text-message-out-foreground rounded-tr-sm'
-            : 'bg-message-in text-message-in-foreground rounded-tl-sm'
+            ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-tr-md shadow-lg shadow-primary/20'
+            : 'bg-gradient-to-br from-muted/80 to-muted/60 text-foreground rounded-tl-md shadow-md backdrop-blur-sm border border-white/5'
         )}
       >
         {renderFileContent()}
@@ -325,8 +329,8 @@ export function MessageBubble({
         )}
       </div>
 
-      {/* Action menu for own messages */}
-      {isOwn && (
+      {/* Action menu for non-own messages - on the right */}
+      {!isOwn && (
         <DropdownMenu open={menuOpen} onOpenChange={(open) => {
           setMenuOpen(open);
           if (!open) setShowMenu(false);
@@ -336,14 +340,14 @@ export function MessageBubble({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-7 w-7 transition-opacity self-center",
+                "h-6 w-6 transition-all self-center shrink-0 hover:bg-white/10",
                 showMenu || menuOpen ? "opacity-100" : "opacity-0"
               )}
             >
-              <MoreVertical className="h-4 w-4" />
+              <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
+          <DropdownMenuContent align="end">
             {onReply && (
               <DropdownMenuItem onClick={() => onReply(message)}>
                 <Reply className="h-4 w-4 mr-2" />
@@ -366,18 +370,14 @@ export function MessageBubble({
                 Pin
               </DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            {onEdit && (
-              <DropdownMenuItem onClick={() => onEdit(message)}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit
-              </DropdownMenuItem>
-            )}
-            {onDelete && (
-              <DropdownMenuItem onClick={() => onDelete(message)} className="text-destructive focus:text-destructive">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
+            {isAdmin && onDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => onDelete(message)} className="text-destructive focus:text-destructive">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </>
             )}
           </DropdownMenuContent>
         </DropdownMenu>
