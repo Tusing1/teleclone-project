@@ -98,21 +98,26 @@ export function ChannelAudioPlayer({
     }
   }, [audioUrl, isThisAudio, localDuration]);
 
-  const handleDownloadToCache = async () => {
-    if (isCached) {
-      toast.info('Already downloaded');
-      return;
-    }
-    
+  const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      const blob = await downloadAndCache(url, title || 'audio.opus');
-      if (blob) {
-        setIsCached(true);
-        const objectUrl = URL.createObjectURL(blob);
-        setAudioUrl(objectUrl);
-        toast.success('Downloaded for offline playback');
+      // Save to device
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = title || 'audio.opus';
+      a.click();
+      
+      // Also cache for offline if not already cached
+      if (!isCached) {
+        const blob = await downloadAndCache(url, title || 'audio.opus');
+        if (blob) {
+          setIsCached(true);
+          const objectUrl = URL.createObjectURL(blob);
+          setAudioUrl(objectUrl);
+        }
       }
+      
+      toast.success('Saved to device & available offline');
     } catch (error) {
       toast.error('Failed to download');
     } finally {
@@ -169,13 +174,6 @@ export function ChannelAudioPlayer({
     return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const handleSaveToDevice = () => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = title || 'audio.opus';
-    a.click();
-    toast.success('Download started');
-  };
 
   const handleRemoveFromCache = async () => {
     try {
@@ -220,24 +218,22 @@ export function ChannelAudioPlayer({
             )}
           </Button>
           {/* Download indicator */}
-          {!isCached && (
-            <button 
-              onClick={handleDownloadToCache}
-              disabled={isDownloading}
-              className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-sky-500 flex items-center justify-center border border-slate-800"
-            >
-              {isDownloading ? (
-                <Loader2 className="h-2 w-2 text-white animate-spin" />
-              ) : (
-                <ArrowDownToLine className="h-2 w-2 text-white" />
-              )}
-            </button>
-          )}
-          {isCached && (
-            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center border border-slate-800">
+          <button 
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className={cn(
+              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-slate-800",
+              isCached ? "bg-emerald-500" : "bg-sky-500"
+            )}
+          >
+            {isDownloading ? (
+              <Loader2 className="h-2 w-2 text-white animate-spin" />
+            ) : isCached ? (
               <Check className="h-2 w-2 text-white" />
-            </div>
-          )}
+            ) : (
+              <ArrowDownToLine className="h-2 w-2 text-white" />
+            )}
+          </button>
         </div>
         
         {/* Title and info */}
@@ -264,17 +260,13 @@ export function ChannelAudioPlayer({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
-                <DropdownMenuItem onClick={handleSaveToDevice} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                <DropdownMenuItem onClick={handleDownload} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
                   <Download className="h-4 w-4 mr-2" />
-                  Save to device
+                  Save & download offline
                 </DropdownMenuItem>
-                {isCached ? (
+                {isCached && (
                   <DropdownMenuItem onClick={handleRemoveFromCache} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
                     Remove from offline
-                  </DropdownMenuItem>
-                ) : (
-                  <DropdownMenuItem onClick={handleDownloadToCache} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
-                    Download for offline
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator className="bg-slate-700" />
