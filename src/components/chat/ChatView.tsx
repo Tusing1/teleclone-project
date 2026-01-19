@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, User } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, User, Wand2, Sparkles, Loader2 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,7 @@ import { useCalls } from '@/hooks/useCalls';
 import { useLiveStream } from '@/hooks/useLiveStream';
 import { useReactions } from '@/hooks/useReactions';
 import { useVoiceMessage } from '@/hooks/useVoiceMessage';
+import { useAIChat } from '@/hooks/useAIChat';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -91,9 +92,14 @@ export function ChatView({
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
   const [isStreamMinimized, setIsStreamMinimized] = useState(false);
+  const [icebreakers, setIcebreakers] = useState<string[]>([]);
+  const [loadingIcebreakers, setLoadingIcebreakers] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
+  
+  // AI Chat for icebreakers
+  const { generateIcebreakers } = useAIChat();
 
   // Voice message hook
   const { sendVoiceMessage, isUploading: isUploadingVoice } = useVoiceMessage({
@@ -642,7 +648,7 @@ export function ChatView({
             <div className="animate-pulse text-muted-foreground">Loading messages...</div>
           </div>
         ) : messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full animate-fade-in">
+          <div className="flex flex-col items-center justify-center h-full animate-fade-in px-4">
             <div className="relative mb-6">
               <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
               <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-primary/30 to-primary/10 flex items-center justify-center backdrop-blur-sm border border-primary/20 shadow-lg shadow-primary/10">
@@ -650,9 +656,71 @@ export function ChatView({
               </div>
             </div>
             <h3 className="text-lg font-semibold text-foreground mb-2">No messages yet</h3>
-            <p className="text-muted-foreground/70 text-sm text-center max-w-[250px]">
+            <p className="text-muted-foreground/70 text-sm text-center max-w-[250px] mb-6">
               Send a message to start the conversation
             </p>
+            
+            {/* AI Conversation Starters - only for direct chats */}
+            {!isGroup && !isChannel && otherProfile && (
+              <div className="w-full max-w-sm space-y-3">
+                {icebreakers.length === 0 && !loadingIcebreakers && (
+                  <Button
+                    variant="outline"
+                    onClick={async () => {
+                      setLoadingIcebreakers(true);
+                      const suggestions = await generateIcebreakers(otherProfile);
+                      setIcebreakers(suggestions);
+                      setLoadingIcebreakers(false);
+                    }}
+                    className="w-full bg-gradient-to-r from-amber-500/10 to-purple-500/10 border-amber-500/30 hover:border-amber-500/50 hover:from-amber-500/20 hover:to-purple-500/20 transition-all group"
+                  >
+                    <Sparkles className="w-4 h-4 mr-2 text-amber-500 group-hover:rotate-12 transition-transform" />
+                    <span className="bg-gradient-to-r from-amber-500 to-purple-500 bg-clip-text text-transparent font-medium">
+                      AI Conversation Starters
+                    </span>
+                  </Button>
+                )}
+                
+                {loadingIcebreakers && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
+                      <span>Generating ideas...</span>
+                    </div>
+                    <div className="h-12 w-full bg-white/5 animate-pulse rounded-xl" />
+                    <div className="h-12 w-full bg-white/5 animate-pulse rounded-xl" />
+                  </div>
+                )}
+                
+                {icebreakers.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-1 rounded-md bg-gradient-to-br from-amber-500/20 to-purple-500/20">
+                        <Wand2 className="w-3 h-3 text-amber-500" />
+                      </div>
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tap to send</span>
+                    </div>
+                    {icebreakers.slice(0, 3).map((text, idx) => (
+                      <button
+                        key={idx}
+                        onClick={async () => {
+                          setSending(true);
+                          await sendMessage(text);
+                          setSending(false);
+                          setIcebreakers([]);
+                        }}
+                        disabled={sending}
+                        className="w-full text-left p-3 rounded-xl bg-gradient-to-br from-white/10 to-transparent hover:from-white/15 border border-white/10 hover:border-primary/50 transition-all group/item active:scale-[0.98] disabled:opacity-50"
+                      >
+                        <p className="text-sm text-foreground/90 group-hover/item:text-foreground transition-colors">
+                          {text}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="px-3 space-y-4">
