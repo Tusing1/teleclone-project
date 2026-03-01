@@ -35,10 +35,11 @@ export function ChannelAudioPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [isCached, setIsCached] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [localDuration, setLocalDuration] = useState(initialDuration || 0);
   
-  const { isFileCached, getCachedFile, downloadAndCache, clearFileCache } = useFileCache();
+  const { isFileCached, getCachedFile, downloadWithProgress, clearFileCache } = useFileCache();
 
   // Check if this audio is currently playing
   const isThisAudio = isCurrentAudio(audioUrl || url);
@@ -98,8 +99,14 @@ export function ChannelAudioPlayer({
     }
   }, [audioUrl, isThisAudio, localDuration]);
 
+  const triggerHaptic = () => {
+    if (navigator.vibrate) navigator.vibrate(15);
+  };
+
   const handleDownload = async () => {
+    triggerHaptic();
     setIsDownloading(true);
+    setDownloadProgress(0);
     try {
       // Save to device
       const a = document.createElement('a');
@@ -107,26 +114,33 @@ export function ChannelAudioPlayer({
       a.download = title || 'audio.opus';
       a.click();
       
-      // Also cache for offline if not already cached
+      // Cache for offline with progress
       if (!isCached) {
-        const blob = await downloadAndCache(url, title || 'audio.opus');
+        const blob = await downloadWithProgress(url, title || 'audio.opus', (percent) => {
+          setDownloadProgress(percent);
+        });
         if (blob) {
           setIsCached(true);
           const objectUrl = URL.createObjectURL(blob);
           setAudioUrl(objectUrl);
         }
+      } else {
+        setDownloadProgress(100);
       }
       
+      triggerHaptic();
       toast.success('Saved to device & available offline');
     } catch (error) {
       toast.error('Failed to download');
     } finally {
       setIsDownloading(false);
+      setDownloadProgress(0);
     }
   };
 
   const togglePlay = () => {
     if (!audioUrl) return;
+    triggerHaptic();
     
     if (isPlaying) {
       pause();
@@ -222,12 +236,21 @@ export function ChannelAudioPlayer({
             onClick={handleDownload}
             disabled={isDownloading}
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center border border-slate-800",
+              "absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center border border-slate-800 transition-all",
+              isDownloading ? "w-5 h-5" : "w-4 h-4",
               isCached ? "bg-emerald-500" : "bg-sky-500"
             )}
           >
             {isDownloading ? (
-              <Loader2 className="h-2 w-2 text-white animate-spin" />
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 20 20">
+                <circle cx="10" cy="10" r="8" fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth="2" />
+                <circle cx="10" cy="10" r="8" fill="none" stroke="white" strokeWidth="2" 
+                  strokeDasharray={`${2 * Math.PI * 8}`}
+                  strokeDashoffset={`${2 * Math.PI * 8 * (1 - downloadProgress / 100)}`}
+                  strokeLinecap="round"
+                  className="transition-all duration-200"
+                />
+              </svg>
             ) : isCached ? (
               <Check className="h-2 w-2 text-white" />
             ) : (
