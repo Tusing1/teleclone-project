@@ -59,23 +59,57 @@ export function useFileCache() {
   // Download and cache file
   const downloadAndCache = useCallback(async (url: string, name: string): Promise<Blob | null> => {
     try {
-      // Check cache first
       const cached = await getCachedFile(url);
-      if (cached) {
-        console.log(`Using cached file: ${name}`);
-        return cached.blob;
-      }
+      if (cached) return cached.blob;
       
-      // Download from network
-      console.log(`Downloading file: ${name}`);
       const response = await fetch(url);
       if (!response.ok) throw new Error('Failed to download file');
-      
       const blob = await response.blob();
-      
-      // Cache the file
       await cacheFile(url, blob, name);
-      
+      return blob;
+    } catch (error) {
+      console.error('Error downloading file:', error);
+      return null;
+    }
+  }, [getCachedFile, cacheFile]);
+
+  // Download with progress tracking
+  const downloadWithProgress = useCallback(async (
+    url: string, 
+    name: string, 
+    onProgress: (percent: number) => void
+  ): Promise<Blob | null> => {
+    try {
+      const cached = await getCachedFile(url);
+      if (cached) { onProgress(100); return cached.blob; }
+
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('Failed to download file');
+
+      const contentLength = response.headers.get('content-length');
+      if (!contentLength || !response.body) {
+        // Fallback if no content-length header
+        const blob = await response.blob();
+        await cacheFile(url, blob, name);
+        onProgress(100);
+        return blob;
+      }
+
+      const total = parseInt(contentLength, 10);
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      let received = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value as unknown as BlobPart);
+        received += value.length;
+        onProgress(Math.round((received / total) * 100));
+      }
+
+      const blob = new Blob(chunks);
+      await cacheFile(url, blob, name);
       return blob;
     } catch (error) {
       console.error('Error downloading file:', error);
@@ -158,6 +192,7 @@ export function useFileCache() {
     getCachedFile,
     cacheFile,
     downloadAndCache,
+    downloadWithProgress,
     isFileCached,
     clearFileCache,
     clearAllCache,
