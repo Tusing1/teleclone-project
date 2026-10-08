@@ -2,15 +2,21 @@
 
 ## Status — 8 October 2026
 
+### Public release — published
+
+With explicit action-time approval, the reviewed StudyGram release was published through Lovable to https://studdybuddyapp.com on 8 October 2026. The user also approved the plan-enforced "Edit with Lovable" badge; no subscription upgrade was made. Lovable confirmed "Your website was updated". An independent new browser tab loaded the StudyGram sign-in screen from the public domain, with entry asset /assets/index-CIDc-8uj.js and no captured startup errors. This verifies publication and signed-out startup, not authenticated workflows or real-device calls. Existing installed clients may require accepting the app's update prompt or reopening; do not clear their site data/offline files.
+
+The refreshed security report now lists the remaining broad-read critical group as user_encryption_keys (public keys only) and interest_categories. Residual warnings include storage ownership/public URLs, broad authenticated profile visibility and leaked-password checking; the dependency panel also reports known issues requiring separate triage. These were not auto-fixed or dismissed. Real-device audio, recording and push tests remain pending.
+
 ### Full release preparation (supersedes the earlier isolated-correction status)
 
-### Targeted security investigation — pending live approval
+### Targeted security investigation — applied and live-tested
 
 Read-only hosted inspection confirmed unrestricted conversation_participants INSERT, a participant DELETE admin check using cp.conversation_id=cp.conversation_id, global anonymous message-view reads, and unrestricted conversation INSERT. Public key reads expose only public_key (no stored private keys); interest categories are intentional public taxonomy. The existing is_conversation_member helper already includes linked-channel discussion access. The invite join RPC authenticates the caller and checks the supplied code, active status, expiry and use limit before adding member-level participation through SECURITY DEFINER.
 
 Prepared 20261008120000_membership_access_controls: conversation-scoped admin membership writes; self-leave/admin removal; immutable member identity and owner-only ownership changes; creator-bound client conversation insertion; member-scoped receipt reads and self receipt writes. Public key/category reads and invite/linked-discussion behavior remain unchanged. Existing rows are retained. Both new DM creation and friend-request DM creation now use the already-existing authenticated create-conversation endpoint, avoiding unrestricted raw client membership insertion. Twenty-five mocked tests, app TypeScript and the production build pass; this does not prove hosted SQL authorization until its live rollback probes run.
 
-Original six policies are preserved in manual-deployment/20261008_membership_original_policies.sql (reference only). manual-deployment/20261008_apply_membership_controls.sql wraps the correction and migration record in a transaction with a policy-set preflight. manual-deployment/20261008_verify_membership_controls.sql tests synthetic actors, private joins, self-promotion, cross-conversation removal, member identity, ownership takeover and receipt visibility in a rollback-only transaction. Neither SQL file has been executed yet. Live database modification and Publish remain action-time confirmation gates.
+Original six policies are preserved in manual-deployment/20261008_membership_original_policies.sql (reference only). With explicit user approval, manual-deployment/20261008_apply_membership_controls.sql was executed through Lovable Cloud on 8 October: six scoped policies, one enabled identity guard and one migration record were confirmed. The rollback-only manual-deployment/20261008_verify_membership_controls.sql then passed all assertions for synthetic actors: private joins, self-promotion, cross-conversation removal, member identity, ownership takeover and receipt visibility. Authorized owner operations also passed. Synthetic actors and data were rolled back; existing user rows were retained. Frontend Publish remains pending its action-time confirmation.
 
 Residual scope: chat-media storage SELECT/public URLs remain public for existing shared attachments/avatars. Its INSERT policy checks the bucket but not the uploader path; DELETE already checks the uploader path. A private-media migration and avatar/signup upload-path changes are separate work, not silently included here. Do not claim a full security audit or confidential attachment storage.
 
