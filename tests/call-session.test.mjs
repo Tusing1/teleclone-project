@@ -77,7 +77,7 @@ function harness({ signalingFails = false, microphoneFails = false, remote = fal
     console: { log() {}, warn() {}, error() {} }, RTCPeerConnection: Peer,
     window: { setTimeout, clearTimeout }, clearTimeout,
     navigator: { mediaDevices: { getUserMedia: async () => { log.microphones++; if (microphoneFails) throw new Error('Microphone denied'); return stream; } } },
-    setTimeout, Map, Set, Date, Promise,
+    setTimeout, Map, Set, Date, Promise, crypto: { randomUUID: () => 'test-subscription' },
   });
   return { room: module.exports.useLiveStream('room'), log, members, signal: data => signalListener({ new: data }) };
 }

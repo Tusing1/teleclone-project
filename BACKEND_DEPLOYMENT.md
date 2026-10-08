@@ -8,6 +8,8 @@ The user authorized pushing and publishing all accumulated changes. Local releas
 
 All 21 mocked tests and app-project TypeScript checks pass. GitHub push and live publishing must be separately verified; a code commit alone is not a live release. Nurses Revision will host the real test, with the user selecting Wardking as the receiving participant. Two actual devices are required; browser access to the host does not provide access to Wardking's device. Calls must not be sent before both participants have the updated frontend and are ready.
 
+The full release was pushed to GitHub main at 6f81de0 and detected by Lovable. Its hosted preview then exposed a duplicate Realtime channel error (`profiles-updates` callbacks added after subscribe). Database-listener topics now receive a unique UUID for each subscription lifecycle, preventing separate mounted screens and asynchronous effect cleanup from sharing a subscribed channel. Shared typing-broadcast topics are unchanged. Profile subscriptions now require a signed-in user. A regression harness reproduces simultaneous consumers and remounts; all 22 tests pass. Publication remains gated on a healthy refreshed preview.
+
 - Official Supabase CLI 2.120.0 is available through npx.
 - Target project in supabase/config.toml: plhzfgfrlxywxaccewyh.
 - Hosted read-only checks returned a valid P-256 VAPID public key and six ICE server entries including TURN. Neither check proves push delivery or successful cross-network audio.

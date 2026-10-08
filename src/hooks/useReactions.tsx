@@ -144,7 +144,7 @@ export function useReactions(conversationId: string | null) {
     if (!conversationId) return;
 
     const channel = supabase
-      .channel(`reactions-${conversationId}`)
+      .channel(`reactions-${conversationId}-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         {

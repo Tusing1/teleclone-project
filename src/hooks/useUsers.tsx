@@ -9,6 +9,7 @@ export function useUsers() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return;
     const fetchUsers = async () => {
       if (!user) return;
 
@@ -28,7 +29,7 @@ export function useUsers() {
 
     // Subscribe to profile updates for online status
     const channel = supabase
-      .channel('profiles-updates')
+      .channel(`profiles-updates-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'profiles' },

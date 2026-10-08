@@ -33,7 +33,7 @@ export const IncomingCallListener = () => {
 
         let disposed = false;
         const channel = supabase
-            .channel('global-call-listener')
+            .channel(`global-call-listener-${crypto.randomUUID()}`)
             .on(
                 'postgres_changes',
                 {
@@ -139,7 +139,7 @@ export const IncomingCallListener = () => {
         if (!incomingCall) return;
 
         const channel = supabase
-            .channel(`incoming-call-status-${incomingCall.id}`)
+            .channel(`incoming-call-status-${incomingCall.id}-${crypto.randomUUID()}`)
             .on(
                 'postgres_changes',
                 {

@@ -144,7 +144,7 @@ export function useMessages(
 
   useEffect(() => {
     if (!linkedDiscussionId) return;
-    const channel = supabase.channel(`comment-counts-${linkedDiscussionId}`).on('postgres_changes', {
+    const channel = supabase.channel(`comment-counts-${linkedDiscussionId}-${crypto.randomUUID()}`).on('postgres_changes', {
       event: '*', schema: 'public', table: 'messages', filter: `conversation_id=eq.${linkedDiscussionId}`,
     }, () => { void queryClient.invalidateQueries({ queryKey }); }).subscribe();
     return () => { void supabase.removeChannel(channel); };
@@ -155,7 +155,7 @@ export function useMessages(
     if (!conversationId) return;
 
     const channel = supabase
-      .channel(`messages-${conversationId}`)
+      .channel(`messages-${conversationId}-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         {

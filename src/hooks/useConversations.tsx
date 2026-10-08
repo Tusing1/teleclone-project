@@ -104,7 +104,7 @@ export function useConversations() {
     if (!user) return;
 
     const channel = supabase
-      .channel('conversations-updates')
+      .channel(`conversations-updates-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'messages' },

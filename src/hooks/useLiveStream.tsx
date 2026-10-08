@@ -219,7 +219,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
     if (!activeStream?.id || !user?.id || !localStream) return;
 
     const channel = supabase
-      .channel(`participant-updates-${user.id}-${activeStream.id}`)
+      .channel(`participant-updates-${user.id}-${activeStream.id}-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         {
@@ -415,7 +415,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
         }).catch(error => { console.warn('Call signaling failed:', error); setConnectionStatus('connecting'); });
         queues.set(remote, task);
       };
-      const channel = supabase.channel(`livestream-signal-${callId}-${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_signals', filter: `call_id=eq.${callId}` }, payload => handleSignal(payload.new));
+      const channel = supabase.channel(`livestream-signal-${callId}-${user.id}-${crypto.randomUUID()}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_signals', filter: `call_id=eq.${callId}` }, payload => handleSignal(payload.new));
       signalingChannel.current = channel;
       await new Promise<void>((resolve, reject) => {
         const timeout = window.setTimeout(() => reject(new Error('Could not connect signaling. Try joining again.')), 12000);
@@ -811,7 +811,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
     fetchActiveStream();
 
     const channel = supabase
-      .channel(`livestream-${conversationId}`)
+      .channel(`livestream-${conversationId}-${crypto.randomUUID()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'calls', filter: `conversation_id=eq.${conversationId}` },
