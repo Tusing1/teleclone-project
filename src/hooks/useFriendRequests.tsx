@@ -155,7 +155,7 @@ export function useFriendRequests() {
 
       if (updateError) throw updateError;
 
-      // Create conversation directly (instead of using edge function)
+      // Reuse an existing DM, otherwise create it through the authenticated server.
       // Check if a direct conversation already exists between these two users
       const { data: existingParticipants } = await supabase
         .from('conversation_participants')
@@ -192,32 +192,11 @@ export function useFriendRequests() {
 
       // Create new conversation if none exists
       if (!conversationId) {
-        // Generate UUID on client side to avoid RLS SELECT issue
-        const newConvId = crypto.randomUUID();
-
-        const { error: convError } = await supabase
-          .from('conversations')
-          .insert({ id: newConvId, type: 'direct' });
-
-        if (convError) {
-          console.error('Error creating conversation:', convError);
-          throw convError;
-        }
-
-        // Add participants
-        const { error: partError } = await supabase
-          .from('conversation_participants')
-          .insert([
-            { conversation_id: newConvId, user_id: user.id, role: 'member' },
-            { conversation_id: newConvId, user_id: request.sender_id, role: 'member' }
-          ]);
-
-        if (partError) {
-          console.error('Error adding participants:', partError);
-          throw partError;
-        }
-
-        conversationId = newConvId;
+        const { data, error } = await supabase.functions.invoke('create-conversation', {
+          body: { participantId: request.sender_id },
+        });
+        if (error || !data?.id) throw error || new Error('No conversation returned');
+        conversationId = data.id;
       }
 
       toast.success('Friend request accepted!');

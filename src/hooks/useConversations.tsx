@@ -167,28 +167,16 @@ export function useConversations() {
       }
     }
 
-    // Create new conversation - generate UUID on client side to avoid RLS SELECT issue
-    const newConvId = crypto.randomUUID();
-
-    const { error: convError } = await supabase
-      .from('conversations')
-      .insert({ id: newConvId, type: 'direct' });
-
-    if (convError) {
-      console.error('Error creating conversation:', convError);
+    // Membership creation is server-authorized, never an unrestricted client insert.
+    const { data, error } = await supabase.functions.invoke('create-conversation', {
+      body: { participantId: otherUserId },
+    });
+    if (error || !data?.id) {
+      console.error('Error creating conversation:', error || 'No conversation returned');
       return null;
     }
-
-    // Add participants
-    await supabase
-      .from('conversation_participants')
-      .insert([
-        { conversation_id: newConvId, user_id: user.id, role: 'member' },
-        { conversation_id: newConvId, user_id: otherUserId, role: 'member' }
-      ]);
-
     await fetchConversations();
-    return newConvId;
+    return data.id as string;
   };
 
   const createGroup = async (name: string, description: string, memberIds: string[]): Promise<string | null> => {
