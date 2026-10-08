@@ -1,537 +1,84 @@
-import { useState, useRef } from 'react';
-import {
-  Heart, X, Sparkles, Users, ChevronLeft,
-  MessageCircle, Loader2, Wand2
-} from 'lucide-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import { useRef, useState } from 'react';
+import { ArrowRight, BookOpen, Check, Loader2, MessageCircle, Search, SlidersHorizontal, UserPlus, Users, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
-import { Badge } from '@/components/ui/badge';
 import { useFindFriends } from '@/hooks/useFindFriends';
 import { useAuth } from '@/hooks/useAuth';
-import { Profile } from '@/types/chat';
+import type { Profile } from '@/types/chat';
 import { cn } from '@/lib/utils';
-import { MatchCelebration } from './MatchCelebration';
+import { buddyRecentlyActive, filterBuddyProfiles, sharedBuddyInterests } from '@/lib/buddyDiscovery';
 
 interface FindFriendsDialogProps {
-  open: boolean;
-  onClose: () => void;
-  onOpenConversation: (conversationId: string) => void;
+  open: boolean; onClose: () => void; onOpenConversation: (id: string) => void;
+  onEditProfile?: () => void;
+}
+type Tab = 'discover' | 'connections' | 'requests';
+const buddyTabs: Tab[] = ['discover', 'connections', 'requests'];
+
+function BuddyCard({ profile, interests, action, pending, disabled, onConnect, onPass }: {
+  profile: Profile; interests: string[]; action: string; pending: boolean; disabled: boolean;
+  onConnect: () => void; onPass?: () => void;
+}) {
+  const common = sharedBuddyInterests(profile, interests);
+  return <article className="rounded-3xl border border-border/60 bg-card/75 p-4">
+    <div className="flex items-center gap-3"><Avatar name={profile.full_name || profile.username} src={profile.avatar_url} size="md" /><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{profile.full_name || profile.username}</h3><p className="mt-1 truncate text-xs text-muted-foreground">@{profile.username}</p></div>{buddyRecentlyActive(profile) && <span title="Active within the last 24 hours" className="shrink-0 rounded-full bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-500">Recently active</span>}</div>
+    {profile.bio && <p className="mt-3 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">{profile.bio}</p>}
+    {common.length > 0 && <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary"><BookOpen size={13} />{common.length} shared {common.length === 1 ? 'interest' : 'interests'}</p>}
+    {!!profile.interests?.length && <div className="mt-3 flex flex-wrap gap-1.5">{profile.interests.slice(0, 5).map(interest => <span key={interest} className={cn('max-w-full truncate rounded-lg px-2 py-1 text-[11px]', common.includes(interest) ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground')}>{interest}</span>)}{profile.interests.length > 5 && <span className="px-2 py-1 text-[11px] text-muted-foreground">+{profile.interests.length - 5}</span>}</div>}
+    <div className="mt-4 flex items-center justify-end gap-2 border-t border-border/40 pt-3">{onPass && <Button variant="ghost" size="sm" className="rounded-xl text-muted-foreground" disabled={disabled} onClick={onPass}>Pass</Button>}<Button size="sm" className="gap-2 rounded-xl" disabled={disabled} onClick={onConnect}>{pending ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}{action}</Button></div>
+  </article>;
 }
 
-
-type TabType = 'discover' | 'matches' | 'likes';
-
-export function FindFriendsDialog({ open, onClose, onOpenConversation }: FindFriendsDialogProps) {
-  const [activeTab, setActiveTab] = useState<TabType>('discover');
-  const [matchAnimation, setMatchAnimation] = useState<{ user: Profile; conversationId: string } | null>(null);
-  const [swipeDirection, setSwipeDirection] = useState<'left' | 'right' | null>(null);
-
-  // Drag-to-swipe state
-  const [dragStart, setDragStart] = useState<{ x: number, y: number } | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [isDragging, setIsDragging] = useState(false);
-
-  const cardRef = useRef<HTMLDivElement>(null);
-  const { profile: myProfile } = useAuth();
-
-  const {
-    currentProfile,
-    hasMoreProfiles,
-    matches,
-    likedByCount,
-    likedByUsers,
-    canSeeLikes,
-    fetchCanSeeLikes,
-    loading,
-    swipe,
-    unlockSeeLikes
-  } = useFindFriends();
-
-  const handleSwipe = async (direction: 'left' | 'right') => {
-    setSwipeDirection(direction);
-    setDragOffset({ x: direction === 'right' ? 500 : -500, y: 0 });
-
-    // Animate card out
-    setTimeout(async () => {
-      const result = await swipe(direction);
-      setSwipeDirection(null);
-      setDragOffset({ x: 0, y: 0 });
-      setIsDragging(false);
-
-      if (result?.matched && result.user && result.conversationId) {
-        setMatchAnimation({ user: result.user, conversationId: result.conversationId });
-      }
-    }, 300);
-  };
-
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (swipeDirection) return;
-    setDragStart({ x: e.clientX, y: e.clientY });
-    setIsDragging(true);
-    // @ts-expect-error Pointer capture is supported by the browser target.
-    e.target.setPointerCapture(e.pointerId);
-  };
-
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragStart || swipeDirection) return;
-    const dx = e.clientX - dragStart.x;
-    const dy = e.clientY - dragStart.y;
-    setDragOffset({ x: dx, y: dy });
-  };
-
-  const onPointerUp = (e: React.PointerEvent) => {
-    if (!dragStart || swipeDirection) return;
-    const dx = e.clientX - dragStart.x;
-
-    // Threshold for swipe: 100px
-    if (dx > 100) {
-      handleSwipe('right');
-    } else if (dx < -100) {
-      handleSwipe('left');
-    } else {
-      // Snap back
-      setDragOffset({ x: 0, y: 0 });
-      setIsDragging(false);
-    }
-    setDragStart(null);
-  };
-
-  const handleOpenMatch = (conversationId: string | null) => {
-    if (conversationId) {
-      onOpenConversation(conversationId);
-      onClose();
-    }
-  };
-
-
-  if (!open) return null;
-
-  const renderDiscoverTab = () => {
-    if (loading) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[340px] gap-6">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full border-2 border-pink-500/20 border-t-pink-500 animate-spin" />
-            <Heart className="absolute inset-0 m-auto h-6 w-6 text-pink-500/50 fill-pink-500/10 animate-pulse" />
-          </div>
-          <p className="text-sm font-medium text-muted-foreground animate-pulse">
-            Finding study buddies...
-          </p>
+export function FindFriendsDialog({ open, onClose, onOpenConversation, onEditProfile }: FindFriendsDialogProps) {
+  const { profile } = useAuth();
+  const { profiles, matches, likedByUsers, loading, error, swipe, refetch } = useFindFriends();
+  const [tab, setTab] = useState<Tab>('discover');
+  const [query, setQuery] = useState('');
+  const [sharedOnly, setSharedOnly] = useState(false);
+  const [onlineOnly, setOnlineOnly] = useState(false);
+  const [pending, setPending] = useState<string | null>(null);
+  const lock = useRef(false);
+  const [connected, setConnected] = useState<{ name: string; id: string } | null>(null);
+  const interests = profile?.interests || [];
+  const visible = filterBuddyProfiles(profiles, query, sharedOnly, onlineOnly, interests);
+  const requested = likedByUsers.filter(like => like.profile && filterBuddyProfiles([like.profile], query, false, false).length > 0);
+  const connections = matches.filter(match => match.matchedUser && filterBuddyProfiles([match.matchedUser], query, false, false).length > 0);
+  function message(id: string) { onOpenConversation(id); onClose(); }
+  async function decide(id: string, direction: 'left' | 'right') {
+    if (lock.current) return;
+    lock.current = true; setPending(id);
+    try {
+      const result = await swipe(direction, id);
+      if (result?.matched && result.user && result.conversationId) setConnected({ name: result.user.full_name || result.user.username, id: result.conversationId });
+    } finally { lock.current = false; setPending(null); }
+  }
+  const empty = (title: string, description: string) => <div className="rounded-3xl border border-dashed border-border p-7 text-center"><Users className="mx-auto mb-3 text-primary" size={28} /><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{description}</p></div>;
+  return <Dialog open={open} onOpenChange={value => { if (!value) onClose(); }}>
+    <DialogContent className="left-0 top-0 z-[60] flex h-[100dvh] max-h-[100dvh] w-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none border-0 bg-background p-0 sm:rounded-none">
+      <div className="mx-auto flex h-full w-full max-w-2xl flex-col safe-top safe-bottom">
+        <DialogHeader className="px-5 pb-4 pt-5"><div className="mb-2 flex items-center gap-2 text-[10px] font-semibold tracking-[.18em] text-primary"><Users size={14} />BETTER TOGETHER</div><DialogTitle className="text-2xl font-bold tracking-tight">Study buddies</DialogTitle><DialogDescription className="mt-1 text-xs">Find a shared interest. Start a useful conversation.</DialogDescription></DialogHeader>
+        <div className="px-5"><div role="tablist" aria-label="Buddy sections" className="grid grid-cols-3 gap-1 rounded-2xl bg-secondary/60 p-1">{buddyTabs.map(value => <button key={value} role="tab" id={`buddy-tab-${value}`} aria-controls="buddy-panel" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onKeyDown={event => {
+            const index = buddyTabs.indexOf(value);
+            const next = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : event.key === 'Home' ? 0 : event.key === 'End' ? 2 : -1;
+            if (next < 0) return;
+            event.preventDefault(); setTab(buddyTabs[next]);
+            event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[next]?.focus();
+          }} className={cn('min-h-11 rounded-xl px-1 text-xs font-semibold transition-colors', tab === value ? 'bg-card text-primary shadow-sm' : 'text-muted-foreground')} onClick={() => setTab(value)}>{value === 'discover' ? 'Discover' : value === 'connections' ? `Buddies${matches.length ? ` · ${matches.length}` : ''}` : `Requests${likedByUsers.length ? ` · ${likedByUsers.length}` : ''}`}</button>)}</div>
+          <div className="relative mt-4"><Search className="absolute left-3 top-3.5 text-muted-foreground" size={16} /><Input aria-label="Search loaded study buddies" placeholder={tab === 'discover' ? 'Name, interest or bio…' : 'Search people…'} value={query} onChange={event => setQuery(event.target.value)} className="h-11 rounded-2xl border-border/50 bg-card pl-10" /></div>
+          {tab === 'discover' && <div className="flex flex-wrap items-center gap-2 py-3"><SlidersHorizontal size={14} className="text-muted-foreground" />{[{ label: 'Shared interests', value: sharedOnly, action: () => setSharedOnly(value => !value) }, { label: 'Active in 24h', value: onlineOnly, action: () => setOnlineOnly(value => !value) }].map(filter => <button key={filter.label} aria-pressed={filter.value} className={cn('min-h-9 rounded-full border px-3 text-xs', filter.value ? 'border-primary/30 bg-primary/10 text-primary' : 'border-border text-muted-foreground')} onClick={filter.action}>{filter.value && <Check className="mr-1 inline" size={12} />}{filter.label}</button>)}</div>}
         </div>
-      );
-    }
-
-    if (!hasMoreProfiles || !currentProfile) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[340px] gap-8 text-center px-8 relative">
-          <div className="relative group">
-            <div className="absolute inset-0 bg-gradient-to-br from-pink-500 to-purple-600 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-opacity duration-700" />
-            <div className="w-36 h-36 rounded-full bg-white/[0.03] border border-white/[0.08] flex items-center justify-center shadow-2xl relative z-10 backdrop-blur-xl">
-              <Sparkles className="h-16 w-16 text-white/20 animate-float-expert" />
-            </div>
-          </div>
-          <div className="space-y-3 relative z-10">
-            <h3 className="text-2xl font-bold tracking-tight text-foreground">You’re all caught up.</h3>
-            <p className="text-sm font-medium text-muted-foreground max-w-[220px] mx-auto leading-relaxed">
-              You've seen everyone for now. Check back soon for fresh faces!
-            </p>
-          </div>
-          <Button
-            className="rounded-2xl px-6 py-3 bg-primary text-primary-foreground font-semibold text-sm hover:scale-105 active:scale-95 transition-all shadow-[0_12px_24px_rgba(255,255,255,0.1)]"
-            onClick={() => setActiveTab('matches')}
-          >
-            Go to Matches
-          </Button>
-        </div>
-      );
-    }
-
-    const rotation = dragOffset.x / 10;
-    const opacity = 1 - Math.abs(dragOffset.x) / 500;
-    const mutualInterests = currentProfile.interests?.filter(interest => myProfile?.interests?.includes(interest)) || [];
-
-    return (
-      <div className="relative h-full flex flex-col items-center perspective-1000 overflow-hidden pt-2 pb-6">
-        {/* Profile card */}
-        <div
-          ref={cardRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
-          className={cn(
-            "w-full max-w-[380px] bg-[#0d0d12] rounded-[32px] shadow-2xl overflow-hidden touch-none border border-white/[0.08] select-none relative group/card h-[min(440px,58dvh)] md:h-[580px]",
-            !isDragging && "transition-all duration-300 ease-out"
-          )}
-          style={{
-            transform: `translate3d(${dragOffset.x}px, ${dragOffset.y}px, 0) rotate(${rotation}deg)`,
-          }}
-        >
-          {/* Profile image area - Now the full card height */}
-          <div className={cn("relative h-full", currentProfile.avatar_url ? "bg-card" : "bg-gradient-to-br from-violet-500/40 via-primary/20 to-card")}>
-            {currentProfile.avatar_url ? (
-              <img
-                src={currentProfile.avatar_url}
-                alt={currentProfile.username}
-                className="w-full h-full object-cover pointer-events-none transition-transform duration-700 group-hover/card:scale-105"
-              />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center gap-6">
-                <div className="w-24 h-24 rounded-[34px] bg-primary/30 flex items-center justify-center border border-primary/40 transform rotate-[-4deg]">
-                  <span className="text-5xl font-bold text-white/90">
-                    {(currentProfile.full_name || currentProfile.username)[0].toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Swipe Indicators Overlay */}
-            {isDragging && dragOffset.x > 30 && (
-              <div className="absolute top-8 left-8 border-[3px] border-green-500 px-6 py-2 rounded-2xl rotate-[-12deg] bg-green-500/10 backdrop-blur-md z-30 transition-opacity" style={{ opacity: Math.min(dragOffset.x / 100, 1) }}>
-                <span className="text-3xl font-black text-green-500 uppercase tracking-[0.2em] italic">LIKE</span>
-              </div>
-            )}
-            {isDragging && dragOffset.x < -30 && (
-              <div className="absolute top-8 right-8 border-[3px] border-pink-600 px-6 py-2 rounded-2xl rotate-[12deg] bg-pink-600/10 backdrop-blur-md z-30 transition-opacity" style={{ opacity: Math.min(-dragOffset.x / 100, 1) }}>
-                <span className="text-3xl font-black text-pink-600 uppercase tracking-[0.2em] italic">NOPE</span>
-              </div>
-            )}
-
-            {/* Premium Gradient Overlays */}
-            <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-[#050508] via-[#050508]/50 to-transparent z-10" />
-            <div className="absolute inset-x-0 top-0 h-1/4 bg-gradient-to-b from-black/60 to-transparent z-10" />
-
-            {/* Profile info overlay (Integrated) */}
-            <div className="absolute bottom-5 left-5 right-5 text-white z-20 space-y-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-3">
-                  <h3 className="text-3xl font-bold tracking-tight leading-none">
-                    {currentProfile.full_name || currentProfile.username}
-                  </h3>
-                  {currentProfile.is_online && (
-                    <div className="w-2.5 h-2.5 bg-green-500 rounded-full border-2 border-[#050508] shadow-[0_0_12px_rgba(34,197,94,0.6)] animate-pulse" />
-                  )}
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {mutualInterests.length > 0 && (
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-pink-600 border border-pink-400/50 shadow-lg shadow-pink-600/20">
-                      <Users className="w-3 h-3 text-white fill-current" />
-                      <span className="text-xs font-semibold uppercase tracking-widest text-white">
-                        {mutualInterests.length} Mutual
-                      </span>
-                    </div>
-                  )}
-                  <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest">
-                    Study Buddy
-                  </p>
-                </div>
-              </div>
-
-              {/* Bio snippet */}
-              {currentProfile.bio && (
-                <p className="text-xs leading-relaxed text-white/70 font-medium line-clamp-2 italic italic-none">
-                  "{currentProfile.bio}"
-                </p>
-              )}
-
-              {/* Interests Section */}
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {currentProfile.interests?.slice(0, 4).map((interest, idx) => {
-                  const isMutual = myProfile?.interests?.includes(interest);
-                  return (
-                    <div
-                      key={idx}
-                      className={cn(
-                        "text-xs font-semibold px-3 py-1.5 rounded-full border transition-all backdrop-blur-3xl uppercase tracking-widest",
-                        isMutual
-                          ? "bg-white text-black border-white shadow-xl scale-105"
-                          : "bg-white/10 text-white/70 border-white/10"
-                      )}
-                    >
-                      {interest}
-                    </div>
-                  );
-                })}
-                {currentProfile.interests && currentProfile.interests.length > 4 && (
-                  <div className="text-xs font-semibold px-2 py-1.5 rounded-full border bg-white/5 text-white/40 border-white/5 backdrop-blur-3xl uppercase tracking-widest">
-                    +{currentProfile.interests.length - 4}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Action Controls - Compact Trio */}
-        <div className="flex items-center justify-center gap-8 mt-4 w-full relative z-30 px-4">
-          <button
-            className="w-12 h-12 rounded-full border border-white/10 bg-white/[0.04] backdrop-blur-2xl flex items-center justify-center group/btn transition-all hover:scale-110 active:scale-90 hover:bg-pink-600 hover:border-pink-500 shadow-xl"
-            aria-label="Skip this buddy"
-            onClick={() => handleSwipe('left')}
-            disabled={!!swipeDirection}
-          >
-            <X className="h-6 w-6 text-white/40 group-hover/btn:text-white transition-colors" />
-          </button>
-
-          <button
-            className="w-14 h-14 rounded-2xl bg-[#d6f58b] flex items-center justify-center group/heart transition-all hover:scale-110 active:scale-90 shadow-lg shadow-black/10 hover:rotate-[-4deg]"
-            aria-label="Like this buddy"
-            onClick={() => handleSwipe('right')}
-            disabled={!!swipeDirection}
-          >
-            <Heart className="h-8 w-8 text-black fill-transparent group-hover/heart:fill-black group-hover/heart:scale-110 transition-all" />
-          </button>
-        </div>
+        <main id="buddy-panel" role="tabpanel" aria-labelledby={`buddy-tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto px-5 pb-6 pt-3">
+          {connected && <div role="status" className="mb-4 rounded-2xl border border-primary/20 bg-primary/10 p-4"><p className="text-sm font-semibold">You and {connected.name} are connected.</p><div className="mt-3 flex items-center justify-between"><Button size="sm" className="gap-2 rounded-xl" onClick={() => message(connected.id)}><MessageCircle size={15} />Say hello</Button><Button variant="ghost" size="icon" aria-label="Dismiss new connection" onClick={() => setConnected(null)}><X size={16} /></Button></div></div>}
+          {tab === 'discover' && onEditProfile && (!profile?.bio || interests.length === 0) && <button className="mb-4 flex w-full items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 p-4 text-left" onClick={() => { onClose(); onEditProfile(); }}><div><p className="text-xs font-semibold">Give people something to connect over</p><p className="mt-1 text-xs text-muted-foreground">Add a short bio and interests. Photos are optional.</p></div><ArrowRight size={17} className="shrink-0 text-primary" /></button>}
+          {loading ? <div role="status" className="space-y-3"><span className="sr-only">Loading study buddies</span>{[0, 1, 2].map(key => <div key={key} className="h-36 rounded-3xl bg-secondary/60 motion-safe:animate-pulse" />)}</div> : error ? <div role="alert" className="rounded-2xl bg-card p-5 text-sm"><p>{error}</p><Button className="mt-3" variant="secondary" onClick={() => void refetch()}>Retry</Button></div> : <>
+            {tab === 'discover' && <><div className="mb-3 flex items-center justify-between text-[11px] text-muted-foreground"><span>{visible.length} {visible.length === 1 ? 'person' : 'people'} to discover</span><span>Shared interests first</span></div><div className="space-y-3">{visible.map(person => <BuddyCard key={person.user_id} profile={person} interests={interests} action="Connect" pending={pending === person.user_id} disabled={!!pending} onConnect={() => void decide(person.user_id, 'right')} onPass={() => void decide(person.user_id, 'left')} />)}</div>{!visible.length && empty(query || sharedOnly || onlineOnly ? 'No one matches these filters' : 'You’re caught up', query || sharedOnly || onlineOnly ? 'Try a broader search or turn off a filter. Search covers the profiles currently loaded.' : 'New people will appear here as the community grows. Your connections are in Buddies.')}<p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground">Connect sends interest. You become buddies when both people connect.</p></>}
+            {tab === 'connections' && <div className="space-y-3">{connections.map(match => <article key={match.id} className="flex items-center gap-3 rounded-2xl border border-border/60 bg-card p-4"><Avatar name={match.matchedUser!.full_name || match.matchedUser!.username} src={match.matchedUser!.avatar_url} size="md" /><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{match.matchedUser!.full_name || match.matchedUser!.username}</h3><p className="mt-1 truncate text-xs text-muted-foreground">@{match.matchedUser!.username}</p></div><Button size="sm" className="gap-1.5 rounded-xl" disabled={!match.conversation_id} onClick={() => match.conversation_id && message(match.conversation_id)}><MessageCircle size={14} />{match.conversation_id ? 'Chat' : 'Unavailable'}</Button></article>)}{!connections.length && empty('Your study circle starts here', 'When you both connect, you can open your conversation here.')}</div>}
+            {tab === 'requests' && <div className="space-y-3">{requested.map(like => <BuddyCard key={like.id} profile={like.profile!} interests={interests} action="Connect back" pending={pending === like.profile!.user_id} disabled={!!pending} onConnect={() => void decide(like.profile!.user_id, 'right')} />)}{!requested.length && empty('No new requests', 'People who want to connect with you will appear here.')}</div>}
+          </>}
+        </main>
       </div>
-    );
-  };
-
-  const renderMatchesTab = () => {
-    if (matches.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[340px] gap-8 text-center px-8 relative">
-          <div className="relative">
-            <div className="absolute inset-0 bg-purple-600/20 rounded-full blur-2xl animate-pulse" />
-            <div className="w-28 h-28 rounded-[32px] bg-secondary border border-border flex items-center justify-center relative z-10 backdrop-blur-xl transform rotate-[4deg]">
-              <Users className="h-12 w-12 text-primary/60" />
-            </div>
-          </div>
-          <div className="space-y-3">
-            <h3 className="text-xl font-bold tracking-tight text-foreground">Your next study circle.</h3>
-            <p className="text-sm font-medium text-muted-foreground max-w-[200px] mx-auto leading-relaxed">
-              Matched buddies will appear here once you both like each other.
-            </p>
-          </div>
-          <button
-            className="px-8 py-4 rounded-full bg-secondary border border-border text-muted-foreground font-black text-sm uppercase tracking-[0.3em] hover:bg-white/10 transition-all"
-            onClick={() => setActiveTab('discover')}
-          >
-            Start Discovering
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-3 max-h-[600px] overflow-y-auto px-1 pb-10 custom-scrollbar">
-        {matches.map(match => (
-          <div
-            key={match.id}
-            className="flex items-center gap-4 p-4 rounded-[28px] bg-card border border-border hover:bg-secondary hover:border-primary/30 transition-all cursor-pointer group/match relative overflow-hidden active:scale-[0.98]"
-            onClick={() => handleOpenMatch(match.conversation_id)}
-          >
-            <div className="relative">
-              <Avatar
-                src={match.matchedUser?.avatar_url}
-                name={match.matchedUser?.full_name || match.matchedUser?.username || 'User'}
-                size="lg"
-                className="ring-2 ring-white/10 transition-transform group-hover/match:scale-105"
-              />
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-pink-600 rounded-full flex items-center justify-center border-2 border-[#050508] shadow-lg">
-                <Heart className="h-2.5 w-2.5 text-white fill-white" />
-              </div>
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (match.matchedUser) {
-                      setMatchAnimation({ user: match.matchedUser, conversationId: match.conversation_id });
-                    }
-                  }}
-                  className="p-1.5 rounded-lg bg-gradient-to-br from-amber-400/20 to-purple-600/20 border border-amber-500/30 hover:scale-110 active:scale-95 transition-all group/magic shadow-lg shadow-amber-500/5"
-                  title="View match"
-                >
-                  <Sparkles className="h-3 w-3 text-amber-500 animate-pulse group-hover/magic:rotate-12" />
-                </button>
-                <h4 className="font-black text-base tracking-tight text-foreground group-hover/match:text-primary transition-colors truncate">
-                  {match.matchedUser?.full_name || match.matchedUser?.username}
-                </h4>
-              </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <div className="w-1 h-1 rounded-full bg-white/20" />
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                  {new Date(match.matched_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                </p>
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-2xl bg-secondary border border-border flex items-center justify-center group-hover/match:bg-white group-hover/match:border-white transition-all">
-              <MessageCircle className="h-4 w-4 text-muted-foreground group-hover/match:text-black transition-colors" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const renderLikesTab = () => {
-    if (likedByUsers.length === 0) {
-      return (
-        <div className="flex flex-col items-center justify-center min-h-[340px] gap-8 text-center px-8 relative">
-          <div className="w-24 h-24 rounded-full bg-secondary flex items-center justify-center border border-border">
-            <Heart className="h-10 w-10 text-primary/60" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-xl font-bold tracking-tight text-foreground">Quiet for now</h3>
-            <p className="text-sm font-medium text-muted-foreground">
-              No new likes yet. Keep swiping!
-            </p>
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-3 max-h-[600px] overflow-y-auto px-1 pb-10 custom-scrollbar">
-        {likedByUsers.map(like => (
-          <div
-            key={like.id}
-            className="flex items-center gap-5 p-5 rounded-[28px] bg-card border border-border hover:bg-secondary hover:border-primary/30 transition-all cursor-pointer relative overflow-hidden group/like active:scale-[0.98]"
-          >
-            <Avatar
-              src={like.profile?.avatar_url}
-              name={like.profile?.full_name || like.profile?.username || 'User'}
-              size="lg"
-              className="ring-2 ring-white/10 group-hover/like:scale-105 transition-transform"
-            />
-            <div className="flex-1 min-w-0">
-              <h4 className="font-black text-lg tracking-tight text-foreground group-hover/like:text-primary transition-colors">
-                {like.profile?.full_name || like.profile?.username}
-              </h4>
-              <div className="flex items-center gap-2 mt-1">
-                <div className="w-1 h-1 rounded-full bg-pink-500/40" />
-                <p className="text-xs text-muted-foreground font-bold uppercase tracking-widest">
-                  Liked you {new Date(like.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                </p>
-              </div>
-            </div>
-            <div className="w-12 h-12 rounded-full bg-pink-600/10 border border-pink-500/20 flex items-center justify-center group-hover/like:bg-pink-600 group-hover/like:border-pink-500 transition-all">
-              <Heart className="h-5 w-5 text-pink-500 fill-pink-500 group-hover/like:text-primary group-hover/like:fill-white transition-all transform group-hover/like:scale-110 animate-pulse group-hover/like:animate-none" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  return (
-    <>
-      {/* Match Celebration Modal */}
-      {matchAnimation && (
-        <MatchCelebration
-          matchedUser={matchAnimation.user}
-          onClose={() => setMatchAnimation(null)}
-          onKeepSwiping={() => setActiveTab('discover')}
-          onSendMessage={() => {
-            handleOpenMatch(matchAnimation.conversationId);
-            setMatchAnimation(null);
-          }}
-        />
-      )}
-
-      <div className="sg-buddy-screen fixed inset-0 z-[100] flex flex-col overflow-hidden animate-in fade-in duration-200">
-        <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full relative z-10 px-4 pt-2 md:pt-10">
-          {/* Minimalist Close Button */}
-          <button
-            onClick={onClose}
-            aria-label="Close buddies"
-            className="absolute right-4 top-2 sg-icon-button z-[110]"
-          >
-            <X className="w-5 h-5" />
-          </button>
-
-          <header className="mb-4 text-left px-1">
-            <div className="inline-flex items-center gap-3 mb-1 group mt-2">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-primary/70 flex items-center justify-center shadow-lg shadow-primary/20 transition-transform group-hover:scale-105 duration-300">
-                <Heart className="h-4 w-4 text-white fill-white" />
-              </div>
-              <div className="text-left">
-                <h2 className="text-xl font-semibold tracking-tight leading-none text-foreground">
-                  Find your people.
-                </h2>
-              </div>
-            </div>
-
-            {/* Advanced Glassmorphic Tabs - Ultra Compact */}
-            <div className="mt-4 flex bg-card rounded-[1.25rem] p-1 border border-border">
-              <button
-                onClick={() => setActiveTab('discover')}
-                className={cn(
-                  "flex-1 py-3 px-3 text-sm font-semibold transition-all rounded-2xl relative overflow-hidden group/tab",
-                  activeTab === 'discover'
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-center gap-2 relative z-10">
-                  Discover
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('matches')}
-                className={cn(
-                  "flex-1 py-3 px-3 text-sm font-semibold transition-all rounded-2xl relative overflow-hidden group/tab",
-                  activeTab === 'matches'
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-center gap-2 relative z-10">
-                  Matches
-                  {matches.length > 0 && (
-                    <span className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-pink-500 text-[7px] font-black text-white ms-2 animate-pulse">
-                      {matches.length}
-                    </span>
-                  )}
-                </div>
-              </button>
-              <button
-                onClick={() => setActiveTab('likes')}
-                className={cn(
-                  "flex-1 py-3 px-3 text-sm font-semibold transition-all rounded-2xl relative overflow-hidden group/tab",
-                  activeTab === 'likes'
-                    ? "bg-primary text-primary-foreground shadow-md"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <div className="flex items-center justify-center gap-2 relative z-10">
-                  Likes
-                </div>
-              </button>
-            </div>
-          </header>
-
-          {/* Premium Immersive Viewport */}
-          <main className="flex-1 overflow-y-auto custom-scrollbar relative px-1">
-            <div className="max-w-md mx-auto py-1 h-full">
-              {activeTab === 'discover' && renderDiscoverTab()}
-              {activeTab === 'matches' && renderMatchesTab()}
-              {activeTab === 'likes' && renderLikesTab()}
-            </div>
-          </main>
-        </div>
-
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            @keyframes expert-float {
-              0%, 100% { transform: translateY(0) rotate(-6deg); }
-              50% { transform: translateY(-12px) rotate(-3deg); }
-            }
-            .animate-float-expert { animation: expert-float 6s ease-in-out infinite; }
-            .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-            .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-            .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.03); border-radius: 10px; }
-            .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.08); }
-          `}} />
-      </div>
-
-    </>
-  );
+    </DialogContent>
+  </Dialog>;
 }

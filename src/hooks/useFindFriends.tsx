@@ -28,7 +28,7 @@ export function useFindFriends(full = true) {
   const [likedByCount, setLikedByCount] = useState(0);
   const [canSeeLikes, setCanSeeLikes] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const swipeInFlightRef = useRef(false);
 
   const fetchPotentialMatches = useCallback(async () => {
@@ -36,11 +36,11 @@ export function useFindFriends(full = true) {
 
     try {
       // Get users that the current user has already liked or matched with
-      const { data: excludedSwipes } = await supabase
+      const { data: excludedSwipes, error: excludedError } = await supabase
         .from('user_swipes')
         .select('swiped_id')
-        .eq('swiper_id', user.id)
-        .eq('direction', 'right');
+        .eq('swiper_id', user.id);
+      if (excludedError) throw excludedError;
 
       const excludedIds = excludedSwipes?.map(s => s.swiped_id) || [];
 
@@ -59,9 +59,9 @@ export function useFindFriends(full = true) {
 
       if (error) throw error;
       setPotentialMatches(profiles as Profile[] || []);
-      setCurrentIndex(0);
     } catch (error) {
       console.error('Error fetching potential matches:', error);
+      setError('Could not load study buddies. Check your connection and retry.');
     }
   }, [user]);
 
@@ -83,10 +83,11 @@ export function useFindFriends(full = true) {
           m.user1_id === user.id ? m.user2_id : m.user1_id
         );
 
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('*')
           .in('user_id', otherUserIds);
+        if (profilesError) throw profilesError;
 
         const matchesWithProfiles = matchData.map(m => {
           const otherUserId = m.user1_id === user.id ? m.user2_id : m.user1_id;
@@ -102,6 +103,7 @@ export function useFindFriends(full = true) {
       }
     } catch (error) {
       console.error('Error fetching matches:', error);
+      setError('Could not load your connections. Please retry.');
     }
   }, [user]);
 
@@ -142,28 +144,32 @@ export function useFindFriends(full = true) {
     if (!user || !canSeeLikes) return;
 
     try {
-      const { data: swipedOnMe } = await supabase
+      const { data: swipedOnMe, error: likesError } = await supabase
         .from('user_swipes')
         .select('*')
         .eq('swiped_id', user.id)
         .eq('direction', 'right');
+      if (likesError) throw likesError;
 
       if (swipedOnMe && swipedOnMe.length > 0) {
         const swiperIds = swipedOnMe.map(s => s.swiper_id);
 
         // Filter out already matched users
-        const { data: mySwipes } = await supabase
+        const { data: mySwipes, error: mySwipesError } = await supabase
           .from('user_swipes')
           .select('swiped_id')
           .eq('swiper_id', user.id);
+        if (mySwipesError) throw mySwipesError;
 
         const mySwipedIds = mySwipes?.map(s => s.swiped_id) || [];
         const pendingLikes = swipedOnMe.filter(s => !mySwipedIds.includes(s.swiper_id));
+        if (!pendingLikes.length) { setLikedByUsers([]); return; }
 
-        const { data: profiles } = await supabase
+        const { data: profiles, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .in('user_id', pendingLikes.map(s => s.swiper_id));
+        if (profileError) throw profileError;
 
         const likesWithProfiles = pendingLikes.map(s => ({
           ...s,
@@ -171,14 +177,16 @@ export function useFindFriends(full = true) {
         }));
 
         setLikedByUsers(likesWithProfiles);
-      }
+      } else setLikedByUsers([]);
     } catch (error) {
       console.error('Error fetching liked by users:', error);
+      setError('Could not load incoming requests. Please retry.');
     }
   }, [user, canSeeLikes]);
 
   useEffect(() => {
     const init = async () => {
+      setError(null);
       setLoading(true);
       await Promise.all([
         ...(full ? [fetchPotentialMatches(), fetchMatches(), fetchCanSeeLikes()] : []),
@@ -195,22 +203,30 @@ export function useFindFriends(full = true) {
     }
   }, [full, canSeeLikes, fetchLikedByUsers]);
 
-  const swipe = async (direction: 'left' | 'right') => {
-    if (!user || currentIndex >= potentialMatches.length) return null;
+  const resolveCandidate = (id: string) => {
+    setPotentialMatches(previous => previous.filter(profile => profile.user_id !== id));
+    setLikedByUsers(previous => previous.filter(like => like.swiper_id !== id));
+    void fetchLikedByCount();
+  };
+
+  const swipe = async (direction: 'left' | 'right', targetUserId?: string) => {
+    if (!user) return null;
     if (swipeInFlightRef.current) return null;
-
+    const swipedUser = targetUserId
+      ? potentialMatches.find(profile => profile.user_id === targetUserId) || likedByUsers.find(like => like.swiper_id === targetUserId)?.profile
+      : potentialMatches[0];
+    if (!swipedUser || swipedUser.user_id === user.id) return null;
     swipeInFlightRef.current = true;
-
-    const swipedUser = potentialMatches[currentIndex];
 
     try {
       // Check if swipe already exists
-      const { data: existingSwipe } = await supabase
+      const { data: existingSwipe, error: existingSwipeError } = await supabase
         .from('user_swipes')
         .select('id')
         .eq('swiper_id', user.id)
         .eq('swiped_id', swipedUser.user_id)
         .maybeSingle();
+      if (existingSwipeError) throw existingSwipeError;
 
       // Only insert if swipe doesn't exist
       if (!existingSwipe) {
@@ -223,6 +239,9 @@ export function useFindFriends(full = true) {
           });
 
         if (swipeError) throw swipeError;
+      } else {
+        const { error: updateError } = await supabase.from('user_swipes').update({ direction }).eq('id', existingSwipe.id).eq('swiper_id', user.id).select('id').single();
+        if (updateError) throw updateError;
       }
 
       // Check for match if swiped right
@@ -239,6 +258,7 @@ export function useFindFriends(full = true) {
 
         if (swipeCheckError) {
           console.error('Error checking for mutual swipe:', swipeCheckError);
+          throw swipeCheckError;
         }
 
         console.log('Their swipe result:', theirSwipe);
@@ -257,12 +277,13 @@ export function useFindFriends(full = true) {
 
           if (existingMatchError) {
             console.error('Error checking existing match:', existingMatchError);
+            throw existingMatchError;
           }
 
           if (existingMatch) {
             console.log('Match already exists:', existingMatch);
             await fetchMatches();
-            setCurrentIndex(prev => prev + 1);
+            resolveCandidate(swipedUser.user_id);
             return {
               matched: true,
               user: swipedUser,
@@ -302,59 +323,36 @@ export function useFindFriends(full = true) {
 
           if (matchError) {
             console.error('Error creating match:', matchError);
-            // Even if match record fails, conversation was created - still return success
+            throw new Error('Your chat was created, but the connection could not be saved. Please retry.');
           }
 
           console.log('Match created successfully!');
 
           await fetchMatches();
-          setCurrentIndex(prev => prev + 1);
+          resolveCandidate(swipedUser.user_id);
           return { matched: true, user: swipedUser, conversationId };
         }
       }
 
-      setCurrentIndex(prev => prev + 1);
+      resolveCandidate(swipedUser.user_id);
+      if (direction === 'right') toast.success('Connection request sent');
       return { matched: false };
     } catch (error) {
       console.error('Error swiping:', error);
-      toast.error('Something went wrong');
+      toast.error(error instanceof Error ? error.message : 'Could not save your choice. Please retry.');
       return null;
     } finally {
       swipeInFlightRef.current = false;
     }
   };
 
-  const unlockSeeLikes = async () => {
-    if (!user) return false;
-
-    try {
-      // In a real app, this would involve payment processing
-      // For now, we'll just enable it
-      const { error } = await supabase
-        .from('premium_unlocks')
-        .upsert({
-          user_id: user.id,
-          can_see_likes: true
-        });
-
-      if (error) throw error;
-
-      setCanSeeLikes(true);
-      await fetchLikedByUsers();
-      toast.success('Premium feature unlocked!');
-      return true;
-    } catch (error) {
-      console.error('Error unlocking:', error);
-      toast.error('Failed to unlock feature');
-      return false;
-    }
-  };
-
-  const currentProfile = potentialMatches[currentIndex] || null;
-  const hasMoreProfiles = currentIndex < potentialMatches.length;
+  const currentProfile = potentialMatches[0] || null;
+  const hasMoreProfiles = potentialMatches.length > 0;
 
   return {
     currentProfile,
+    profiles: potentialMatches,
+    error,
     hasMoreProfiles,
     matches,
     likedByCount,
@@ -362,8 +360,11 @@ export function useFindFriends(full = true) {
     canSeeLikes,
     loading,
     swipe,
-    unlockSeeLikes,
     fetchCanSeeLikes,
-    refetch: fetchPotentialMatches
+    refetch: async () => {
+      setError(null); setLoading(true);
+      try { await Promise.all([fetchPotentialMatches(), fetchMatches(), fetchLikedByUsers(), fetchLikedByCount()]); }
+      finally { setLoading(false); }
+    }
   };
 }

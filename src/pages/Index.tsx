@@ -448,6 +448,7 @@ export default function Index() {
 
         {showFindFriends && (<FindFriendsDialog
           open={showFindFriends}
+          onEditProfile={() => setShowEditProfile(true)}
           onClose={() => setShowFindFriends(false)}
           onOpenConversation={(conversationId) => {
             refetchConversations();
