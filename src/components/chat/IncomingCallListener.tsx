@@ -26,7 +26,7 @@ export const IncomingCallListener = () => {
     const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
     const navigate = useNavigate();
     const { playRingtone, stopRingtone } = useCallSounds();
-    const ringtoneInterval = useRef<NodeJS.Timeout | null>(null);
+    const ringtoneInterval = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         if (!user) return;
@@ -75,7 +75,7 @@ export const IncomingCallListener = () => {
 
     // Handle ringtone looping and vibration
     useEffect(() => {
-        let vibrationInterval: NodeJS.Timeout | null = null;
+        let vibrationInterval: ReturnType<typeof setTimeout> | null = null;
         
         if (incomingCall) {
             playRingtone();

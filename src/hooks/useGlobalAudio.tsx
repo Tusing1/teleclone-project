@@ -30,7 +30,7 @@ const POSITION_STORAGE_KEY = 'audio_positions';
 export function GlobalAudioProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioState, setAudioState] = useState<AudioState | null>(null);
-  const saveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const saveIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load saved positions from localStorage
   const getSavedPositions = useCallback((): Record<string, number> => {

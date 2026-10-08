@@ -60,7 +60,7 @@ export function useAudioLevel(stream: MediaStream | null): AudioLevelResult {
 
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       const speakingThreshold = 15; // Adjust sensitivity
-      let speakingTimeout: NodeJS.Timeout | null = null;
+      let speakingTimeout: ReturnType<typeof setTimeout> | null = null;
 
       const checkAudioLevel = () => {
         if (!analyserRef.current) return;

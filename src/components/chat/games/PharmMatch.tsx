@@ -78,7 +78,7 @@ export function PharmMatch({ onExit }: PharmMatchProps) {
     const [selectedOption, setSelectedOption] = useState<string | null>(null);
     const { earnTokens } = useStudyTokens();
     const { saveScore } = useGameLeaderboard('pharm-match');
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const currentLevel = PHARMA_DATA[levelIdx];
 

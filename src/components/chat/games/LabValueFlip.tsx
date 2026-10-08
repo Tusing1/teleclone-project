@@ -76,7 +76,7 @@ export function LabValueFlip({ onExit }: LabValueFlipProps) {
     // Animation states
     const [lastResult, setLastResult] = useState<'correct' | 'wrong' | null>(null);
 
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { earnTokens } = useStudyTokens();
     const { saveScore } = useGameLeaderboard('labflip');
 

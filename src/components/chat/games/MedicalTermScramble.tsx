@@ -75,7 +75,7 @@ export function MedicalTermScramble({ onExit }: MedicalTermScrambleProps) {
     const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
     const { earnTokens } = useStudyTokens();
     const { saveScore } = useGameLeaderboard('term-scramble');
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const currentLevel = LEVELS[levelIdx];
 
