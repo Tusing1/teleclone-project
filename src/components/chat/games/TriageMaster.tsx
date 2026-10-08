@@ -135,7 +135,7 @@ export function TriageMaster({ onExit }: TriageMasterProps) {
     const [tokensEarned, setTokensEarned] = useState(0);
     const [streak, setStreak] = useState(0);
     const [timeLeft, setTimeLeft] = useState(10); // 10s per patient
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { earnTokens } = useStudyTokens();
     const { saveScore } = useGameLeaderboard('triage');
 

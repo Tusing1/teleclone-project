@@ -66,7 +66,7 @@ export function AnatomyBlitz({ onExit }: AnatomyBlitzProps) {
 
     const { earnTokens } = useStudyTokens();
     const { saveScore } = useGameLeaderboard('anatomy-blitz');
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const currentLevel = ANATOMY_LEVELS[levelIdx];
 

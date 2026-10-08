@@ -87,7 +87,7 @@ export const CallView: React.FC<CallViewProps> = ({
   const [callDuration, setCallDuration] = useState(0);
   const { playJoinTone, playEndTone } = useCallSounds();
   const joinTonePlayed = useRef(false);
-  const durationInterval = useRef<NodeJS.Timeout | null>(null);
+  const durationInterval = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Play join sound on mount once
   useEffect(() => {
