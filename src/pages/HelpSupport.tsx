@@ -26,10 +26,6 @@ export default function HelpSupport() {
       answer: "Open a conversation and tap the phone or video icon in the chat header. The recipient will receive a call notification and can accept or decline."
     },
     {
-      question: "What are Study Tokens?",
-      answer: "Study Tokens are earned through daily logins, completing study activities, and referring friends. You can use them to unlock premium features and ask AI questions."
-    },
-    {
       question: "How do I create a channel?",
       answer: "Go to the channels section and tap 'Create Channel'. Channels are public broadcast spaces where only admins can post, but anyone can subscribe and comment."
     },

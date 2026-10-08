@@ -59,7 +59,7 @@ export function useNotificationSound() {
   useEffect(() => {
     // Listen for service worker messages to play sound
     const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'NOTIFICATION_RECEIVED') {
+      if (event.data?.type === 'NOTIFICATION_RECEIVED' && !['call', 'live_call'].includes(event.data.payload?.data?.type)) {
         playNotificationSound();
       }
     };

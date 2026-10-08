@@ -67,7 +67,7 @@ export function InviteFriendsDialog({ open, onClose }: InviteFriendsDialogProps)
             Invite Friends
           </DialogTitle>
           <DialogDescription>
-            Share your invite link and earn 50 tokens for each friend who joins!
+            Share your invite link and grow your study circle.
           </DialogDescription>
         </DialogHeader>
 
@@ -83,11 +83,7 @@ export function InviteFriendsDialog({ open, onClose }: InviteFriendsDialogProps)
                 <p className="text-2xl font-bold">{referralCount}</p>
               </div>
             </div>
-            <div className="text-right">
-              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-600">
-                +{referralCount * 50} tokens earned
-              </Badge>
-            </div>
+            <div className="text-right text-xs text-muted-foreground">Study circle growth</div>
           </div>
 
           {/* Invite link */}
@@ -175,7 +171,7 @@ export function InviteFriendsDialog({ open, onClose }: InviteFriendsDialogProps)
           )}
 
           <p className="text-xs text-muted-foreground text-center">
-            Earn 50 Study Tokens for every friend who signs up with your link!
+            Invite links make it easy to grow your study circle.
           </p>
         </div>
       </DialogContent>

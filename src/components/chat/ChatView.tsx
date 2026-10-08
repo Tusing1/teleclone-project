@@ -1,21 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, Image as ImageIcon, Users, Radio, Settings, MessageCircle, Phone, User, Wand2, Sparkles, Loader2 } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useEffect, lazy, Suspense } from 'react';
+import { ArrowLeft, MoreVertical, Paperclip, Send, Smile, ImagePlus, Mic, Users, Radio, Settings, MessageCircle, Phone, User } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar } from './Avatar';
+import { EditMessageDialog } from './EditMessageDialog';
 import { MessageBubble } from './MessageBubble';
 import { ChannelMessageBubble } from './ChannelMessageBubble';
 import { SystemMessage } from './SystemMessage';
 import { CallButton } from './CallButton';
-import { CallView } from './CallView';
-import { LiveStreamPreview } from './LiveStreamPreview';
-import { LiveStreamView } from './LiveStreamView';
+const CallView = lazy(() => import('./CallView').then(module => ({ default: module.CallView })));
+const LiveStreamPreview = lazy(() => import('./LiveStreamPreview').then(module => ({ default: module.LiveStreamPreview })));
+const LiveStreamView = lazy(() => import('./LiveStreamView').then(module => ({ default: module.LiveStreamView })));
 import { ChannelSettingsDialog } from './ChannelSettingsDialog';
 import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { VoiceRecorder } from './VoiceRecorder';
 import { ScheduleCallDialog } from './ScheduleCallDialog';
-import { EditProfileDialog } from './EditProfileDialog';
+const EditProfileDialog = lazy(() => import('./EditProfileDialog').then(module => ({ default: module.EditProfileDialog })));
 import { TypingIndicator } from './TypingIndicator';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useMessages } from '@/hooks/useMessages';
@@ -24,7 +26,6 @@ import { useCalls } from '@/hooks/useCalls';
 import { useLiveStream } from '@/hooks/useLiveStream';
 import { useReactions } from '@/hooks/useReactions';
 import { useVoiceMessage } from '@/hooks/useVoiceMessage';
-import { useAIChat } from '@/hooks/useAIChat';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -46,13 +47,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 
 interface ChatViewProps {
   conversation: ConversationWithDetails;
@@ -72,9 +66,13 @@ export function ChatView({
   onOpenBrowser
 }: ChatViewProps) {
   const { user } = useAuth();
-  const { messages, loading, sendMessage, uploadFile, refetch } = useMessages(
+  const queryClient = useQueryClient();
+  const { messages, loading, error: messagesError, sendMessage, uploadFile, updateMessage, refetch, loadOlder, hasOlder, loadingOlder } = useMessages(
     conversation.id,
-    conversation.linked_discussion_id
+    conversation.linked_discussion_id,
+    conversation.type === 'direct' ? conversation.participants.find(p => p.user_id !== user?.id)?.user_id : undefined,
+    null,
+    conversation.type !== 'channel' || conversation.participants.some(p => p.user_id === user?.id && ['admin', 'owner'].includes(p.role))
   );
   const { reactions, fetchReactions, toggleReaction } = useReactions(conversation.id);
   const [messageText, setMessageText] = useState('');
@@ -85,21 +83,24 @@ export function ChatView({
   const [messageToDelete, setMessageToDelete] = useState<MessageWithSender | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [messageToEdit, setMessageToEdit] = useState<MessageWithSender | null>(null);
-  const [editText, setEditText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<MessageWithSender | null>(null);
   const [isRecordingVoice, setIsRecordingVoice] = useState(false);
   const [showLiveStreamPreview, setShowLiveStreamPreview] = useState(false);
   const [showScheduleCall, setShowScheduleCall] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
   const [isStreamMinimized, setIsStreamMinimized] = useState(false);
-  const [icebreakers, setIcebreakers] = useState<string[]>([]);
-  const [loadingIcebreakers, setLoadingIcebreakers] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainer = useRef<HTMLDivElement>(null);
+  const historyScroll = useRef<number | null>(null);
+  const lastMessageId = useRef<string | null>(null);
+  useEffect(() => { lastMessageId.current = null; historyScroll.current = null; }, [conversation.id]);
+  const showOlder = () => {
+    historyScroll.current = scrollContainer.current?.scrollHeight || null;
+    void loadOlder();
+  };
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
-  
-  // AI Chat for icebreakers
-  const { generateIcebreakers } = useAIChat();
 
   // Voice message hook
   const { sendVoiceMessage, isUploading: isUploadingVoice } = useVoiceMessage({
@@ -145,20 +146,9 @@ export function ChatView({
     toggleScreenShare,
     startRecording,
     stopRecording
-  } = useCalls(isChannel ? null : conversation.id); // Don't use for channels
+  } = useCalls(isChannel || isGroup ? null : conversation.id); // Don't use for channels
 
   const location = useLocation();
-
-  // Auto-join logic if coming from Accepted Call notification
-  useEffect(() => {
-    const state = location.state as { autoJoin?: boolean; callId?: string; callType?: 'voice' } | null;
-    if (state?.autoJoin && state.callId && activeCall?.id === state.callId) {
-      console.log('🚀 Auto-joining accepted call:', state.callId);
-      handleJoinCall();
-      // Clear autoJoin state to prevent re-joining on re-render
-      window.history.replaceState({ ...location.state, autoJoin: false }, document.title);
-    }
-  }, [location.state, activeCall?.id]);
 
   // Live stream for channels
   const {
@@ -171,6 +161,7 @@ export function ChatView({
     handRaised,
     noiseSuppression,
     isMuted: isStreamMuted,
+    connectionStatus: streamConnectionStatus,
     startStream,
     joinStream,
     leaveStream,
@@ -184,21 +175,32 @@ export function ChatView({
     updateStreamTitle,
     startRecording: startStreamRecording,
     stopRecording: stopStreamRecording
-  } = useLiveStream(isChannel ? conversation.id : null);
+  } = useLiveStream(isChannel || isGroup ? conversation.id : null);
+
+  const acceptedCall = useRef<string | null>(null);
+  useEffect(() => {
+    const state = location.state as { autoJoin?: boolean; callId?: string } | null;
+    const room = isChannel || isGroup;
+    const activeId = room ? activeStream?.id : activeCall?.id;
+    if (!state?.autoJoin || !state.callId || activeId !== state.callId || acceptedCall.current === state.callId) return;
+    acceptedCall.current = state.callId;
+    const joining = room ? joinStream(state.callId, !isAdminOrOwner) : joinCall(state.callId, 'voice');
+    void joining.catch(error => toast.error(error instanceof Error ? error.message : 'Could not join the call.'));
+  }, [location.state, activeCall?.id, activeStream?.id, isChannel, isGroup, isAdminOrOwner, joinStream, joinCall]);
 
   // Typing indicator
   const { typingUsers, handleTyping } = useTypingIndicator(conversation.id);
 
   const handleStartCall = async () => {
-    if (isChannel) {
-      // For channels, show the live stream preview
+    if (isChannel || isGroup) {
+      // For rooms, show the live stream preview
       setShowLiveStreamPreview(true);
     } else {
-      const callId = await startCall('voice');
-      if (callId) {
-        toast.success('Voice call started');
-      } else {
-        toast.error('Failed to start call');
+      try {
+        const callId = await startCall('voice');
+        if (callId) toast.success('Voice call started');
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Could not start the call.');
       }
     }
   };
@@ -207,26 +209,26 @@ export function ChatView({
     console.log('handleStartLiveStream called with title:', title);
     setShowLiveStreamPreview(false); // Close preview immediately
     setIsStartingStream(true);
-    const streamId = await startStream(title);
-    setIsStartingStream(false);
+    let streamId: string | null = null;
+    try { streamId = await startStream(title); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not start the session.'); }
+    finally { setIsStartingStream(false); }
     console.log('startStream returned:', streamId);
     if (streamId) {
       toast.success('Live stream started');
-    } else {
-      toast.error('Failed to start live stream');
     }
   };
 
   const handleJoinCall = async () => {
     try {
-      if (isChannel && activeStream) {
+      if ((isChannel || isGroup) && activeStream) {
         await joinStream(activeStream.id, !isAdminOrOwner); // Non-admins start muted
       } else if (activeCall) {
         await joinCall(activeCall.id, activeCall.call_type);
       }
     } catch (error) {
       console.error('Error in handleJoinCall:', error);
-      toast.error('Failed to join call. Please check your camera/microphone permissions.');
+      toast.error(error instanceof Error ? error.message : 'Could not join the call. Check microphone permission and your connection.');
     }
   };
 
@@ -235,8 +237,17 @@ export function ChatView({
   const participantVideoOff = currentParticipant?.is_video_off ?? isVideoOff;
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+    const container = scrollContainer.current;
+    if (historyScroll.current !== null && !loadingOlder && container) {
+      container.scrollTop += container.scrollHeight - historyScroll.current;
+      historyScroll.current = null;
+    } else if (historyScroll.current === null) {
+      const newestId = messages[messages.length - 1]?.id || null;
+      const nearBottom = !container || container.scrollHeight - container.scrollTop - container.clientHeight < 160;
+      if (newestId !== lastMessageId.current && (nearBottom || !lastMessageId.current)) messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+      lastMessageId.current = newestId;
+    }
+  }, [messages, loadingOlder]);
 
   // Fetch reactions when messages load
   useEffect(() => {
@@ -246,11 +257,20 @@ export function ChatView({
   }, [messages.length]);
 
   const handleSend = async () => {
-    if (!messageText.trim() || sending) return;
+    if (!canSendMessages || !messageText.trim() || sending) return;
 
     setSending(true);
-    await sendMessage(messageText.trim());
+    const replyPrefix = replyingTo && !isChannel
+      ? `↪ ${replyingTo.sender?.full_name || replyingTo.sender?.username || 'Message'}: ${replyingTo.content || 'Attachment'}\n`
+      : '';
+    await sendMessage(
+      `${replyPrefix}${messageText.trim()}`,
+      'text',
+      undefined,
+      isChannel ? replyingTo?.id : undefined
+    );
     setMessageText('');
+    setReplyingTo(null);
     setSending(false);
   };
 
@@ -262,6 +282,7 @@ export function ChatView({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'file') => {
+    if (!canSendMessages) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -297,30 +318,6 @@ export function ChatView({
     }
   };
 
-  // Handle message edit
-  const handleEditMessage = async () => {
-    if (!messageToEdit || !editText.trim()) return;
-
-    try {
-      const { error } = await supabase
-        .from('messages')
-        .update({ content: editText.trim() })
-        .eq('id', messageToEdit.id);
-
-      if (error) throw error;
-
-      toast.success('Message updated');
-      refetch();
-    } catch (error) {
-      console.error('Error updating message:', error);
-      toast.error('Failed to update message');
-    } finally {
-      setEditDialogOpen(false);
-      setMessageToEdit(null);
-      setEditText('');
-    }
-  };
-
   // Open delete confirmation
   const openDeleteDialog = (message: MessageWithSender) => {
     setMessageToDelete(message);
@@ -330,18 +327,12 @@ export function ChatView({
   // Open edit dialog
   const openEditDialog = (message: MessageWithSender) => {
     setMessageToEdit(message);
-    setEditText(message.content || '');
     setEditDialogOpen(true);
-  };
-
-  // Handle pin message
-  const handlePinMessage = (message: MessageWithSender) => {
-    toast.info('Pin feature coming soon');
   };
 
   // Handle reply
   const handleReply = (message: MessageWithSender) => {
-    toast.info('Reply feature coming soon');
+    setReplyingTo(message);
   };
 
   // Display name and status for header
@@ -360,7 +351,7 @@ export function ChatView({
           : 'offline');
 
   // Show connecting screen while starting stream
-  if (isStartingStream && isChannel) {
+  if (isStartingStream && (isChannel || isGroup)) {
     return (
       <div className="fixed inset-0 bg-[#1a1a2e] z-50 flex flex-col items-center justify-center">
         <div className="animate-pulse mb-4">
@@ -373,9 +364,9 @@ export function ChatView({
   }
 
   // Show live stream preview for channels
-  if (showLiveStreamPreview && isChannel) {
+  if (showLiveStreamPreview && (isChannel || isGroup)) {
     return (
-      <LiveStreamPreview
+      <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><LiveStreamPreview
         channelName={conversation.name || 'Channel'}
         channelAvatar={conversation.avatar_url || undefined}
         subscriberCount={conversation.participants.length}
@@ -385,20 +376,21 @@ export function ChatView({
           setShowScheduleCall(true);
         }}
         onClose={() => setShowLiveStreamPreview(false)}
-      />
+      /></Suspense>
     );
   }
 
   // Show live stream view for channels (can be minimized)
-  if (isInStream && activeStream && isChannel && !isStreamMinimized) {
+  if (isInStream && activeStream && (isChannel || isGroup) && !isStreamMinimized) {
     return (
-      <LiveStreamView
+      <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><LiveStreamView
         channelName={conversation.name || 'Channel'}
         channelAvatar={conversation.avatar_url || undefined}
         participants={streamParticipants}
         isAdmin={isAdminOrOwner}
         isMuted={isStreamMuted}
         isRecording={isStreamRecording}
+        connectionStatus={streamConnectionStatus}
         streamTitle={activeStream.livestream_title || 'Live Stream'}
         currentUserId={user?.id || ''}
         onToggleMute={toggleStreamMute}
@@ -419,14 +411,14 @@ export function ChatView({
         remoteStreams={remoteStreams}
         localStream={useLiveStreamLocalStream}
         isStreamStarter={activeStream.started_by === user?.id}
-      />
+      /></Suspense>
     );
   }
 
   // Show call UI if in call (for groups)
   if (isInCall && activeCall && !isChannel) {
     return (
-      <CallView
+      <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><CallView
         callType="voice"
         participants={callParticipants}
         localStream={useCallsLocalStream}
@@ -440,24 +432,24 @@ export function ChatView({
         onStartRecording={startRecording}
         onStopRecording={stopRecording}
         connectionStatus={connectionStatus}
-      />
+      /></Suspense>
     );
   }
 
   return (
     <div className={cn(
-      "flex flex-col h-full relative md:rounded-2xl md:m-2 md:shadow-2xl overflow-hidden",
-      isChannel ? "bg-slate-900/40" : "bg-white/5 backdrop-blur-xl border border-white/10"
+      "flex flex-col h-full relative md:rounded-[2rem] md:m-2 md:shadow-2xl overflow-hidden bg-background text-foreground sg-screen-enter"
     )}>
       {/* Minimized Live Stream Bar */}
-      {isInStream && activeStream && isChannel && isStreamMinimized && (
-        <LiveStreamView
+      {isInStream && activeStream && (isChannel || isGroup) && isStreamMinimized && (
+        <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><LiveStreamView
           channelName={conversation.name || 'Channel'}
           channelAvatar={conversation.avatar_url || undefined}
           participants={streamParticipants}
           isAdmin={isAdminOrOwner}
           isMuted={isStreamMuted}
           isRecording={isStreamRecording}
+          connectionStatus={streamConnectionStatus}
           streamTitle={activeStream.livestream_title || 'Live Stream'}
           currentUserId={user?.id || ''}
           onToggleMute={toggleStreamMute}
@@ -478,12 +470,12 @@ export function ChatView({
           remoteStreams={remoteStreams}
           localStream={useLiveStreamLocalStream}
           isStreamStarter={activeStream.started_by === user?.id}
-        />
+        /></Suspense>
       )}
       {/* Header - add top margin when minimized stream bar is visible */}
       <div className={cn(
         "flex items-center gap-3 p-3 border-b md:rounded-t-2xl backdrop-blur-md z-20 transition-all",
-        isChannel ? "bg-slate-800/60 border-slate-700/50" : "bg-white/10 border-white/5",
+        "bg-card/95 border-border",
         isStreamMinimized && isInStream && "mt-14"
       )}>
         <Button
@@ -516,14 +508,11 @@ export function ChatView({
         </button>
 
         <div className="flex-1 min-w-0">
-          <h2 className={cn(
-            "font-semibold truncate text-white",
-            isChannel ? "text-slate-100" : "text-white"
-          )}>{displayName}</h2>
+          <h2 className="font-semibold truncate text-foreground tracking-tight">{displayName}</h2>
           <p className={cn(
             'text-xs truncate',
-            isChannel ? 'text-slate-400' :
-              (!isGroup && otherProfile?.is_online ? 'text-online' : 'text-muted-foreground')
+            isChannel ? 'text-muted-foreground' :
+              (!isGroup && otherProfile?.is_online ? 'text-emerald-400' : 'text-muted-foreground')
           )}>
             {statusText}
           </p>
@@ -544,22 +533,9 @@ export function ChatView({
           <CallButton
             onStartCall={handleStartCall}
             canStartCall={isAdminOrOwner}
-            hasActiveCall={isChannel ? (!!activeStream && !isInStream) : (!!activeCall && !isInCall)}
+            hasActiveCall={isChannel || isGroup ? (!!activeStream && !isInStream) : (!!activeCall && !isInCall)}
             onJoinCall={handleJoinCall}
           />
-        )}
-
-        {/* Discussion button for channels with linked discussion */}
-        {isChannel && conversation.linked_discussion_id && onNavigateToDiscussion && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}
-            title="Go to discussion"
-            className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : "text-white/70 hover:text-white hover:bg-white/10"}
-          >
-            <MessageCircle className="h-5 w-5" />
-          </Button>
         )}
 
         {/* Menu button */}
@@ -568,7 +544,7 @@ export function ChatView({
             <Button
               variant="ghost"
               size="icon"
-              className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : "text-white/70 hover:text-white hover:bg-white/10"}
+              className={isChannel ? "text-slate-300 hover:text-slate-100 hover:bg-slate-700" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}
             >
               <MoreVertical className="h-5 w-5" />
             </Button>
@@ -600,12 +576,6 @@ export function ChatView({
                 Channel Settings
               </DropdownMenuItem>
             )}
-            {isChannel && conversation.linked_discussion_id && onNavigateToDiscussion && (
-              <DropdownMenuItem onClick={() => onNavigateToDiscussion(conversation.linked_discussion_id!)}>
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Open Discussion
-              </DropdownMenuItem>
-            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -634,16 +604,14 @@ export function ChatView({
       )}
 
       {/* Edit Profile Dialog for direct chats */}
-      {!isGroup && !isChannel && (
-        <EditProfileDialog
-          open={showEditProfile}
-          onClose={() => setShowEditProfile(false)}
-        />
-      )}
+      {!isGroup && !isChannel && showEditProfile && <Suspense fallback={null}>
+        <EditProfileDialog open onClose={() => setShowEditProfile(false)} />
+      </Suspense>}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
-        {loading ? (
+      <div ref={scrollContainer} className="flex-1 overflow-y-auto scrollbar-thin py-5 bg-background">
+        {hasOlder && <div className="text-center mb-3"><Button variant="secondary" size="sm" onClick={showOlder} disabled={loadingOlder}>{loadingOlder ? 'Loading…' : 'Earlier messages'}</Button></div>}
+        {messagesError && messages.length === 0 ? (<div role="alert" className="p-8 text-center text-muted-foreground"><p>Could not load messages.</p><Button variant="secondary" onClick={() => refetch()} className="mt-3">Try again</Button></div>) : loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="animate-pulse text-muted-foreground">Loading messages...</div>
           </div>
@@ -659,79 +627,17 @@ export function ChatView({
             <p className="text-muted-foreground/70 text-sm text-center max-w-[250px] mb-6">
               Send a message to start the conversation
             </p>
-            
-            {/* AI Conversation Starters - only for direct chats */}
-            {!isGroup && !isChannel && otherProfile && (
-              <div className="w-full max-w-sm space-y-3">
-                {icebreakers.length === 0 && !loadingIcebreakers && (
-                  <Button
-                    variant="outline"
-                    onClick={async () => {
-                      setLoadingIcebreakers(true);
-                      const suggestions = await generateIcebreakers(otherProfile);
-                      setIcebreakers(suggestions);
-                      setLoadingIcebreakers(false);
-                    }}
-                    className="w-full bg-gradient-to-r from-amber-500/10 to-purple-500/10 border-amber-500/30 hover:border-amber-500/50 hover:from-amber-500/20 hover:to-purple-500/20 transition-all group"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2 text-amber-500 group-hover:rotate-12 transition-transform" />
-                    <span className="bg-gradient-to-r from-amber-500 to-purple-500 bg-clip-text text-transparent font-medium">
-                      AI Conversation Starters
-                    </span>
-                  </Button>
-                )}
-                
-                {loadingIcebreakers && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-center gap-2 text-muted-foreground text-sm">
-                      <Loader2 className="w-4 h-4 animate-spin text-amber-500" />
-                      <span>Generating ideas...</span>
-                    </div>
-                    <div className="h-12 w-full bg-white/5 animate-pulse rounded-xl" />
-                    <div className="h-12 w-full bg-white/5 animate-pulse rounded-xl" />
-                  </div>
-                )}
-                
-                {icebreakers.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="p-1 rounded-md bg-gradient-to-br from-amber-500/20 to-purple-500/20">
-                        <Wand2 className="w-3 h-3 text-amber-500" />
-                      </div>
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Tap to send</span>
-                    </div>
-                    {icebreakers.slice(0, 3).map((text, idx) => (
-                      <button
-                        key={idx}
-                        onClick={async () => {
-                          setSending(true);
-                          await sendMessage(text);
-                          setSending(false);
-                          setIcebreakers([]);
-                        }}
-                        disabled={sending}
-                        className="w-full text-left p-3 rounded-xl bg-gradient-to-br from-white/10 to-transparent hover:from-white/15 border border-white/10 hover:border-primary/50 transition-all group/item active:scale-[0.98] disabled:opacity-50"
-                      >
-                        <p className="text-sm text-foreground/90 group-hover/item:text-foreground transition-colors">
-                          {text}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         ) : (
-          <div className="px-3 space-y-4">
+          <div className="px-1 space-y-3">
             {messages.map((message, index) => {
               const showAvatar = index === 0 ||
                 messages[index - 1].sender_id !== message.sender_id;
 
               // Render system messages (e.g., "Live Stream Started")
               if (message.message_type === 'system') {
-                const hasActiveCallOrStream = isChannel ? !!activeStream : !!activeCall;
-                const isNotInCallOrStream = isChannel ? !isInStream : !isInCall;
+                const hasActiveCallOrStream = isChannel || isGroup ? !!activeStream : !!activeCall;
+                const isNotInCallOrStream = isChannel || isGroup ? !isInStream : !isInCall;
 
                 return (
                   <SystemMessage
@@ -753,21 +659,20 @@ export function ChatView({
                   <ChannelMessageBubble
                     key={message.id}
                     activeStreamId={activeStream?.id}
-                    onJoinStream={(callId) => joinStream(callId, true)}
+                    onJoinStream={() => handleJoinCall()}
                     message={message}
                     reactions={reactions[message.id] || []}
                     onToggleReaction={(emoji) => toggleReaction(message.id, emoji)}
-                    onOpenComments={conversation.linked_discussion_id ? async () => {
+                    onOpenComments={conversation.linked_discussion_id ? () => {
                       // Sync user to discussion group before navigating (for members)
                       if (!isAdminOrOwner && user?.id) {
                         try {
-                          await supabase.functions.invoke('sync-discussion-members', {
-                            body: {
-                              channelId: conversation.id,
-                              userId: user.id,
-                              action: 'add'
-                            }
-                          });
+                          void supabase.functions.invoke('sync-discussion-members', {
+                            body: { channelId: conversation.id, userId: user.id, action: 'add' }
+                          }).then(result => {
+                            if (result.error) throw result.error;
+                            void queryClient.invalidateQueries({ queryKey: ['messages', user.id, conversation.linked_discussion_id] });
+                          }).catch(() => toast.error('Unable to access comments. Please try again.'));
                         } catch (error) {
                           console.error('Failed to sync to discussion:', error);
                         }
@@ -778,7 +683,7 @@ export function ChatView({
                     commentCount={message.commentCount || 0}
                     canForward={isAdminOrOwner}
                     onReply={() => handleReply(message)}
-                    onPin={() => handlePinMessage(message)}
+
                     onEdit={() => openEditDialog(message)}
                     onDelete={() => openDeleteDialog(message)}
                     isAdmin={isAdminOrOwner}
@@ -797,7 +702,7 @@ export function ChatView({
                   onReply={(msg) => handleReply(msg)}
                   onEdit={(msg) => openEditDialog(msg)}
                   onDelete={(msg) => openDeleteDialog(msg)}
-                  onPin={(msg) => handlePinMessage(msg)}
+
                   isAdmin={isAdminOrOwner}
                   onOpenBrowser={onOpenBrowser}
                 />
@@ -817,8 +722,8 @@ export function ChatView({
       {/* Input */}
       {canSendMessages ? (
         <div className={cn(
-          "p-3 border-t md:rounded-b-2xl backdrop-blur-md",
-          isChannel ? "bg-slate-800/60 border-slate-700/50" : "bg-white/10 border-white/5"
+          "p-3 border-t md:rounded-b-2xl",
+          "bg-card/95 border-border"
         )}>
           {isRecordingVoice ? (
             <VoiceRecorder
@@ -826,6 +731,19 @@ export function ChatView({
               onCancel={() => setIsRecordingVoice(false)}
             />
           ) : (
+            <>
+            {replyingTo && (
+              <div className="mb-2 flex items-center gap-3 rounded-2xl border border-primary/30 bg-primary/10 px-3 py-2">
+                <div className="h-8 w-1 rounded-full bg-primary" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-primary">Replying to {replyingTo.sender?.full_name || replyingTo.sender?.username || 'message'}</p>
+                  <p className="truncate text-sm text-muted-foreground">{replyingTo.content || 'Attachment'}</p>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setReplyingTo(null)} className="h-8 w-8 rounded-full text-white/60 hover:bg-white/10 hover:text-white" aria-label="Cancel reply">
+                  <span className="text-lg leading-none">×</span>
+                </Button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input
                 ref={imageInputRef}
@@ -843,18 +761,20 @@ export function ChatView({
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Add photo"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={sending || isUploadingVoice}
-                className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
+                className="sg-icon-button"
               >
-                <ImageIcon className="h-5 w-5" />
+                <ImagePlus className="h-5 w-5" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
+                aria-label="Attach file"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending || isUploadingVoice}
-                className={isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""}
+                className="sg-icon-button"
               >
                 <Paperclip className="h-5 w-5" />
               </Button>
@@ -868,16 +788,16 @@ export function ChatView({
                 onKeyDown={handleKeyDown}
                 disabled={sending || isUploadingVoice}
                 className={cn(
-                  "flex-1 border-white/10 rounded-full transition-all focus-visible:ring-primary/50",
-                  isChannel ? "bg-slate-700/50 text-slate-100 placeholder:text-slate-400" : "bg-white/10 text-white placeholder:text-white/40"
+                  "h-11 flex-1 min-w-0 border-border rounded-2xl transition-all focus-visible:ring-primary/50 bg-secondary text-foreground placeholder:text-muted-foreground"
                 )}
               />
               {messageText.trim() ? (
                 <Button
                   size="icon"
+                  aria-label="Send message"
                   onClick={handleSend}
                   disabled={!messageText.trim() || sending || isUploadingVoice}
-                  className="shrink-0"
+                  className="h-11 w-11 shrink-0 rounded-2xl bg-[#d6f58b] text-[#192313] hover:bg-[#c8ed74]"
                 >
                   <Send className="h-5 w-5" />
                 </Button>
@@ -885,34 +805,22 @@ export function ChatView({
                 <Button
                   variant="ghost"
                   size="icon"
+                  aria-label="Record voice message"
                   onClick={() => setIsRecordingVoice(true)}
                   disabled={sending || isUploadingVoice}
                   className={cn(
-                    "shrink-0",
-                    isChannel ? "text-slate-400 hover:text-slate-200 hover:bg-slate-700" : ""
+                    "sg-icon-button"
                   )}
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" x2="12" y1="19" y2="22" />
-                  </svg>
+                  <Mic className="h-5 w-5" />
                 </Button>
               )}
             </div>
+            </>
           )}
         </div>
       ) : isChannel && conversation.linked_discussion_id ? (
-        <div className="p-3 bg-slate-800 border-t border-slate-700">
-          <Button
-            variant="secondary"
-            className="w-full bg-slate-700 hover:bg-slate-600 text-slate-100"
-            onClick={() => onNavigateToDiscussion?.(conversation.linked_discussion_id!)}
-          >
-            <MessageCircle className="h-4 w-4 mr-2" />
-            Open Discussion to Comment
-          </Button>
-        </div>
+        <div className="p-4 bg-card border-t border-border text-center text-sm text-muted-foreground">Tap Comments below a post to join its conversation.</div>
       ) : isChannel ? (
         <div className="p-3 bg-slate-800 border-t border-slate-700 text-center text-sm text-slate-400">
           Only admins can post to this channel
@@ -937,28 +845,7 @@ export function ChatView({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Message Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Message</DialogTitle>
-          </DialogHeader>
-          <Input
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            placeholder="Enter new message..."
-            className="mt-2"
-          />
-          <DialogFooter className="mt-4">
-            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleEditMessage} disabled={!editText.trim()}>
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {editDialogOpen && messageToEdit && <EditMessageDialog key={messageToEdit.id} message={messageToEdit} onClose={() => { setEditDialogOpen(false); setMessageToEdit(null); }} onSave={updateMessage} />}
 
       {/* Schedule Call Dialog */}
       {isChannel && (

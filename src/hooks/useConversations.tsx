@@ -25,19 +25,12 @@ export function useConversations() {
       const conversationIds = participantData.map(p => p.conversation_id);
 
       // Get conversation details with participants
-      const { data: conversations, error: convError } = await supabase
-        .from('conversations')
-        .select('*')
-        .in('id', conversationIds)
-        .order('updated_at', { ascending: false });
-
-      if (convError || !conversations) return [];
-
-      // Get all participants for these conversations
-      const { data: allParticipants } = await supabase
-        .from('conversation_participants')
-        .select('*')
-        .in('conversation_id', conversationIds);
+      const [{ data: conversations, error: convError }, { data: allParticipants }, { data: lastMessages }] = await Promise.all([
+        supabase.from('conversations').select('*').in('id', conversationIds).order('updated_at', { ascending: false }),
+        supabase.from('conversation_participants').select('*').in('conversation_id', conversationIds),
+        supabase.from('messages').select('*').in('conversation_id', conversationIds).order('created_at', { ascending: false }),
+      ]);
+      if (convError || !conversations) throw convError || new Error('Unable to load conversations');
 
       // Get profiles for all participants
       const participantUserIds = [...new Set(allParticipants?.map(p => p.user_id) || [])];
@@ -47,11 +40,7 @@ export function useConversations() {
         .in('user_id', participantUserIds);
 
       // Get last message for each conversation
-      const { data: lastMessages } = await supabase
-        .from('messages')
-        .select('*')
-        .in('conversation_id', conversationIds)
-        .order('created_at', { ascending: false });
+
 
       // Build conversation objects
       const details: ConversationWithDetails[] = conversations.map(conv => {
@@ -70,6 +59,7 @@ export function useConversations() {
           ...conv,
           participants: participantsWithProfiles,
           lastMessage,
+          unreadCount: convMessages.filter(message => message.sender_id !== user.id && !message.is_read).length,
           isSavedMessages: isSelfChat,
           isSelfChat,
           is_archived: conv.is_archived || false,

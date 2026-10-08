@@ -55,7 +55,7 @@ const WaveVisualizer: React.FC<{ level: number, isMuted: boolean }> = ({ level, 
             isMuted ? "bg-white/10" : "bg-primary animate-pulse"
           )}
           style={{
-            height: isMuted ? '4px' : `${Math.max(4, level * 24 * (0.4 + Math.random() * 0.6))}px`,
+            height: isMuted ? '4px' : `${Math.max(4, level * 24 * (0.4 + (i % 3) * 0.2))}px`,
             opacity: isMuted ? 0.2 : 0.6 + (level * 0.4),
             boxShadow: !isMuted && level > 0.1 ? `0 0 10px rgba(59, 130, 246, ${level})` : 'none'
           }}
@@ -75,8 +75,9 @@ interface LiveStreamViewProps {
   streamTitle: string;
   currentUserId: string;
   onToggleMute: () => void;
-  onLeave: () => void;
-  onEnd: () => void;
+  onLeave: () => void | Promise<void>;
+  onEnd: () => void | Promise<void>;
+  connectionStatus?: 'connecting' | 'connected' | 'disconnected';
   onStartRecording: (title: string) => void;
   onStopRecording: () => void;
   onRaiseHand: () => void;
@@ -221,33 +222,33 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   isMinimized = false,
   remoteStreams = new Map(),
   localStream = null,
-  isStreamStarter = false
+  isStreamStarter = false,
+  connectionStatus = 'connecting'
 }) => {
   const [showRecordingDialog, setShowRecordingDialog] = useState(false);
   const [showTitleDialog, setShowTitleDialog] = useState(false);
   const [newTitle, setNewTitle] = useState(streamTitle);
   const [recordingTitle, setRecordingTitle] = useState('');
+  const [recordingConsent, setRecordingConsent] = useState(false);
   const [showLeaveDialog, setShowLeaveDialog] = useState(false);
   const [endStreamOnLeave, setEndStreamOnLeave] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [showRecordDialog, setShowRecordDialog] = useState(false);
-  const [showScreenShare, setShowScreenShare] = useState(false);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const [networkEnhancement, setNetworkEnhancement] = useState(false);
 
   useEffect(() => {
     setNewTitle(streamTitle);
   }, [streamTitle]);
 
-  const handleLeave = () => {
-    if (endStreamOnLeave) {
-      onEnd();
-    } else {
-      onLeave();
-    }
-    setShowLeaveDialog(false);
+  const handleLeave = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try { if (endStreamOnLeave) await onEnd(); else await onLeave(); setShowLeaveDialog(false); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not leave the session.'); }
+    finally { setLeaving(false); }
   };
 
   const handleStartRecording = () => {
+    if (!recordingConsent) return;
     onStartRecording(recordingTitle);
     setShowRecordDialog(false);
     setRecordingTitle('');
@@ -256,26 +257,6 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
   const handleUpdateTitle = () => {
     onUpdateTitle(newTitle);
     setShowTitleDialog(false);
-  };
-
-  const handleScreenShare = async () => {
-    try {
-      if (isScreenSharing) {
-        setIsScreenSharing(false);
-        toast.success('Screen sharing stopped');
-      } else {
-        await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
-        setIsScreenSharing(true);
-        toast.success('Screen sharing started');
-      }
-    } catch (error) {
-      toast.error('Failed to share screen');
-    }
-  };
-
-  const handleCopyInviteLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    toast.success('Invite link copied!');
   };
 
   // Separate current user from others
@@ -316,7 +297,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <Avatar name={channelName} src={channelAvatar} size="sm" />
             <div>
               <p className="text-sm font-medium text-white">{streamTitle}</p>
-              <p className="text-xs text-gray-400">{participants.length} listening</p>
+              <p className="text-xs text-gray-400">{participants.length} listening · {connectionStatus}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -363,14 +344,14 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
 
         {/* Leave Dialog for minimized view */}
         <Dialog open={showLeaveDialog} onOpenChange={setShowLeaveDialog}>
-          <DialogContent className="bg-[#2a2a4e] border-[#3a3a5e]">
+          <DialogContent className="bg-card border-border">
             <DialogHeader>
               <DialogTitle className="text-white">Leave live stream</DialogTitle>
               <DialogDescription className="text-gray-400">
                 Do you want to leave this live stream?
               </DialogDescription>
             </DialogHeader>
-            {isAdmin && (
+            {effectiveAdmin && (
               <div className="flex items-center space-x-2 py-4">
                 <Checkbox
                   id="end-stream-minimized"
@@ -388,9 +369,10 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               </Button>
               <Button
                 onClick={handleLeave}
+                disabled={leaving}
                 className={endStreamOnLeave ? 'bg-red-500 hover:bg-red-600' : ''}
               >
-                {endStreamOnLeave ? 'End Stream' : 'Leave'}
+                {leaving ? 'Finishing…' : endStreamOnLeave ? 'End for everyone' : 'Leave'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -424,20 +406,6 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex items-center gap-3">
-            {/* Audio Autoplay Fallback */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex bg-primary/20 hover:bg-primary/30 text-primary border-primary/50 text-[10px] font-bold h-7 md:h-8 animate-pulse px-2 md:px-3"
-              onClick={() => {
-                const audios = document.querySelectorAll('audio');
-                audios.forEach(a => a.play().catch(() => { }));
-                toast.success('Audio system refreshed');
-              }}
-            >
-              <Volume2 className="h-3 w-3 mr-1" />
-              Resume Audio
-            </Button>
             <div className="relative">
               <Avatar name={channelName} src={channelAvatar} size="md" className="ring-2 ring-white/10 shadow-xl" />
               <div className="absolute -bottom-1 -right-1 p-1 bg-primary rounded-full border-2 border-[#0a0a1a]">
@@ -469,25 +437,6 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64 bg-[#2a2a4e] border-[#3a3a5e]">
-              {/* Display as */}
-              <DropdownMenuItem className="flex items-center gap-3 py-3">
-                <Avatar name={channelName} src={channelAvatar} size="sm" />
-                <div>
-                  <p className="font-medium text-white">Display me as...</p>
-                  <p className="text-xs text-gray-400">{channelName}</p>
-                </div>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator className="bg-[#3a3a5e]" />
-
-              {/* Audio */}
-              <DropdownMenuItem className="flex items-center gap-3 py-3">
-                <Volume2 className="h-5 w-5 text-gray-400" />
-                <div>
-                  <p className="font-medium text-white">Audio</p>
-                  <p className="text-xs text-gray-400">Speaker</p>
-                </div>
-              </DropdownMenuItem>
-
               {/* Noise Suppression */}
               <DropdownMenuItem
                 className="flex items-center justify-between py-3"
@@ -506,28 +455,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                 />
               </DropdownMenuItem>
 
-              {/* Network Enhancement */}
-              <DropdownMenuItem
-                className="flex items-center justify-between py-3"
-                onSelect={(e) => e.preventDefault()}
-              >
-                <div className="flex items-center gap-3">
-                  <Wifi className="h-5 w-5 text-gray-400" />
-                  <div>
-                    <p className="font-medium text-white">Network enhancement</p>
-                    <p className="text-xs text-gray-400">{networkEnhancement ? 'Enabled' : 'Disabled'}</p>
-                  </div>
-                </div>
-                <Switch
-                  checked={networkEnhancement}
-                  onCheckedChange={setNetworkEnhancement}
-                />
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator className="bg-[#3a3a5e]" />
-
               {/* Edit Title - Admin only */}
-              {isAdmin && (
+              {effectiveAdmin && (
                 <DropdownMenuItem
                   className="flex items-center gap-3 py-3"
                   onSelect={() => setShowTitleDialog(true)}
@@ -537,22 +466,11 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
                 </DropdownMenuItem>
               )}
 
-              {/* Share Invite Link */}
-              <DropdownMenuItem
-                className="flex items-center gap-3 py-3"
-                onSelect={handleCopyInviteLink}
-              >
-                <Link className="h-5 w-5 text-gray-400" />
-                <p className="font-medium text-white">Share invite link</p>
-              </DropdownMenuItem>
-
-
-
               {/* Recording - Admin only */}
-              {isAdmin && (
+              {effectiveAdmin && (
                 <DropdownMenuItem
                   className="flex items-center gap-3 py-3"
-                  onSelect={() => isRecording ? onStopRecording() : setShowRecordDialog(true)}
+                  onSelect={() => { if (isRecording) onStopRecording(); else { setRecordingConsent(false); setShowRecordDialog(true); } }}
                 >
                   <Circle className={`h-5 w-5 ${isRecording ? 'fill-red-500 text-red-500' : 'text-gray-400'}`} />
                   <p className="font-medium text-white">
@@ -562,12 +480,12 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               )}
 
               {/* End Stream - Admin only */}
-              {isAdmin && (
+              {effectiveAdmin && (
                 <>
                   <DropdownMenuSeparator className="bg-[#3a3a5e]" />
                   <DropdownMenuItem
                     className="flex items-center gap-3 py-3 text-red-500"
-                    onSelect={onEnd}
+                    onSelect={() => { setEndStreamOnLeave(true); setShowLeaveDialog(true); }}
                   >
                     <XCircle className="h-5 w-5" />
                     <p className="font-medium">End live stream</p>
@@ -701,7 +619,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               Do you want to leave this live stream?
             </DialogDescription>
           </DialogHeader>
-          {isAdmin && (
+          {effectiveAdmin && (
             <div className="flex items-center space-x-2 py-2">
               <Checkbox
                 id="end-stream"
@@ -717,8 +635,8 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
             <Button variant="ghost" onClick={() => setShowLeaveDialog(false)} className="text-gray-400">
               Cancel
             </Button>
-            <Button onClick={handleLeave} className="text-red-500 hover:text-red-400">
-              Leave
+            <Button onClick={handleLeave} disabled={leaving} className="text-red-500 hover:text-red-400">
+              {leaving ? 'Finishing…' : endStreamOnLeave ? 'End for everyone' : 'Leave'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -730,7 +648,7 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
           <DialogHeader>
             <DialogTitle className="text-white">Start Recording</DialogTitle>
             <DialogDescription className="text-gray-400">
-              Enter a title for this recording. Other members will see that the stream is being recorded.
+              Record with participants’ permission. A visible indicator stays on during recording. When stopped, audio is saved to your Saved messages so you can share it.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -739,14 +657,15 @@ export const LiveStreamView: React.FC<LiveStreamViewProps> = ({
               value={recordingTitle}
               onChange={(e) => setRecordingTitle(e.target.value)}
               placeholder="Enter recording title"
-              className="bg-[#1a1a2e] border-[#3a3a5e] text-white"
+              className="bg-secondary border-border text-foreground"
             />
           </div>
+          <label className="flex items-center gap-3 text-sm"><Checkbox checked={recordingConsent} onCheckedChange={value => setRecordingConsent(value === true)} />I have participants’ permission to record.</label>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowRecordDialog(false)} className="text-gray-400">
               Cancel
             </Button>
-            <Button onClick={handleStartRecording}>Start Recording</Button>
+            <Button disabled={!recordingConsent} onClick={handleStartRecording}>Start Recording</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

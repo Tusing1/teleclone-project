@@ -4,11 +4,12 @@ import { useAuth } from './useAuth';
 
 interface UseVoiceMessageOptions {
   conversationId: string;
+  replyToChannelMessageId?: string;
   onSuccess?: () => void;
   onError?: (error: Error) => void;
 }
 
-export function useVoiceMessage({ conversationId, onSuccess, onError }: UseVoiceMessageOptions) {
+export function useVoiceMessage({ conversationId, replyToChannelMessageId, onSuccess, onError }: UseVoiceMessageOptions) {
   const { user } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
 
@@ -49,6 +50,7 @@ export function useVoiceMessage({ conversationId, onSuccess, onError }: UseVoice
           file_url: publicUrl,
           file_name: fileName,
           file_size: blob.size,
+          reply_to_channel_message_id: replyToChannelMessageId || null,
         });
 
       if (messageError) throw messageError;
@@ -66,7 +68,7 @@ export function useVoiceMessage({ conversationId, onSuccess, onError }: UseVoice
     } finally {
       setIsUploading(false);
     }
-  }, [user, conversationId, onSuccess, onError]);
+  }, [user, conversationId, replyToChannelMessageId, onSuccess, onError]);
 
   return {
     sendVoiceMessage,

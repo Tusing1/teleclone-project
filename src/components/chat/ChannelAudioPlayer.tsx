@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 interface ChannelAudioPlayerProps {
   url: string;
   title?: string;
+  fileName?: string;
   channelName?: string;
   duration?: number;
   className?: string;
@@ -26,7 +27,8 @@ const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
 
 export function ChannelAudioPlayer({ 
   url, 
-  title, 
+  title,
+  fileName,
   channelName,
   duration: initialDuration,
   className 
@@ -108,30 +110,26 @@ export function ChannelAudioPlayer({
     setIsDownloading(true);
     setDownloadProgress(0);
     try {
-      // Save to device
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = title || 'audio.opus';
-      a.click();
-      
-      // Cache for offline with progress
+      // Save only in StudyGram's app-private offline cache
       if (!isCached) {
-        const blob = await downloadWithProgress(url, title || 'audio.opus', (percent) => {
+        const blob = await downloadWithProgress(url, fileName || `${title || 'audio'}.${url.split('?')[0].split('.').pop() || 'opus'}`, (percent) => {
           setDownloadProgress(percent);
         });
         if (blob) {
           setIsCached(true);
           const objectUrl = URL.createObjectURL(blob);
           setAudioUrl(objectUrl);
-        }
+        } else throw new Error('Storage or network unavailable');
       } else {
+        const blob = await downloadWithProgress(url, fileName || `${title || 'audio'}.${url.split('?')[0].split('.').pop() || 'opus'}`, setDownloadProgress);
+        if (!blob) throw new Error('Storage or network unavailable');
         setDownloadProgress(100);
       }
       
       triggerHaptic();
-      toast.success('Saved to device & available offline');
+      toast.success('Saved offline in StudyGram');
     } catch (error) {
-      toast.error('Failed to download');
+      toast.error('Unable to save offline');
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
@@ -233,6 +231,7 @@ export function ChannelAudioPlayer({
           </Button>
           {/* Download indicator */}
           <button 
+            aria-label="Save audio offline"
             onClick={handleDownload}
             disabled={isDownloading}
             className={cn(
@@ -285,7 +284,7 @@ export function ChannelAudioPlayer({
               <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
                 <DropdownMenuItem onClick={handleDownload} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
                   <Download className="h-4 w-4 mr-2" />
-                  Save & download offline
+                  Save offline
                 </DropdownMenuItem>
                 {isCached && (
                   <DropdownMenuItem onClick={handleRemoveFromCache} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">

@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { MessageWithSender } from '@/types/chat';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
-import { Check, CheckCheck, Download, FileIcon, Forward, MoreVertical, MessageCircle, Reply, Link, Pin, Pencil, Trash2, Play } from 'lucide-react';
+import { Check, CheckCheck, Download, FileIcon, Forward, MoreVertical, MessageCircle, Reply, Copy, Pin, Pencil, Trash2, Play } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { FilePreview } from './FilePreview';
+import { MediaViewer } from './MediaViewer';
 import { AudioPlayer } from './AudioPlayer';
 import { LinkPreview, extractUrls } from './LinkPreview';
 
@@ -46,7 +47,9 @@ export function MessageBubble({
   onOpenBrowser
 }: MessageBubbleProps) {
   const { user } = useAuth();
+  const [mediaOpen, setMediaOpen] = useState(false);
   const isOwn = message.sender_id === user?.id;
+  const visualMedia = !!message.file_url && (message.message_type === 'image' || /\.(mp4|mov|m4v)(\?|$)/i.test(message.file_url));
   const [showMenu, setShowMenu] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -88,23 +91,25 @@ export function MessageBubble({
     return /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(url);
   };
 
-  const copyMessageLink = () => {
-    const link = `${window.location.origin}/message/${message.id}`;
-    navigator.clipboard.writeText(link);
-    toast.success('Link copied to clipboard');
+  const copyMessageLink = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content || message.file_url || '');
+      toast.success('Copied');
+    } catch {
+      toast.error('Could not copy. Please allow clipboard access.');
+    }
   };
 
   const renderFileContent = () => {
     if (message.message_type === 'image' && message.file_url) {
       return (
-        <div className="mb-1">
+        <button type="button" aria-label="Open image" className="block w-full" onClick={() => setMediaOpen(true)}>
           <img
             src={message.file_url}
             alt="Shared image"
-            className="rounded-lg max-w-full max-h-64 object-cover cursor-pointer hover:opacity-90"
-            onClick={() => window.open(message.file_url!, '_blank')}
+            className="block w-full max-h-96 object-contain"
           />
-        </div>
+        </button>
       );
     }
 
@@ -126,7 +131,7 @@ export function MessageBubble({
       return (
         <div
           className="mb-1 relative rounded-lg overflow-hidden cursor-pointer group"
-          onClick={() => window.open(message.file_url!, '_blank')}
+          onClick={() => setMediaOpen(true)}
         >
           <video
             src={message.file_url}
@@ -161,7 +166,7 @@ export function MessageBubble({
   return (
     <div
       className={cn(
-        'flex gap-1 px-2 py-0.5 animate-fade-in group',
+        'flex gap-1 px-3 py-1 animate-fade-in group',
         isOwn ? 'justify-end' : 'justify-start'
       )}
       onMouseEnter={() => setShowMenu(true)}
@@ -169,6 +174,7 @@ export function MessageBubble({
         if (!menuOpen) setShowMenu(false);
       }}
     >
+      {mediaOpen && message.file_url && <MediaViewer open onClose={() => setMediaOpen(false)} url={message.file_url} fileName={message.file_name || 'Shared image.jpg'} />}
       {/* Action menu - placed on opposite side of bubble */}
       {isOwn && (
         <DropdownMenu open={menuOpen} onOpenChange={(open) => {
@@ -180,14 +186,14 @@ export function MessageBubble({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-6 w-6 transition-all self-center shrink-0 hover:bg-white/10",
-                showMenu || menuOpen ? "opacity-100" : "opacity-0"
+                "h-7 w-7 rounded-full transition-all self-center shrink-0 hover:bg-white/10",
+                showMenu || menuOpen ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
               )}
             >
               <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
+          <DropdownMenuContent align="start" className="rounded-2xl border-white/10 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl">
             {onReply && (
               <DropdownMenuItem onClick={() => onReply(message)}>
                 <Reply className="h-4 w-4 mr-2" />
@@ -195,8 +201,8 @@ export function MessageBubble({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={copyMessageLink}>
-              <Link className="h-4 w-4 mr-2" />
-              Copy Link
+              <Copy className="h-4 w-4 mr-2" />
+              Copy text
             </DropdownMenuItem>
             {onForward && (
               <DropdownMenuItem onClick={() => onForward(message)}>
@@ -229,16 +235,17 @@ export function MessageBubble({
 
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-4 py-2.5 relative transition-all',
+          'min-w-0 max-w-[85%] relative',
           isOwn
-            ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground rounded-tr-md shadow-lg shadow-primary/20'
-            : 'bg-gradient-to-br from-muted/80 to-muted/60 text-foreground rounded-tl-md shadow-md backdrop-blur-sm border border-white/5'
+            ? 'text-message-out-foreground'
+            : 'text-message-in-foreground'
         )}
       >
+        <div className={cn('rounded-[1.35rem] overflow-hidden', visualMedia ? 'p-0 border-0' : 'px-3 py-1.5', isOwn ? 'bg-[hsl(var(--message-out))] text-white rounded-br-lg' : 'bg-secondary text-foreground rounded-bl-lg')}>
         {renderFileContent()}
 
         {message.content && (
-          <div className="text-sm whitespace-pre-wrap break-words leading-relaxed text-left">
+          <div className={cn("text-sm whitespace-pre-wrap break-words leading-snug text-left", visualMedia && "px-3 py-1.5")}>
             {message.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
               if (part.match(/^https?:\/\//)) {
                 return (
@@ -260,7 +267,7 @@ export function MessageBubble({
                 );
               }
 
-              // Simple Markdown-lite transformation for AI/playful messages
+              // Simple Markdown-lite transformation for formatted messages
               // Handle bold: **text**
               let text = part;
               const segments = text.split(/(\*\*.*?\*\*|\*.*?\*)/g);
@@ -298,20 +305,6 @@ export function MessageBubble({
           </div>
         )}
 
-        <div className={cn(
-          'flex items-center justify-end gap-1 mt-0.5',
-          isOwn ? 'text-primary-foreground/70' : 'text-muted-foreground'
-        )}>
-          <span className="text-[10px]">{formatTime(message.created_at)}</span>
-          {isOwn && (
-            message.is_read ? (
-              <CheckCheck className="w-3.5 h-3.5" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )
-          )}
-        </div>
-
         {/* Comments section for channel messages */}
         {isChannelMessage && onOpenComments && (
           <button
@@ -327,6 +320,21 @@ export function MessageBubble({
             </span>
           </button>
         )}
+        </div>
+        <div className={cn(
+          'flex items-center justify-end gap-1 mt-0.5 px-1',
+          'text-muted-foreground'
+        )}>
+          <span className="text-[10px]">{formatTime(message.created_at)}</span>
+          {isOwn && (
+            message.is_read ? (
+              <CheckCheck className="w-3.5 h-3.5" />
+            ) : (
+              <Check className="w-3.5 h-3.5" />
+            )
+          )}
+        </div>
+
       </div>
 
       {/* Action menu for non-own messages - on the right */}
@@ -340,14 +348,14 @@ export function MessageBubble({
               variant="ghost"
               size="icon"
               className={cn(
-                "h-6 w-6 transition-all self-center shrink-0 hover:bg-white/10",
-                showMenu || menuOpen ? "opacity-100" : "opacity-0"
+                "h-7 w-7 rounded-full transition-all self-center shrink-0 hover:bg-white/10",
+                showMenu || menuOpen ? "opacity-100" : "opacity-100 md:opacity-0 md:group-hover:opacity-100"
               )}
             >
               <MoreVertical className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="rounded-2xl border-white/10 bg-popover/95 p-1.5 shadow-2xl backdrop-blur-xl">
             {onReply && (
               <DropdownMenuItem onClick={() => onReply(message)}>
                 <Reply className="h-4 w-4 mr-2" />
@@ -355,8 +363,8 @@ export function MessageBubble({
               </DropdownMenuItem>
             )}
             <DropdownMenuItem onClick={copyMessageLink}>
-              <Link className="h-4 w-4 mr-2" />
-              Copy Link
+              <Copy className="h-4 w-4 mr-2" />
+              Copy text
             </DropdownMenuItem>
             {onForward && (
               <DropdownMenuItem onClick={() => onForward(message)}>

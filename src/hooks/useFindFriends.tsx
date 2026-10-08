@@ -20,7 +20,7 @@ interface LikedByUser {
   profile?: Profile;
 }
 
-export function useFindFriends() {
+export function useFindFriends(full = true) {
   const { user } = useAuth();
   const [potentialMatches, setPotentialMatches] = useState<Profile[]>([]);
   const [matches, setMatches] = useState<Match[]>([]);
@@ -135,51 +135,7 @@ export function useFindFriends() {
 
   const fetchCanSeeLikes = useCallback(async () => {
     if (!user) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('premium_unlocks')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!error && data && data.can_see_likes) {
-        // Check expiration
-        const unlockedAt = new Date(data.unlocked_at).getTime();
-        const now = Date.now();
-
-        // Since we don't have an expires_at column, we check the last transaction
-        // But for simplicity, let's assume if it's there it was valid for some time.
-        // Actually, let's check token transactions to know if it was weekly or daily.
-        const { data: lastSpend } = await supabase
-          .from('token_transactions')
-          .select('amount, created_at')
-          .eq('user_id', user.id)
-          .eq('transaction_type', 'spend')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (lastSpend) {
-          const isWeekly = Math.abs(lastSpend.amount) >= 350;
-          const duration = isWeekly ? 7 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
-
-          if (now - unlockedAt > duration) {
-            // Expired
-            setCanSeeLikes(false);
-            // Optionally update DB to false
-            await supabase.from('premium_unlocks').update({ can_see_likes: false }).eq('user_id', user.id);
-            return;
-          }
-        }
-
-        setCanSeeLikes(true);
-      } else {
-        setCanSeeLikes(false);
-      }
-    } catch (error) {
-      setCanSeeLikes(false);
-    }
+    setCanSeeLikes(true);
   }, [user]);
 
   const fetchLikedByUsers = useCallback(async () => {
@@ -225,21 +181,19 @@ export function useFindFriends() {
     const init = async () => {
       setLoading(true);
       await Promise.all([
-        fetchPotentialMatches(),
-        fetchMatches(),
-        fetchLikedByCount(),
-        fetchCanSeeLikes()
+        ...(full ? [fetchPotentialMatches(), fetchMatches(), fetchCanSeeLikes()] : []),
+        fetchLikedByCount()
       ]);
       setLoading(false);
     };
     init();
-  }, [fetchPotentialMatches, fetchMatches, fetchLikedByCount, fetchCanSeeLikes]);
+  }, [full, fetchPotentialMatches, fetchMatches, fetchLikedByCount, fetchCanSeeLikes]);
 
   useEffect(() => {
-    if (canSeeLikes) {
+    if (full && canSeeLikes) {
       fetchLikedByUsers();
     }
-  }, [canSeeLikes, fetchLikedByUsers]);
+  }, [full, canSeeLikes, fetchLikedByUsers]);
 
   const swipe = async (direction: 'left' | 'right') => {
     if (!user || currentIndex >= potentialMatches.length) return null;

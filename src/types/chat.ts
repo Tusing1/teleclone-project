@@ -52,6 +52,7 @@ export interface Message {
   file_name: string | null;
   file_size: number | null;
   is_read: boolean;
+  is_encrypted?: boolean;
   created_at: string;
   updated_at: string;
   reply_to_channel_message_id?: string | null;

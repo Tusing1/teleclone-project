@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Settings, Radio, MessageCircle, Users, Trash2, Link2, Calendar, ChevronRight, Shield, Camera } from 'lucide-react';
+import { Pencil, Settings, Radio, MessageCircle, Users, Trash2, Link2, Calendar, ChevronRight, Shield, Camera } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -35,6 +35,8 @@ export function ChannelSettingsDialog({
   isOwner,
   onRefresh 
 }: ChannelSettingsDialogProps) {
+  const [editingInfo, setEditingInfo] = useState(false);
+  useEffect(() => { if (open) setEditingInfo(false); }, [open]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -239,13 +241,13 @@ export function ChannelSettingsDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-md bg-slate-800 border-slate-700 text-slate-100">
+        <DialogContent className="sm:max-w-md max-h-[92dvh] rounded-3xl bg-background border-border text-foreground">
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-slate-100">
+            <DialogTitle className="flex items-center gap-2 text-foreground">
               <Settings className="h-5 w-5" />
               Channel Settings
             </DialogTitle>
-            <DialogDescription className="text-slate-400">
+            <DialogDescription className="text-muted-foreground">
               Manage your channel settings and members.
             </DialogDescription>
           </DialogHeader>
@@ -253,9 +255,9 @@ export function ChannelSettingsDialog({
           <ScrollArea className="max-h-[70vh]">
             <div className="space-y-4 py-4 pr-4">
               {/* Channel Info with Avatar Upload */}
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-700/50">
+              <div className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-secondary/30 text-center">
                 <div className="relative group">
-                  <div className="w-12 h-12 rounded-full bg-violet-500 flex items-center justify-center overflow-hidden">
+                  <div className="w-24 h-24 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden">
                     {avatarUrl ? (
                       <img src={avatarUrl} alt="Channel" className="w-full h-full object-cover" />
                     ) : (
@@ -272,128 +274,131 @@ export function ChannelSettingsDialog({
                         className="hidden"
                       />
                       <button
+                        aria-label="Change channel photo"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadingAvatar}
-                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 transition-opacity"
                       >
                         <Camera className="h-5 w-5 text-white" />
                       </button>
                     </>
                   )}
                 </div>
-                <div>
-                  <p className="font-semibold text-slate-100">{channel.name}</p>
-                  <p className="text-sm text-slate-400 flex items-center gap-1">
+                <div className="flex flex-col items-center gap-1">
+                  <p className="text-2xl font-bold text-foreground">{channel.name}</p>
+                  <p className="text-sm text-muted-foreground flex items-center gap-1">
                     <Users className="h-3 w-3" />
                     {subscriberCount} subscriber{subscriberCount !== 1 ? 's' : ''}
                   </p>
                 </div>
               </div>
 
-              {isOwner && (
+              {!editingInfo && channel.description && <p className="rounded-2xl bg-secondary/40 p-4 text-sm whitespace-pre-wrap">{channel.description}</p>}
+              {isOwner && <Button variant="secondary" className="w-full rounded-2xl" onClick={() => { if (editingInfo) { setName(channel.name || ''); setDescription(channel.description || ''); } setEditingInfo(v => !v); }}><Pencil className="h-4 w-4 mr-2" />{editingInfo ? 'Cancel info edits' : 'Edit channel info'}</Button>}
+              {isOwner && editingInfo && (
                 <>
                   <div className="space-y-2">
-                    <Label htmlFor="channel-name" className="text-slate-300">Channel Name</Label>
+                    <Label htmlFor="channel-name" className="text-foreground">Channel Name</Label>
                     <Input
                       id="channel-name"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
                       maxLength={50}
-                      className="bg-slate-700 border-slate-600 text-slate-100"
+                      className="bg-secondary border-border text-foreground"
                     />
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="channel-desc" className="text-slate-300">Description</Label>
+                    <Label htmlFor="channel-desc" className="text-foreground">Description</Label>
                     <Textarea
                       id="channel-desc"
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       maxLength={200}
                       rows={2}
-                      className="bg-slate-700 border-slate-600 text-slate-100"
+                      className="bg-secondary border-border text-foreground"
                     />
                   </div>
 
-                  <Separator className="bg-slate-600" />
+                  <Separator className="bg-border" />
                 </>
               )}
 
               {/* Menu Items */}
-              <div className="space-y-1">
+              <div className="space-y-1 rounded-3xl bg-secondary/30 p-2">
                 {/* Invite Links */}
                 <button
                   onClick={() => setShowInviteLinks(true)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/50 transition-colors"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Link2 className="h-5 w-5 text-blue-400" />
-                    <span className="text-slate-200">Invite Links</span>
+                    <span className="text-foreground">Invite Links</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400">{inviteLinksCount}</span>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm text-muted-foreground">{inviteLinksCount}</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </button>
 
                 {/* Administrators */}
                 <button
                   onClick={() => setShowSubscribers(true)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/50 transition-colors"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Shield className="h-5 w-5 text-amber-400" />
-                    <span className="text-slate-200">Administrators</span>
+                    <span className="text-foreground">Administrators</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400">{adminCount}</span>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm text-muted-foreground">{adminCount}</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </button>
 
                 {/* Subscribers */}
                 <button
                   onClick={() => setShowSubscribers(true)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/50 transition-colors"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Users className="h-5 w-5 text-green-400" />
-                    <span className="text-slate-200">Subscribers</span>
+                    <span className="text-foreground">Subscribers</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-400">{subscriberCount}</span>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                    <span className="text-sm text-muted-foreground">{subscriberCount}</span>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
                 </button>
 
                 {/* Schedule Call */}
                 <button
                   onClick={() => setShowScheduleCall(true)}
-                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-slate-700/50 transition-colors"
+                  className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-secondary/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <Calendar className="h-5 w-5 text-purple-400" />
-                    <span className="text-slate-200">Schedule Call</span>
+                    <span className="text-foreground">Schedule Call</span>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-slate-400" />
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
                 </button>
 
                 {isOwner && (
                   <>
-                    <Separator className="bg-slate-600 my-2" />
+                    <Separator className="bg-border my-2" />
 
                     {/* Discussion Group Section */}
                     <div className="p-3">
-                      <Label className="flex items-center gap-2 text-slate-300 mb-2">
+                      <Label className="flex items-center gap-2 text-foreground mb-2">
                         <MessageCircle className="h-4 w-4" />
                         Discussion Group
                       </Label>
 
                       {discussionInfo ? (
-                        <div className="flex items-center justify-between p-3 rounded-lg border border-slate-600 bg-slate-700/30">
+                        <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/30">
                           <div className="flex items-center gap-2">
                             <Link2 className="h-4 w-4 text-blue-400" />
-                            <span className="text-sm font-medium text-slate-200">{discussionInfo.name}</span>
+                            <span className="text-sm font-medium text-foreground">{discussionInfo.name}</span>
                           </div>
                           <Button 
                             variant="ghost" 
@@ -408,7 +413,7 @@ export function ChannelSettingsDialog({
                       ) : (
                         <Button
                           variant="outline"
-                          className="w-full border-slate-600 text-slate-200 hover:bg-slate-700"
+                          className="w-full border-border text-foreground hover:bg-secondary"
                           onClick={handleCreateDiscussion}
                           disabled={saving}
                         >
@@ -417,7 +422,7 @@ export function ChannelSettingsDialog({
                         </Button>
                       )}
 
-                      <p className="text-xs text-slate-400 mt-2">
+                      <p className="text-xs text-muted-foreground mt-2">
                         {discussionInfo 
                           ? 'Subscribers can discuss channel posts in the linked group.'
                           : 'Create a discussion group where subscribers can chat about channel posts.'}
@@ -431,11 +436,11 @@ export function ChannelSettingsDialog({
                 <Button 
                   variant="outline" 
                   onClick={onClose} 
-                  className="flex-1 border-slate-600 text-slate-200 hover:bg-slate-700"
+                  className="flex-1 border-border text-foreground hover:bg-secondary"
                 >
                   {isOwner ? 'Cancel' : 'Close'}
                 </Button>
-                {isOwner && (
+                {isOwner && editingInfo && (
                   <Button 
                     onClick={handleSave} 
                     className="flex-1"

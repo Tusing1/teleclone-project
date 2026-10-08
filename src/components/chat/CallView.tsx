@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -36,8 +37,8 @@ interface CallViewProps {
   localStream: MediaStream | null;
   remoteStreams: Map<string, MediaStream>;
   isCallStarter: boolean;
-  onLeave: () => void;
-  onEnd: () => void;
+  onLeave: () => void | Promise<void>;
+  onEnd: () => void | Promise<void>;
   onToggleMute: () => void;
   isMuted: boolean;
   isRecording: boolean;
@@ -84,10 +85,12 @@ export const CallView: React.FC<CallViewProps> = ({
   const { user } = useAuth();
   const [showRecordDialog, setShowRecordDialog] = useState(false);
   const [recordingTitle, setRecordingTitle] = useState('');
+  const [recordingConsent, setRecordingConsent] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const { playJoinTone, playEndTone } = useCallSounds();
   const joinTonePlayed = useRef(false);
-  const durationInterval = useRef<NodeJS.Timeout | null>(null);
+  const durationInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Play join sound on mount once
   useEffect(() => {
@@ -117,9 +120,12 @@ export const CallView: React.FC<CallViewProps> = ({
     };
   }, [connectionStatus]);
 
-  const handleLeave = () => {
-    playEndTone();
-    isCallStarter ? onEnd() : onLeave();
+  const handleLeave = async () => {
+    if (leaving) return;
+    setLeaving(true);
+    try { await (isCallStarter ? onEnd() : onLeave()); playEndTone(); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not end the call. Try again.'); }
+    finally { setLeaving(false); }
   };
 
   // Determine if it's 1-on-1
@@ -149,7 +155,7 @@ export const CallView: React.FC<CallViewProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 h-[100dvh] bg-slate-950 z-[100] flex flex-col overflow-hidden text-white">
+    <div className="fixed inset-0 h-[100dvh] bg-background z-[100] flex flex-col overflow-hidden text-white">
       {Array.from(remoteStreams.entries()).map(([id, s]) => <RemoteAudioPlayer key={id} stream={s} />)}
 
       {/* 1-on-1 Phone Mode Layout */}
@@ -304,6 +310,7 @@ export const CallView: React.FC<CallViewProps> = ({
               ? "bg-red-500/10 border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white"
               : "bg-slate-800/60 backdrop-blur-xl border-white/10 text-white hover:bg-slate-700"
           )}
+          aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
           onClick={onToggleMute}
         >
           {isMuted ? <MicOff className="h-6 w-6 md:h-8 md:w-8" /> : <Mic className="h-6 w-6 md:h-8 md:w-8" />}
@@ -319,7 +326,8 @@ export const CallView: React.FC<CallViewProps> = ({
                 ? "bg-red-500 border-red-500 text-white animate-pulse"
                 : "bg-slate-800/60 backdrop-blur-xl border-white/10 text-slate-400 hover:text-white"
             )}
-            onClick={isRecording ? onStopRecording : () => setShowRecordDialog(true)}
+            aria-label={isRecording ? "Stop recording" : "Recording settings"}
+            onClick={isRecording ? onStopRecording : () => { setRecordingConsent(false); setShowRecordDialog(true); }}
           >
             <Circle className={`h-5 w-5 md:h-7 md:w-7 ${isRecording ? 'fill-white' : ''}`} />
           </Button>
@@ -329,6 +337,8 @@ export const CallView: React.FC<CallViewProps> = ({
           variant="destructive"
           size="lg"
           className="rounded-full w-16 h-16 md:w-20 md:h-20 bg-red-600 hover:bg-red-700 text-white shadow-[0_0_40px_rgba(220,38,38,0.4)] transition-all hover:scale-110 active:scale-95 flex items-center justify-center p-0 border-4 border-slate-950"
+          disabled={leaving}
+          aria-label={leaving ? 'Ending call' : 'End call'}
           onClick={handleLeave}
         >
           <PhoneOff className="h-7 w-7 md:h-9 md:w-9" />
@@ -336,11 +346,11 @@ export const CallView: React.FC<CallViewProps> = ({
       </div>
 
       <Dialog open={showRecordDialog} onOpenChange={setShowRecordDialog}>
-        <DialogContent className="bg-slate-900 border-white/10 text-white rounded-[2rem] p-6 md:p-8">
+        <DialogContent className="bg-card border-border text-foreground rounded-[2rem] p-6 md:p-8">
           <DialogHeader>
             <DialogTitle className="text-xl md:text-2xl font-bold">Start Recording</DialogTitle>
             <DialogDescription className="text-slate-400 mt-2">
-              The conversation will be saved as an audio file. All participants will be notified.
+              Record only with everyone’s permission. A recording indicator is shown to participants; the audio is saved when recording stops.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 md:py-6">
@@ -351,11 +361,13 @@ export const CallView: React.FC<CallViewProps> = ({
               className="bg-slate-950/50 border-white/10 text-white h-12 md:h-14 rounded-2xl px-6 focus:ring-primary/50"
             />
           </div>
+          <label className="flex items-center gap-3 text-sm mb-4"><Checkbox checked={recordingConsent} onCheckedChange={value => setRecordingConsent(value === true)} />I have participants’ permission to record.</label>
           <DialogFooter className="gap-3 sm:justify-end">
             <Button variant="ghost" onClick={() => setShowRecordDialog(false)} className="text-slate-400 hover:text-white hover:bg-white/5 h-10 md:h-12 rounded-xl px-4 md:px-6">Cancel</Button>
             <Button
+              disabled={!recordingConsent}
               onClick={() => { onStartRecording(recordingTitle); setShowRecordDialog(false); }}
-              className="bg-primary hover:bg-primary/90 text-white font-bold h-10 md:h-12 rounded-xl px-6 md:px-8 shadow-lg shadow-primary/20"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold h-10 md:h-12 rounded-xl px-6 md:px-8 shadow-lg shadow-primary/20"
             >
               Start Recording
             </Button>

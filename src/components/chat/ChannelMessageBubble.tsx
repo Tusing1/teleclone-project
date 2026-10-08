@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { MessageWithSender, Profile } from '@/types/chat';
 import { format } from 'date-fns';
-import { Eye, Share2, ChevronRight, Smile, MoreVertical, Reply, Link, Pin, Pencil, Trash2, Play, Download } from 'lucide-react';
+import { Eye, MessageCircle, Share2, ChevronRight, Smile, MoreVertical, Reply, Copy, Pin, Pencil, Trash2, Play, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Reaction } from '@/hooks/useReactions';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -15,6 +15,7 @@ import {
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { FilePreview } from './FilePreview';
+import { MediaViewer } from './MediaViewer';
 import { ChannelAudioPlayer } from './ChannelAudioPlayer';
 
 interface ChannelMessageBubbleProps {
@@ -58,6 +59,7 @@ export function ChannelMessageBubble({
   activeStreamId
 }: ChannelMessageBubbleProps) {
   const { user } = useAuth();
+  const [mediaOpen, setMediaOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const isOwn = message.sender_id === user?.id;
 
@@ -104,10 +106,11 @@ export function ChannelMessageBubble({
     return /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(url);
   };
 
-  const copyMessageLink = () => {
-    const link = `${window.location.origin}/message/${message.id}`;
-    navigator.clipboard.writeText(link);
-    toast.success('Link copied to clipboard');
+  const copyMessageLink = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content || message.file_url || '');
+      toast.success('Copied');
+    } catch { toast.error('Clipboard unavailable. Please try again.'); }
   };
 
   const renderFileThumbnail = () => {
@@ -116,14 +119,13 @@ export function ChannelMessageBubble({
     // Image thumbnail
     if (message.message_type === 'image' || isImageFile(message.file_url)) {
       return (
-        <div className="relative rounded-xl overflow-hidden mb-3">
+        <button type="button" aria-label="Open image" className="block w-full relative overflow-hidden" onClick={() => setMediaOpen(true)}>
           <img
             src={message.file_url}
             alt={message.file_name || 'Image'}
-            className="w-full max-h-80 object-cover cursor-pointer hover:opacity-95 transition-opacity"
-            onClick={() => window.open(message.file_url!, '_blank')}
+            className="block w-full max-h-96 object-contain cursor-pointer"
           />
-        </div>
+        </button>
       );
     }
 
@@ -132,8 +134,9 @@ export function ChannelMessageBubble({
       return (
         <ChannelAudioPlayer
           url={message.file_url}
+          fileName={message.file_name || undefined}
           title={message.file_name?.replace(/\.[^/.]+$/, '') || message.content || 'Audio Recording'}
-          className="mb-3"
+          className="mb-0"
         />
       );
     }
@@ -143,7 +146,7 @@ export function ChannelMessageBubble({
       return (
         <div
           className="relative rounded-xl overflow-hidden mb-3 cursor-pointer group"
-          onClick={() => window.open(message.file_url!, '_blank')}
+          onClick={() => setMediaOpen(true)}
         >
           <video
             src={message.file_url}
@@ -171,7 +174,7 @@ export function ChannelMessageBubble({
         url={message.file_url}
         fileName={message.file_name || 'File'}
         fileSize={message.file_size || undefined}
-        className="mb-3"
+        className="mb-0"
       />
     );
   };
@@ -191,7 +194,7 @@ export function ChannelMessageBubble({
       const parts = message.content.split(urlRegex);
 
       return (
-        <div className="text-foreground whitespace-pre-wrap text-[15px] leading-relaxed">
+        <div className="text-foreground whitespace-pre-wrap text-[15px] leading-snug">
           {parts.map((part, index) => {
             if (urlRegex.test(part)) {
               return (
@@ -206,7 +209,7 @@ export function ChannelMessageBubble({
                   }}
                   target={onOpenBrowser ? undefined : "_blank"}
                   rel="noopener noreferrer"
-                  className="text-sky-400 hover:underline break-all"
+                  className="text-primary hover:underline break-all"
                 >
                   {part}
                 </a>
@@ -228,11 +231,8 @@ export function ChannelMessageBubble({
     // Extract stream title
     const streamTitle = message.content?.split('"')[1] || 'Live Stream';
 
-    // Check if this specific stream is currently active (if activeStreamId is passed)
-    // Note: This is a simplification. Ideally, the message should contain the CALL ID to be robust.
-    // For now, we assume if A stream is active and this is a "Started" message, we act on it.
-    // Or simpler: Just check if ANY stream is active in this channel.
-    const showJoinButton = isStreamStarted && activeStreamId && onJoinStream;
+    // Join from the live header, not an unrelated historical "started" post.
+    const showJoinButton = false;
 
     return (
       <div className="flex justify-center my-4 w-full">
@@ -273,43 +273,44 @@ export function ChannelMessageBubble({
 
   return (
     <div className="flex items-start gap-2 group">
+      {mediaOpen && message.file_url && <MediaViewer open onClose={() => setMediaOpen(false)} url={message.file_url} fileName={message.file_name || 'Shared image.jpg'} />}
       {/* Main message bubble */}
       <div className="max-w-[85%] md:max-w-[70%] relative flex-1">
         {/* More options button - 3 dots */}
-        <div className="absolute -right-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute -right-10 top-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-full bg-slate-700/80 hover:bg-slate-600 text-slate-300"
+                className="h-8 w-8 rounded-full bg-secondary hover:bg-secondary/80 text-muted-foreground"
               >
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
-              <DropdownMenuItem onClick={onReply} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+            <DropdownMenuContent align="end" className="w-48 bg-popover border-border">
+              <DropdownMenuItem onClick={onReply} className="gap-2 text-foreground focus:bg-secondary focus:text-foreground">
                 <Reply className="h-4 w-4" />
                 Reply
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={copyMessageLink} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
-                <Link className="h-4 w-4" />
-                Copy Link
+              <DropdownMenuItem onClick={copyMessageLink} className="gap-2 text-foreground focus:bg-secondary focus:text-foreground">
+                <Copy className="h-4 w-4" />
+                {message.content ? 'Copy text' : 'Copy attachment link'}
               </DropdownMenuItem>
-              {isAdmin && (
-                <DropdownMenuItem onClick={onPin} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+              {isAdmin && onPin && (
+                <DropdownMenuItem onClick={onPin} className="gap-2 text-foreground focus:bg-secondary focus:text-foreground">
                   <Pin className="h-4 w-4" />
                   Pin
                 </DropdownMenuItem>
               )}
-              {(isOwn || isAdmin) && (
+              {isAdmin && (
                 <>
-                  <DropdownMenuSeparator className="bg-slate-700" />
-                  <DropdownMenuItem onClick={onEdit} className="gap-2 text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                  <DropdownMenuSeparator className="bg-secondary" />
+                  <DropdownMenuItem onClick={onEdit} className="gap-2 text-foreground focus:bg-secondary focus:text-foreground">
                     <Pencil className="h-4 w-4" />
                     Edit
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-400 focus:bg-slate-700 focus:text-red-400">
+                  <DropdownMenuItem onClick={onDelete} className="gap-2 text-red-400 focus:bg-secondary focus:text-red-400">
                     <Trash2 className="h-4 w-4" />
                     Delete
                   </DropdownMenuItem>
@@ -319,30 +320,30 @@ export function ChannelMessageBubble({
           </DropdownMenu>
         </div>
 
-        <div className="bg-slate-800/90 backdrop-blur-sm rounded-2xl overflow-hidden shadow-lg">
+        <div className="bg-card rounded-[1.35rem] overflow-hidden shadow-sm">
           {/* File/Image Content */}
           {message.file_url && (
-            <div className="p-3 pb-0">
+            <div className={message.message_type === 'image' || isImageFile(message.file_url) ? '' : 'p-2 pb-0'}>
               {renderFileThumbnail()}
             </div>
           )}
 
           {/* Text Content */}
           {message.content && (
-            <div className="px-4 py-3">
+            <div className="px-3 py-1.5">
               {renderContent()}
             </div>
           )}
 
           {/* Reactions Row */}
-          <div className="flex items-center gap-1.5 px-3 pb-2 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 flex-wrap">
             {reactions.map((reaction) => (
               <button
                 key={reaction.emoji}
                 onClick={() => onToggleReaction(reaction.emoji)}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-sm transition-all ${reaction.userReacted
-                  ? 'bg-sky-500/30 text-sky-300 border border-sky-500/40'
-                  : 'bg-slate-700/50 hover:bg-slate-600/50 text-slate-200'
+                  ? 'bg-sky-500/30 text-primary border border-sky-500/40'
+                  : 'bg-secondary hover:bg-secondary/80 text-foreground'
                   }`}
               >
                 <span>{reaction.emoji}</span>
@@ -355,12 +356,12 @@ export function ChannelMessageBubble({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 rounded-full hover:bg-slate-700/50 text-slate-400 hover:text-slate-200"
+                  className="h-7 w-7 p-0 rounded-full hover:bg-secondary text-muted-foreground hover:text-foreground"
                 >
                   <Smile className="w-4 h-4" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-auto p-2 bg-slate-800 border-slate-700" align="start">
+              <PopoverContent className="w-auto p-2 bg-popover border-border" align="start">
                 <div className="flex gap-1 flex-wrap max-w-[200px]">
                   {EMOJI_LIST.map((emoji) => (
                     <button
@@ -369,7 +370,7 @@ export function ChannelMessageBubble({
                         onToggleReaction(emoji);
                         setShowEmojiPicker(false);
                       }}
-                      className="text-xl p-1.5 hover:bg-slate-700 rounded-lg transition-colors"
+                      className="text-xl p-1.5 hover:bg-secondary rounded-lg transition-colors"
                     >
                       {emoji}
                     </button>
@@ -377,23 +378,14 @@ export function ChannelMessageBubble({
                 </div>
               </PopoverContent>
             </Popover>
+            <span className="ml-auto flex items-center gap-1.5 text-[10px] text-muted-foreground whitespace-nowrap"><Eye className="h-3 w-3" />{formatViewCount(message.view_count || 0)}<span>{formatTime(message.created_at)}</span></span>
           </div>
 
-          {/* View count and time at bottom */}
-          <div className="flex items-center gap-2 px-3 pb-2 text-xs text-slate-400">
-            <span className="flex items-center gap-1">
-              <Eye className="w-3 h-3" />
-              {formatViewCount(message.view_count || 0)}
-            </span>
-            <span>{formatTime(message.created_at)}</span>
-          </div>
-        </div>
-
-        {/* Comments Section - Outside the bubble */}
+        {/* Post discussion footer */}
         {onOpenComments && (
           <button
             onClick={onOpenComments}
-            className="flex items-center gap-2 mt-2 ml-1 group"
+            className="flex w-full items-center gap-2 border-t border-border/60 px-3 py-2 hover:bg-secondary/60 transition-colors group"
           >
             {/* Comment avatars */}
             {commentAvatars.length > 0 ? (
@@ -401,7 +393,7 @@ export function ChannelMessageBubble({
                 {commentAvatars.slice(0, 3).map((profile, index) => (
                   <div
                     key={index}
-                    className="w-6 h-6 rounded-full border-2 border-slate-900 overflow-hidden bg-slate-700"
+                    className="w-6 h-6 rounded-full border-2 border-background overflow-hidden bg-secondary"
                   >
                     {profile?.avatar_url ? (
                       <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
@@ -414,18 +406,16 @@ export function ChannelMessageBubble({
                 ))}
               </div>
             ) : (
-              <div className="flex -space-x-2">
-                <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-emerald-500 to-teal-600" />
-                <div className="w-6 h-6 rounded-full border-2 border-slate-900 bg-gradient-to-br from-violet-500 to-purple-600" />
-              </div>
+              <MessageCircle className="h-5 w-5 text-primary" />
             )}
 
-            <span className="text-sm font-medium text-sky-400 group-hover:text-sky-300 transition-colors flex items-center gap-1">
-              {commentCount > 0 ? `${commentCount} comments` : 'Leave a comment'}
+            <span className="text-sm font-medium text-primary group-hover:text-primary transition-colors flex items-center gap-1">
+              {commentCount > 0 ? `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}` : 'Leave a comment'}
               <ChevronRight className="w-4 h-4" />
             </span>
           </button>
         )}
+        </div>
       </div>
 
       {/* Forward button on the side - only for admins */}
@@ -434,7 +424,7 @@ export function ChannelMessageBubble({
           variant="ghost"
           size="icon"
           onClick={onForward}
-          className="h-10 w-10 rounded-full bg-slate-700/60 hover:bg-slate-600 text-slate-300 hover:text-white shrink-0 self-center"
+          className="h-10 w-10 rounded-full bg-secondary hover:bg-secondary/80 text-muted-foreground hover:text-white shrink-0 self-center"
         >
           <Share2 className="w-5 h-5" />
         </Button>

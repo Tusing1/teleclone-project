@@ -3,6 +3,7 @@ import { Play, Pause, Volume2, VolumeX, Download, Loader2, RotateCcw, RotateCw }
 import { cn } from '@/lib/utils';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { useFileCache } from '@/hooks/useFileCache';
 
 interface AudioPlayerProps {
@@ -27,10 +28,12 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   
-  const { isFileCached, getCachedFile, downloadAndCache } = useFileCache();
+  const { isFileCached, getCachedFile, downloadAndCache, saveOffline } = useFileCache();
 
   // Check cache and load audio
   useEffect(() => {
+    let disposed = false;
+    let objectUrl: string | null = null;
     const loadAudio = async () => {
       setIsLoading(true);
       
@@ -41,7 +44,8 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
         if (cached) {
           const cachedFile = await getCachedFile(url);
           if (cachedFile) {
-            const objectUrl = URL.createObjectURL(cachedFile.blob);
+            if (disposed) return;
+            objectUrl = URL.createObjectURL(cachedFile.blob);
             setAudioUrl(objectUrl);
             setIsLoading(false);
             return;
@@ -61,9 +65,8 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
     loadAudio();
     
     return () => {
-      if (audioUrl && audioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(audioUrl);
-      }
+      disposed = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [url]);
 
@@ -73,13 +76,13 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
     
     if (!isCached && audioUrl) {
       // Cache in background
-      downloadAndCache(url, fileName || 'audio.webm').then(() => {
-        setIsCached(true);
+      downloadAndCache(url, fileName || 'audio.webm').then(blob => {
+        if (blob) setIsCached(true);
       });
     }
     
-    audioRef.current.play();
-    setIsPlaying(true);
+    try { await audioRef.current.play(); setIsPlaying(true); }
+    catch { toast.error('Could not play this audio. Try saving it offline.'); }
   };
 
   const handlePause = () => {
@@ -170,11 +173,9 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const handleDownload = () => {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName || 'audio.webm';
-    a.click();
+  const handleDownload = async () => {
+    try { await saveOffline(url, fileName || 'audio.webm'); setIsCached(true); toast.success('Saved offline in StudyGram'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to save offline'); }
   };
 
   if (isLoading) {
@@ -382,6 +383,7 @@ export function AudioPlayer({ url, fileName, fileSize, className, variant = 'def
           size="icon"
           variant="ghost"
           className="h-8 w-8"
+          aria-label="Save audio offline"
           onClick={handleDownload}
         >
           <Download className="h-4 w-4" />

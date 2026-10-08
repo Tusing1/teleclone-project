@@ -1,7 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, Bot, Heart, MessageCircle, X } from 'lucide-react';
+import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, BookOpen, Home, UserRound, Heart, Bookmark } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,9 +22,11 @@ interface ConversationListProps {
   onDeleteConversation?: (conversationId: string) => void;
   getUserRole?: (conversationId: string) => string | null;
   onRefresh?: () => Promise<void>;
-  onOpenAskAI?: () => void;
   onOpenFindFriends?: () => void;
+  onOpenSavedMessages?: () => void;
   onOpenMessageFriends?: () => void;
+  onOpenEditProfile?: () => void;
+  onOpenGlobalSearch?: () => void;
   pendingLikesCount?: number;
   loading?: boolean;
 }
@@ -39,15 +40,15 @@ export function ConversationList({
   onDeleteConversation,
   getUserRole,
   onRefresh,
-  onOpenAskAI,
   onOpenFindFriends,
+  onOpenSavedMessages,
   onOpenMessageFriends,
+  onOpenEditProfile,
+  onOpenGlobalSearch,
   pendingLikesCount = 0,
   loading = false
 }: ConversationListProps) {
   const { user } = useAuth();
-  const [search, setSearch] = useState('');
-  const [fabOpen, setFabOpen] = useState(false);
 
   // Pull to refresh state
   const [isPulling, setIsPulling] = useState(false);
@@ -99,19 +100,8 @@ export function ConversationList({
 
   const progress = Math.min(pullDistance / threshold, 1);
 
-  const filteredConversations = conversations.filter(conv => {
-    // Groups and channels use their name
-    if (conv.type === 'group' || conv.type === 'channel') {
-      return conv.name?.toLowerCase().includes(search.toLowerCase()) ?? false;
-    }
-
-    // Direct messages use other participant's name
-    const otherParticipant = conv.participants.find(p => p.user_id !== user?.id);
-    if (!otherParticipant?.profile) return false;
-
-    const name = otherParticipant.profile.full_name || otherParticipant.profile.username;
-    return name.toLowerCase().includes(search.toLowerCase());
-  });
+  const [filter, setFilter] = useState<'all' | 'unread' | 'group' | 'channel'>('all');
+  const filteredConversations = conversations.filter(conv => filter === 'all' || (filter === 'unread' ? (conv.unreadCount || 0) > 0 : conv.type === filter));
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -151,11 +141,11 @@ export function ConversationList({
           onClick={() => onSelect(conv.id)}
           style={{ animationDelay }}
           className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group rounded-xl mx-2 my-1',
+            'flex items-center gap-3 p-3.5 cursor-pointer transition-colors group rounded-[1.25rem] mx-3 my-2 bg-card/70',
             'border border-transparent',
-            'hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5',
-            'hover:border-white/20 hover:shadow-lg hover:shadow-primary/5',
-            'hover:scale-[1.02] active:scale-[0.98]',
+            'hover:bg-secondary',
+            'hover:border-border',
+            'active:scale-[0.99]',
             'animate-fade-in opacity-0 [animation-fill-mode:forwards]',
             selectedId === conv.id && 'bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30 shadow-lg shadow-primary/10'
           )}
@@ -172,10 +162,10 @@ export function ConversationList({
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="font-medium truncate group-hover:text-white transition-colors">{conv.name}</span>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold truncate text-foreground transition-colors">{conv.name}</span>
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                   {formatTime(lastMessageTime)}
                 </span>
                 <DropdownMenu>
@@ -224,11 +214,11 @@ export function ConversationList({
           onClick={() => onSelect(conv.id)}
           style={{ animationDelay }}
           className={cn(
-            'flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group rounded-xl mx-2 my-1',
+            'flex items-center gap-3 p-3.5 cursor-pointer transition-colors group rounded-[1.25rem] mx-3 my-2 bg-card/70',
             'border border-transparent',
-            'hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5',
-            'hover:border-white/20 hover:shadow-lg hover:shadow-primary/5',
-            'hover:scale-[1.02] active:scale-[0.98]',
+            'hover:bg-secondary',
+            'hover:border-border',
+            'active:scale-[0.99]',
             'animate-fade-in opacity-0 [animation-fill-mode:forwards]',
             selectedId === conv.id && 'bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30 shadow-lg shadow-primary/10'
           )}
@@ -245,10 +235,10 @@ export function ConversationList({
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <span className="font-medium truncate group-hover:text-white transition-colors">{conv.name}</span>
-              <div className="flex items-center gap-1">
-                <span className="text-xs text-muted-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold truncate text-foreground transition-colors">{conv.name}</span>
+              <div className="flex shrink-0 items-center gap-1">
+                <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                   {formatTime(lastMessageTime)}
                 </span>
                 <DropdownMenu>
@@ -300,11 +290,11 @@ export function ConversationList({
         onClick={() => onSelect(conv.id)}
         style={{ animationDelay }}
         className={cn(
-          'flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group rounded-xl mx-2 my-1',
+          'flex items-center gap-3 p-3.5 cursor-pointer transition-colors group rounded-[1.25rem] mx-3 my-2 bg-card/70',
           'border border-transparent',
-          'hover:bg-gradient-to-r hover:from-white/10 hover:to-white/5',
-          'hover:border-white/20 hover:shadow-lg hover:shadow-primary/5',
-          'hover:scale-[1.02] active:scale-[0.98]',
+          'hover:bg-secondary',
+          'hover:border-border',
+          'active:scale-[0.99]',
           'animate-fade-in opacity-0 [animation-fill-mode:forwards]',
           selectedId === conv.id && 'bg-gradient-to-r from-primary/20 to-primary/10 border-primary/30 shadow-lg shadow-primary/10'
         )}
@@ -317,10 +307,10 @@ export function ConversationList({
           />
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between">
-            <span className="font-medium truncate group-hover:text-white transition-colors">{displayName}</span>
-            <div className="flex items-center gap-1">
-              <span className="text-xs text-muted-foreground">
+          <div className="flex items-center justify-between gap-2">
+            <span className="font-semibold truncate text-foreground transition-colors">{displayName}</span>
+            <div className="flex shrink-0 items-center gap-1">
+              <span className="shrink-0 whitespace-nowrap text-xs text-muted-foreground">
                 {formatTime(lastMessageTime)}
               </span>
               <DropdownMenu>
@@ -364,7 +354,7 @@ export function ConversationList({
         <div key={i} className="flex items-center gap-3 p-3">
           <Skeleton className="w-12 h-12 rounded-full shrink-0" />
           <div className="flex-1 space-y-2 min-w-0">
-            <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center justify-between gap-2 gap-2">
               <Skeleton className="h-4 w-1/3" />
               <Skeleton className="h-3 w-12" />
             </div>
@@ -376,41 +366,59 @@ export function ConversationList({
   );
 
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-white/5 to-transparent backdrop-blur-xl border-r border-white/10">
-      {/* Header with glassmorphism */}
-      <div className="p-4 border-b border-white/10 bg-white/5 backdrop-blur-xl">
-        <div className="flex items-center gap-3 mb-1">
-          <div className="relative shrink-0">
-            <div className="absolute inset-0 bg-primary/40 rounded-md animate-ping duration-[2000ms]" />
+    <div className="relative flex flex-col h-full bg-background">
+      {/* Compact mobile-first header */}
+      <div className="px-4 pt-5 pb-3 bg-background">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
               onClick={onMenuClick}
-              className="relative z-10 text-white/70 hover:text-white hover:bg-white/10 transition-all"
+              aria-label="Open StudyGram menu"
+              className="sg-icon-button"
             >
               <Menu className="h-5 w-5" />
             </Button>
-          </div>
-          {/* Glassmorphism search bar */}
-          <div className="relative flex-1 group">
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-violet-500/20 rounded-xl blur opacity-0 group-focus-within:opacity-100 transition-opacity duration-300" />
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40 group-focus-within:text-primary transition-colors" />
-              <Input
-                placeholder="Search chats..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 bg-white/10 backdrop-blur-xl border-white/10 text-white placeholder:text-white/40 focus-visible:ring-primary/50 focus-visible:border-primary/30 focus-visible:bg-white/15 rounded-xl transition-all duration-300 shadow-inner shadow-black/10"
-              />
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
+              <BookOpen className="h-5 w-5 text-primary" />
             </div>
+            <div>
+              <p className="text-lg font-bold tracking-tight text-foreground">StudyGram</p>
+              <p className="text-xs text-muted-foreground">Study together</p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {onOpenGlobalSearch && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onOpenGlobalSearch}
+                aria-label="Search StudyGram"
+                className="sg-icon-button"
+              >
+                <Search className="h-5 w-5" />
+              </Button>
+            )}
           </div>
         </div>
       </div>
 
+      <div className="px-5 pb-4 pt-2">
+        <div className="mb-4 flex items-end justify-between">
+          <h1 className="text-[2rem] font-bold leading-none tracking-tight text-foreground">Your circle<span className="text-primary">.</span></h1>
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">{conversations.length} chats</span>
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1" aria-label="Filter conversations">
+          {([{ id: 'all', label: 'All chats' }, { id: 'unread', label: 'Unread' }, { id: 'group', label: 'Groups' }, { id: 'channel', label: 'Channels' }] as const).map(tab => (
+            <button key={tab.id} onClick={() => setFilter(tab.id)} aria-pressed={filter === tab.id} className={cn('shrink-0 rounded-full border px-4 py-2.5 text-xs font-semibold transition-colors', filter === tab.id ? 'border-primary bg-primary text-primary-foreground' : 'border-border bg-card text-muted-foreground hover:text-foreground')}>{tab.label}</button>
+          ))}
+        </div>
+      </div>
       {/* Conversation list with pull-to-refresh */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto scrollbar-thin relative"
+        className="flex-1 overflow-y-auto scrollbar-thin relative pb-28 md:pb-0"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
@@ -444,7 +452,7 @@ export function ConversationList({
             renderSkeleton()
           ) : filteredConversations.length === 0 ? (
             <div className="p-4 text-center text-muted-foreground">
-              <p>No conversations yet</p>
+              <p>{filter === 'all' ? 'Your circle starts here.' : filter === 'unread' ? 'All caught up. No unread chats.' : `No ${filter === 'group' ? 'groups' : 'channels'} here yet.`}</p>
               <Button
                 variant="link"
                 onClick={onNewChat}
@@ -459,46 +467,37 @@ export function ConversationList({
         </div>
       </div>
 
-      {/* Dual FAB: StudyBuddies (with likes badge) peeking behind + New Message */}
-      <div className="absolute bottom-6 right-6 z-50">
-        <div className="relative">
-          {/* StudyBuddies FAB - peeking from behind with likes badge */}
-          <button
-            onClick={() => onOpenFindFriends?.()}
-            className={cn(
-              "absolute w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all duration-300",
-              "bg-gradient-to-br from-pink-500 to-rose-600",
-              "hover:scale-110 active:scale-95",
-              // Position offset to peek from behind (top-left of main FAB)
-              "-top-4 -left-4",
-              // Pulse glow animation
-              "before:absolute before:inset-0 before:rounded-full before:bg-pink-500/40 before:animate-ping"
-            )}
-            title="StudyBuddies"
-          >
-            <Users className="h-5 w-5 text-white relative z-10" />
+      {/* Mobile bottom tab bar: keep the most-used student actions within thumb reach. */}
+      <nav className="absolute inset-x-3 bottom-3 z-50 sg-dock px-2 py-2 md:static md:mx-3 md:mb-3 md:block" aria-label="StudyGram navigation">
+        <div className="grid grid-cols-5 items-center gap-1">
+          <button type="button" className="flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-primary" aria-current="page">
+            <Home className="h-5 w-5" />
+            <span className="text-[10px] font-semibold">Home</span>
+          </button>
 
-            {/* Likes badge - shows pending likes to entice clicks */}
+          <button type="button" onClick={() => onOpenFindFriends?.()} className="relative flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground transition-colors hover:text-foreground" aria-label="Find study buddies">
+            <Heart className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Buddies</span>
             {pendingLikesCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 px-1.5 rounded-full bg-yellow-400 text-[10px] font-bold text-black flex items-center justify-center shadow-lg animate-bounce z-20">
-                +{pendingLikesCount}
-              </span>
+              <span className="absolute right-2 top-0 min-w-4 rounded-full bg-pink-500 px-1 text-[9px] font-bold text-white">{pendingLikesCount}</span>
             )}
           </button>
 
-          {/* Main FAB - New Message (direct action, no expand) */}
-          <button
-            onClick={() => onOpenMessageFriends?.()}
-            className={cn(
-              "relative w-14 h-14 rounded-full shadow-xl flex items-center justify-center transition-all duration-300 z-10",
-              "bg-gradient-to-br from-primary to-primary/80 hover:shadow-primary/25 hover:shadow-2xl hover:scale-105 active:scale-95"
-            )}
-            title="New Message"
-          >
-            <Edit className="h-6 w-6 text-primary-foreground" />
+          <button type="button" onClick={() => onOpenMessageFriends?.()} className="flex h-12 w-12 items-center justify-center justify-self-center rounded-2xl bg-[#d6f58b] text-[#192313] shadow-lg shadow-black/10 transition-transform hover:scale-105 active:scale-95" aria-label="New message">
+            <Edit className="h-6 w-6" />
+          </button>
+
+          <button type="button" onClick={() => onOpenSavedMessages?.()} className="flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground transition-colors hover:text-foreground" aria-label="Saved messages">
+            <Bookmark className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Saved</span>
+          </button>
+
+          <button type="button" onClick={() => onOpenEditProfile?.()} className="flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground transition-colors hover:text-foreground" aria-label="Open profile">
+            <UserRound className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Profile</span>
           </button>
         </div>
-      </div>
+      </nav>
     </div>
   );
 }

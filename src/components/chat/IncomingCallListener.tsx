@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Phone, PhoneOff, User } from 'lucide-react';
 import { Avatar } from './Avatar';
@@ -26,11 +26,12 @@ export const IncomingCallListener = () => {
     const [incomingCall, setIncomingCall] = useState<IncomingCall | null>(null);
     const navigate = useNavigate();
     const { playRingtone, stopRingtone } = useCallSounds();
-    const ringtoneInterval = useRef<NodeJS.Timeout | null>(null);
+    const ringtoneInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
     useEffect(() => {
         if (!user) return;
 
+        let disposed = false;
         const channel = supabase
             .channel('global-call-listener')
             .on(
@@ -52,13 +53,23 @@ export const IncomingCallListener = () => {
                         .eq('user_id', user.id)
                         .maybeSingle();
 
-                    if (participation) {
+                    if (participation && !disposed) {
+                        const { data: conversation } = await supabase.from('conversations').select('type, name').eq('id', newCall.conversation_id).single();
+                        const { data: active } = await supabase.from('calls').select('is_active').eq('id', newCall.id).single();
+                        if (disposed || !active?.is_active) return;
+                        if (conversation?.type !== 'direct') {
+                            toast(conversation?.name || 'Study session', { id: 'call-' + newCall.id, description: 'A live audio session has started.', action: { label: 'Open', onClick: () => navigate('/', { state: { conversationId: newCall.conversation_id } }) }, duration: 12000 });
+                            return;
+                        }
                         const { data: callerProfile } = await supabase
                             .from('profiles')
                             .select('username, full_name, avatar_url')
                             .eq('user_id', newCall.started_by)
                             .single();
 
+                        if (disposed) return;
+                        const { data: stillActive } = await supabase.from('calls').select('is_active').eq('id', newCall.id).single();
+                        if (disposed || !stillActive?.is_active) return;
                         setIncomingCall({
                             ...newCall,
                             caller_profile: callerProfile || { username: 'Unknown User', full_name: 'Unknown', avatar_url: null }
@@ -69,13 +80,15 @@ export const IncomingCallListener = () => {
             .subscribe();
 
         return () => {
+            disposed = true;
             supabase.removeChannel(channel);
         };
     }, [user]);
 
     // Handle ringtone looping and vibration
     useEffect(() => {
-        let vibrationInterval: NodeJS.Timeout | null = null;
+        let vibrationInterval: ReturnType<typeof setInterval> | null = null;
+        const expires = incomingCall ? setTimeout(() => setIncomingCall(null), 45000) : null;
         
         if (incomingCall) {
             playRingtone();
@@ -107,6 +120,7 @@ export const IncomingCallListener = () => {
             }
         }
         return () => {
+            if (expires) clearTimeout(expires);
             if (ringtoneInterval.current) {
                 clearInterval(ringtoneInterval.current);
             }
@@ -171,6 +185,8 @@ export const IncomingCallListener = () => {
     return (
         <Dialog open={!!incomingCall} onOpenChange={(open) => !open && handleDecline()}>
             <DialogContent className="sm:max-w-md p-0 overflow-hidden bg-slate-900 border-none rounded-3xl shadow-2xl">
+                <DialogTitle className="sr-only">Incoming voice call</DialogTitle>
+                <DialogDescription className="sr-only">Accept to connect your microphone, or decline this invitation.</DialogDescription>
                 {/* Immersive Background Gradient */}
                 <div className="absolute inset-0 bg-gradient-to-b from-primary/20 via-background to-background" />
 
@@ -207,6 +223,7 @@ export const IncomingCallListener = () => {
                                 variant="destructive"
                                 size="lg"
                                 className="rounded-full h-16 w-16 p-0 shadow-lg hover:shadow-red-500/40 transition-all hover:scale-110 active:scale-95 bg-red-500/10 border border-red-500/20 text-red-500 hover:bg-red-500 hover:text-white"
+                                aria-label="Decline call"
                                 onClick={handleDecline}
                             >
                                 <PhoneOff className="h-7 w-7" />
@@ -219,6 +236,7 @@ export const IncomingCallListener = () => {
                                 variant="default"
                                 size="lg"
                                 className="rounded-full h-16 w-16 p-0 bg-green-500 hover:bg-green-600 text-white shadow-lg hover:shadow-green-500/40 transition-all hover:scale-110 active:scale-95 animate-bounce-subtle"
+                                aria-label="Accept call"
                                 onClick={handleAccept}
                             >
                                 <Phone className="h-7 w-7" />

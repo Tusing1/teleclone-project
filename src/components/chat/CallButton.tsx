@@ -20,6 +20,8 @@ export const CallButton: React.FC<CallButtonProps> = ({
       <Button
         variant="default"
         size="icon"
+        aria-label="Join live audio session"
+        title="Join live audio session"
         onClick={onJoinCall}
         className="bg-green-500 hover:bg-green-600 animate-pulse"
       >

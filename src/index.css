@@ -2,11 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-/* StudyGram Design System */
+/* StudyGram — campus after hours */
 
 @layer base {
   :root {
-    /* StudyGram Blue Theme */
+    /* Light counterpart to the shared violet identity. */
     --background: 0 0% 100%;
     --foreground: 210 11% 15%;
 
@@ -17,7 +17,7 @@
     --popover-foreground: 210 11% 15%;
 
     /* StudyGram Blue */
-    --primary: 210 100% 52%;
+    --primary: 255 75% 59%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 210 20% 96%;
@@ -26,7 +26,7 @@
     --muted: 210 20% 96%;
     --muted-foreground: 210 11% 50%;
 
-    --accent: 210 100% 52%;
+    --accent: 255 75% 59%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
@@ -34,75 +34,82 @@
 
     --border: 210 20% 90%;
     --input: 210 20% 90%;
-    --ring: 210 100% 52%;
+    --ring: 255 75% 59%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
+
+    /* Shared feature accents: use these sparingly on top of the same surfaces. */
+    --study-cyan: 190 95% 55%;
+    --study-mint: 160 70% 48%;
+    --study-coral: 346 88% 66%;
+    --study-violet: 260 85% 70%;
+    --study-amber: 38 95% 60%;
 
     /* Chat specific */
     --chat-bg: 213 40% 95%;
-    --message-out: 210 100% 52%;
+    --message-out: 255 65% 51%;
     --message-out-foreground: 0 0% 100%;
     --message-in: 0 0% 100%;
     --message-in-foreground: 210 11% 15%;
     --online: 142 70% 45%;
-    --typing: 210 100% 52%;
+    --typing: 255 75% 59%;
 
     /* Sidebar */
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 210 11% 15%;
-    --sidebar-primary: 210 100% 52%;
+    --sidebar-primary: 255 75% 59%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 210 100% 96%;
     --sidebar-accent-foreground: 210 11% 15%;
     --sidebar-border: 210 20% 90%;
-    --sidebar-ring: 210 100% 52%;
+    --sidebar-ring: 255 75% 59%;
   }
 
   .dark {
-    --background: 210 20% 10%;
-    --foreground: 210 20% 95%;
+    --background: 240 20% 7%;
+    --foreground: 220 25% 96%;
 
-    --card: 210 20% 13%;
-    --card-foreground: 210 20% 95%;
+    --card: 240 15% 11%;
+    --card-foreground: 220 25% 96%;
 
-    --popover: 210 20% 13%;
-    --popover-foreground: 210 20% 95%;
+    --popover: 240 15% 11%;
+    --popover-foreground: 220 25% 96%;
 
-    --primary: 210 100% 55%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 255 95% 76%;
+    --primary-foreground: 240 20% 7%;
 
-    --secondary: 210 20% 18%;
-    --secondary-foreground: 210 20% 95%;
+    --secondary: 240 12% 16%;
+    --secondary-foreground: 220 25% 96%;
 
-    --muted: 210 20% 18%;
-    --muted-foreground: 210 20% 60%;
+    --muted: 240 12% 16%;
+    --muted-foreground: 220 14% 66%;
 
-    --accent: 210 100% 55%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 255 95% 76%;
+    --accent-foreground: 240 20% 7%;
 
     --destructive: 0 62% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 210 20% 20%;
-    --input: 210 20% 20%;
-    --ring: 210 100% 55%;
+    --border: 240 12% 22%;
+    --input: 240 12% 22%;
+    --ring: 255 95% 76%;
 
     /* Chat specific dark */
-    --chat-bg: 210 20% 8%;
-    --message-out: 210 100% 45%;
+    --chat-bg: 230 24% 9%;
+    --message-out: 255 65% 51%;
     --message-out-foreground: 0 0% 100%;
-    --message-in: 210 20% 18%;
-    --message-in-foreground: 210 20% 95%;
+    --message-in: 240 12% 16%;
+    --message-in-foreground: 220 25% 96%;
 
     /* Sidebar dark */
-    --sidebar-background: 210 20% 10%;
-    --sidebar-foreground: 210 20% 95%;
-    --sidebar-primary: 210 100% 55%;
+    --sidebar-background: 228 24% 10%;
+    --sidebar-foreground: 220 25% 96%;
+    --sidebar-primary: 255 95% 76%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 210 20% 15%;
-    --sidebar-accent-foreground: 210 20% 95%;
-    --sidebar-border: 210 20% 18%;
-    --sidebar-ring: 210 100% 55%;
+    --sidebar-accent: 228 20% 16%;
+    --sidebar-accent-foreground: 220 25% 96%;
+    --sidebar-border: 228 18% 21%;
+    --sidebar-ring: 255 95% 76%;
   }
 }
 
@@ -120,6 +127,11 @@
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
     touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.3);
   }
 
   #root {
@@ -130,6 +142,36 @@
 }
 
 @layer utilities {
+  .study-surface {
+    background: hsl(var(--card) / 0.92);
+    border: 1px solid hsl(var(--border) / 0.75);
+    box-shadow: 0 18px 45px hsl(230 35% 3% / 0.22);
+    backdrop-filter: blur(24px);
+  }
+
+  .study-card {
+    border-radius: 1.25rem;
+    background: hsl(var(--card) / 0.72);
+    border: 1px solid hsl(var(--border) / 0.7);
+  }
+
+  .study-section-label {
+    color: hsl(var(--muted-foreground));
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  .study-control {
+    border-radius: 0.9rem;
+    transition: transform 160ms ease, background-color 160ms ease, border-color 160ms ease;
+  }
+
+  .study-control:active {
+    transform: scale(0.98);
+  }
+
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
@@ -156,4 +198,50 @@
   .safe-top {
     padding-top: env(safe-area-inset-top, 0);
   }
+
+  .study-grid {
+    background-image:
+      linear-gradient(hsl(var(--primary) / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+    background-size: 32px 32px;
+    mask-image: linear-gradient(to bottom, black, transparent 80%);
+  }
 }
+@layer components {
+  .sg-icon-button {
+    @apply flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-border/60 bg-secondary/70 text-foreground transition-colors hover:bg-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary;
+  }
+  .sg-dock {
+    @apply rounded-[1.75rem] border border-border bg-card/95 shadow-2xl backdrop-blur-xl;
+  }
+  .sg-sidebar-row {
+    @apply mx-3 flex w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-secondary;
+  }
+  .sg-sidebar-row svg {
+    @apply h-10 w-10 rounded-xl bg-secondary p-2.5 text-primary;
+  }
+  .sg-buddy-screen {
+    background: radial-gradient(ellipse at 50% 0%, hsl(var(--primary) / .13), transparent 50%), hsl(var(--background));
+  }
+  .sg-buddy-screen button, .sg-buddy-screen p, .sg-buddy-screen span {
+    letter-spacing: normal;
+  }
+  .sg-buddy-screen h3 {
+    font-style: normal;
+    letter-spacing: -.035em;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes sg-screen-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.sg-screen-enter { animation: sg-screen-in 150ms ease-out both; }

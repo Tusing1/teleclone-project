@@ -12,9 +12,6 @@ verify_jwt = true
 [functions.get-vapid-key]
 verify_jwt = false
 
-[functions.ai-chat]
-verify_jwt = false
-
 [functions.streak-reminder]
 verify_jwt = true
 

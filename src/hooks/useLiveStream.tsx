@@ -1,7 +1,9 @@
+import { createRecordingMixer } from '@/lib/recordingMixer';
+import { getCallPreferences, updateCallPreference } from './useCallPreferences';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
-import { CallParticipant } from './useCalls';
+import type { CallParticipant } from './useCalls';
 import { toast } from 'sonner';
 import { getTurnCredentials, FALLBACK_ICE_SERVERS } from '@/lib/webrtc';
 
@@ -20,7 +22,7 @@ export interface LiveStream {
   livestream_title: string | null;
 }
 
-export function useLiveStream(conversationId: string | null) {
+export function useLiveStream(conversationId: string | null, direct = false) {
   const { user } = useAuth();
   const [activeStream, setActiveStream] = useState<LiveStream | null>(null);
   const [participants, setParticipants] = useState<CallParticipant[]>([]);
@@ -30,29 +32,46 @@ export function useLiveStream(conversationId: string | null) {
   const peerConnections = useRef<Map<string, RTCPeerConnection>>(new Map());
   const [isRecording, setIsRecording] = useState(false);
   const [handRaised, setHandRaised] = useState(false);
-  const [noiseSuppression, setNoiseSuppression] = useState(true);
+  const [noiseSuppression, setNoiseSuppression] = useState(getCallPreferences().noiseSuppression);
   const [isMuted, setIsMuted] = useState(true); // Non-admins start muted
   const mediaRecorder = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
+  const recordingMixer = useRef<Awaited<ReturnType<typeof createRecordingMixer>> | null>(null);
+  useEffect(() => {
+    if (localStream) recordingMixer.current?.update([localStream, ...remoteStreams.values()]);
+  }, [localStream, remoteStreams]);
   const signalingChannel = useRef<any>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const joinedCallId = useRef<string | null>(null);
+  const busy = useRef(false);
+  const starting = useRef(false);
+  const sessionGeneration = useRef(0);
+  const activeFetchId = useRef(0);
+  const stopRecordingRef = useRef<() => Promise<void>>();
+  const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('disconnected');
 
   const cleanup = useCallback(() => {
+    sessionGeneration.current++;
+    joinedCallId.current = null;
+    busy.current = false;
+    setIsInStream(false); setConnectionStatus('disconnected');
     peerConnections.current.forEach(pc => pc.close());
     peerConnections.current.clear();
     setRemoteStreams(new Map());
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
-    }
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    localStreamRef.current = null;
+    setLocalStream(null);
     if (signalingChannel.current) {
       supabase.removeChannel(signalingChannel.current);
       signalingChannel.current = null;
     }
-  }, [localStream]);
+  }, []);
 
   // Fetch active stream
   const fetchActiveStream = useCallback(async () => {
     if (!conversationId) return;
+    const fetchId = ++activeFetchId.current;
+    const requestedGeneration = sessionGeneration.current;
 
     const { data, error } = await supabase
       .from('calls')
@@ -65,38 +84,22 @@ export function useLiveStream(conversationId: string | null) {
 
     if (error) {
       console.error('Error fetching active stream:', error);
-      setActiveStream(null);
-      setParticipants([]);
-      setIsRecording(false);
-      return;
+      return; // A transient fetch failure must not hide a working local call.
     }
 
     if (data) {
-      // If the current user accidentally started multiple streams, close the older ones.
-      if (user) {
-        const { error: cleanupError } = await supabase
-          .from('calls')
-          .update({ is_active: false, ended_at: new Date().toISOString() })
-          .eq('conversation_id', conversationId)
-          .eq('is_active', true)
-          .eq('started_by', user.id)
-          .neq('id', data.id);
-
-        if (cleanupError) {
-          console.warn('Failed to cleanup duplicate streams:', cleanupError);
-        }
-      }
-
       setActiveStream(data as LiveStream);
       setIsRecording(data.is_recording);
       await fetchParticipants(data.id);
       return;
     }
 
-    setActiveStream(null);
-    setParticipants([]);
-    setIsRecording(false);
-  }, [conversationId, user]);
+    if (joinedCallId.current) {
+      if (mediaRecorder.current?.state === 'recording') void stopRecordingRef.current?.().catch(() => toast.error('Recording could not finish saving.'));
+      cleanup();
+    }
+    setActiveStream(null); setParticipants([]); setIsRecording(false);
+  }, [conversationId, user?.id, cleanup]);
 
   // Store cached TURN config
   const turnConfigRef = useRef<RTCConfiguration | null>(null);
@@ -111,6 +114,7 @@ export function useLiveStream(conversationId: string | null) {
       turnConfigRef.current = await getTurnCredentials();
     }
 
+    if (peerConnections.current.has(remoteUserId)) return peerConnections.current.get(remoteUserId)!;
     console.log(`📡 Creating PeerConnection for user: ${remoteUserId} with dynamic TURN`);
     const pc = new RTCPeerConnection(turnConfigRef.current);
     peerConnections.current.set(remoteUserId, pc);
@@ -123,7 +127,7 @@ export function useLiveStream(conversationId: string | null) {
     // Handle remote track
     pc.ontrack = (event) => {
       console.log(`🎵 Remote track received from ${remoteUserId}:`, event.track.kind);
-      const [remoteStream] = event.streams;
+      const remoteStream = event.streams[0] || new MediaStream([event.track]);
       setRemoteStreams(prev => {
         const newMap = new Map(prev);
         newMap.set(remoteUserId, remoteStream);
@@ -145,20 +149,15 @@ export function useLiveStream(conversationId: string | null) {
       }
     };
 
-    pc.oniceconnectionstatechange = () => {
-      console.log(`🌐 ICE connection state with ${remoteUserId}: ${pc.iceConnectionState}`);
-
-      if (pc.iceConnectionState === 'disconnected') {
-        console.log(`📶 Participant ${remoteUserId} disconnected, waiting for auto-recovery...`);
-      }
-
-      if (pc.iceConnectionState === 'failed') {
-        console.warn(`❌ ICE connection failed for ${remoteUserId}, attempting restart...`);
+    pc.oniceconnectionstatechange = async () => {
+      if (pc.iceConnectionState === 'disconnected') setConnectionStatus('connecting');
+      if (pc.iceConnectionState === 'failed' && pc.signalingState === 'stable' && user && user.id < remoteUserId) {
         try {
-          pc.restartIce();
-        } catch (err) {
-          console.error('Failed to call restartIce:', err);
-        }
+          pc.setConfiguration(await getTurnCredentials(true));
+          const offer = await pc.createOffer({ iceRestart: true }); await pc.setLocalDescription(offer);
+          const { error } = await supabase.from('call_signals').insert({ call_id: callId, from_user: user.id, to_user: remoteUserId, signal_type: 'offer', signal_data: { type: offer.type, sdp: offer.sdp } });
+          if (error) throw error;
+        } catch { setConnectionStatus('disconnected'); toast.error('Connection lost. Leave and rejoin the session.'); }
       }
     };
 
@@ -169,11 +168,11 @@ export function useLiveStream(conversationId: string | null) {
     pc.onconnectionstatechange = () => {
       console.log(`🔌 Connection state with ${remoteUserId}: ${pc.connectionState}`);
       if (pc.connectionState === 'connected') {
-        toast.success(`Connected to participant`);
+        setConnectionStatus('connected');
       }
       if (pc.connectionState === 'failed') {
         console.warn(`Connection failed with ${remoteUserId}, attempting ICE restart...`);
-        pc.restartIce();
+        setConnectionStatus('connecting');
       }
     };
 
@@ -204,7 +203,7 @@ export function useLiveStream(conversationId: string | null) {
 
       if (user) {
         const currentParticipant = participantsData.find(p => p.user_id === user.id);
-        setIsInStream(!!currentParticipant);
+        setIsInStream(!!currentParticipant && joinedCallId.current === callId && !!localStreamRef.current);
         if (currentParticipant) {
           setHandRaised(currentParticipant.hand_raised || false);
           setIsMuted(currentParticipant.is_muted);
@@ -234,6 +233,7 @@ export function useLiveStream(conversationId: string | null) {
           // Only care about updates to OUR record
           if (newParticipant.user_id !== user.id) return;
 
+          if (newParticipant.left_at) { cleanup(); toast.info('You left the session.'); return; }
           console.log('🔔 Received participant update for self:', newParticipant);
 
           // Sync mute state
@@ -274,6 +274,13 @@ export function useLiveStream(conversationId: string | null) {
       return null;
     }
 
+    if (starting.current) return null;
+    starting.current = true;
+    const startingGeneration = sessionGeneration.current;
+    let preparedStream: MediaStream | undefined;
+    try {
+    const { data: permission } = await supabase.from('conversation_participants').select('role').eq('conversation_id', conversationId).eq('user_id', user.id).maybeSingle();
+    if (!permission || (!direct && !['admin', 'owner'].includes(permission.role))) throw new Error('Only admins can start a session.');
     // If a stream is already active for this channel, just join it.
     const { data: existing, error: existingError } = await supabase
       .from('calls')
@@ -284,20 +291,16 @@ export function useLiveStream(conversationId: string | null) {
       .limit(1)
       .maybeSingle();
 
-    if (!existingError && existing) {
+    if (existingError) throw existingError;
+    if (existing) {
       console.log('Stream already active, joining instead of creating:', existing.id);
       await joinStream(existing.id, false);
       return existing.id;
     }
 
-    // Cleanup any other active streams started by this same user (prevents duplicates).
-    await supabase
-      .from('calls')
-      .update({ is_active: false, ended_at: new Date().toISOString() })
-      .eq('conversation_id', conversationId)
-      .eq('is_active', true)
-      .eq('started_by', user.id);
-
+    // Ask for the microphone before announcing a call to the conversation.
+    preparedStream = await navigator.mediaDevices.getUserMedia({ audio: getCallPreferences() });
+    if (startingGeneration !== sessionGeneration.current) throw new Error('Starting the call was cancelled.');
     console.log('Starting live stream...', { conversationId, title });
 
     const { data, error } = await supabase
@@ -313,13 +316,19 @@ export function useLiveStream(conversationId: string | null) {
 
     if (error) {
       console.error('Error starting stream:', error);
-      return null;
+      throw error;
     }
 
     console.log('Stream created:', data);
 
-    // Send a system message to notify channel members
+    // Join the stream immediately
     try {
+      if (startingGeneration !== sessionGeneration.current) throw new Error('Starting the call was cancelled.');
+      await joinStream(data.id, false, preparedStream);
+    }
+    catch (error) { await supabase.from('calls').update({ is_active: false, ended_at: new Date().toISOString() }).eq('id', data.id).eq('started_by', user.id); throw error; }
+    // Send a system message to notify channel members
+    if (!direct) try {
       const { error: msgErr } = await supabase
         .from('messages')
         .insert({
@@ -333,214 +342,146 @@ export function useLiveStream(conversationId: string | null) {
       console.error('🔴 System message exception:', err);
     }
 
-    // Join the stream immediately
-    await joinStream(data.id, false); // Admin starts unmuted
+    void supabase.functions.invoke('send-push-notification', { body: { call_id: data.id } }).then(({ error }) => { if (error) console.warn('Call push could not be delivered'); });
     return data.id;
-  };
-
-  // Join stream
-  const joinStream = async (callId: string, startMuted: boolean = true) => {
-    if (!user) {
-      console.log('Cannot join stream: no user');
-      return;
-    }
-
-    console.log('Joining stream...', { callId, startMuted });
-
-    try {
-      // Refresh current participants to know who to connect to
-      const { data: participantsData } = await supabase
-        .from('call_participants')
-        .select('user_id')
-        .eq('call_id', callId)
-        .is('left_at', null);
-
-      const otherUserIds = participantsData?.map(p => p.user_id).filter(id => id !== user.id) || [];
-
-      // Request audio permission
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: noiseSuppression,
-          autoGainControl: true
-        }
-      });
-
-      console.log('Got audio stream');
-
-      // Mute by default for non-admins
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = !startMuted;
-      });
-
-      setLocalStream(stream);
-      setIsMuted(startMuted);
-
-      // CRITICAL: Ensure the user has only one active participant row per call - check for ANY existing row
-      // We do this BEFORE any signaling starts so that RLS doesn't block OUR signals.
-      const { data: existingParticipant } = await supabase
-        .from('call_participants')
-        .select('id')
-        .eq('call_id', callId)
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (existingParticipant?.id) {
-        console.log('Re-joining stream: Updating existing participant record before signaling');
-        await supabase
-          .from('call_participants')
-          .update({
-            is_muted: startMuted,
-            is_video_off: true,
-            hand_raised: false,
-            noise_suppression: noiseSuppression,
-            left_at: null // Clear left_at
-          })
-          .eq('id', existingParticipant.id);
-      } else {
-        console.log('Joining stream: Creating new participant record before signaling');
-        await supabase
-          .from('call_participants')
-          .insert({
-            call_id: callId,
-            user_id: user.id,
-            is_muted: startMuted,
-            is_video_off: true,
-            hand_raised: false,
-            noise_suppression: noiseSuppression,
-            left_at: null
-          });
-      }
-
-      setIsInStream(true);
-      await fetchActiveStream();
-
-      // Setup signaling channel
-      const channel = supabase
-        .channel(`livestream-signal-${callId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'call_signals',
-            filter: `call_id=eq.${callId}`
-          },
-          async (payload: any) => {
-            const signal = payload.new;
-            if (signal.from_user === user.id) return;
-            // If the signal is targeted at someone else, ignore it (unless it's a broadcast)
-            if (signal.to_user && signal.to_user !== user.id) return;
-
-            console.log(`📥 Received signal ${signal.signal_type} from ${signal.from_user}`);
-
-            const pc = await getOrCreatePC(signal.from_user, stream, callId);
-
-            try {
-              if (signal.signal_type === 'offer') {
-                await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data));
-                const answer = await pc.createAnswer();
-                await pc.setLocalDescription(answer);
-                await supabase.from('call_signals').insert({
-                  call_id: callId,
-                  from_user: user.id,
-                  to_user: signal.from_user,
-                  signal_type: 'answer',
-                  signal_data: answer as any
-                });
-              } else if (signal.signal_type === 'answer') {
-                await pc.setRemoteDescription(new RTCSessionDescription(signal.signal_data));
-              } else if (signal.signal_type === 'ice-candidate') {
-                await pc.addIceCandidate(new RTCIceCandidate(signal.signal_data));
-              }
-            } catch (err) {
-              console.error('Error handling signal:', err);
-            }
-          }
-        )
-        .subscribe();
-
-      signalingChannel.current = channel;
-
-      // Initiate connections to existing participants
-      for (const remoteUserId of otherUserIds) {
-        const pc = await getOrCreatePC(remoteUserId, stream, callId);
-        const offer = await pc.createOffer();
-        await pc.setLocalDescription(offer);
-        await supabase.from('call_signals').insert({
-          call_id: callId,
-          from_user: user.id,
-          to_user: remoteUserId,
-          signal_type: 'offer',
-          signal_data: offer as any
-        });
-      }
-
-      console.log('Join process completed successfully');
-      console.log('Stream joined successfully with WebRTC signaling');
     } catch (error) {
-      console.error('Error joining stream:', error);
-      // Re-throw the error
+      preparedStream?.getTracks().forEach(track => track.stop());
       throw error;
-    }
+    } finally { starting.current = false; }
   };
 
-  // Leave stream
-  const leaveStream = async () => {
-    if (!user || !activeStream) return;
-
-    // If YOU are the one recording, stop + save before leaving.
-    if (activeStream.is_recording && activeStream.recorded_by === user.id) {
-      await stopRecording();
-    }
-
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-      setLocalStream(null);
-    }
-
-    await supabase
-      .from('call_participants')
-      .update({ left_at: new Date().toISOString() })
-      .eq('call_id', activeStream.id)
-      .eq('user_id', user.id);
-
-    setIsInStream(false);
-    setHandRaised(false);
-    await fetchActiveStream();
-  };
-
-  // End stream
-  const endStream = async () => {
-    if (!activeStream || !user || !conversationId) return;
-
-    const streamTitle = activeStream.livestream_title || 'Live Stream';
-
-    // Stop + save recording first (prevents losing audio when ending the stream).
-    if (activeStream.is_recording && activeStream.recorded_by === user.id) {
-      await stopRecording();
-    }
-
-    await supabase
-      .from('calls')
-      .update({
-        is_active: false,
-        ended_at: new Date().toISOString(),
-      })
-      .eq('id', activeStream.id);
-
-    // Send a system message to notify channel members that the stream ended
-    await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        sender_id: user.id,
-        content: `⚫ Live Stream Ended: "${streamTitle}"`,
-        message_type: 'system',
+  // Joining is an explicit local session, not inferred from a stale database row.
+  const joinStream = async (callId: string, startMuted = true, preparedStream?: MediaStream) => {
+    if (!user || !conversationId) throw new Error('Sign in before joining.');
+    if (busy.current || (joinedCallId.current === callId && localStreamRef.current)) { preparedStream?.getTracks().forEach(track => track.stop()); return; }
+    busy.current = true;
+    const generation = sessionGeneration.current;
+    const assertCurrent = () => { if (generation !== sessionGeneration.current) throw new Error('Joining was cancelled.'); };
+    setConnectionStatus('connecting');
+    try {
+      const { data: call, error: callError } = await supabase.from('calls').select('*').eq('id', callId).eq('conversation_id', conversationId).eq('is_active', true).single();
+      if (callError || !call) throw new Error('This session has ended. Refresh the channel.');
+      const { data: member, error: memberError } = await supabase.from('conversation_participants').select('role').eq('conversation_id', conversationId).eq('user_id', user.id).single();
+      if (memberError || !member) throw new Error('Join this channel before joining its call.');
+      const muted = !direct && (startMuted || !['owner', 'admin'].includes(member.role));
+      const stream = preparedStream || await navigator.mediaDevices.getUserMedia({ audio: getCallPreferences() });
+      if (generation !== sessionGeneration.current) { stream.getTracks().forEach(track => track.stop()); throw new Error('Joining was cancelled.'); }
+      localStreamRef.current = stream; setLocalStream(stream);
+      stream.getAudioTracks().forEach(track => { track.enabled = !muted; });
+      setIsMuted(muted);
+      turnConfigRef.current = await getTurnCredentials();
+      assertCurrent();
+      if (!turnConfigRef.current.iceServers?.some(server => [server.urls].flat().some(url => /^turns?:/.test(url)))) toast.warning('Relay service is unavailable. Calls across different networks may fail.');
+      const joinedAt = new Date().toISOString();
+      const { data: old, error: oldError } = await supabase.from('call_participants').select('id').eq('call_id', callId).eq('user_id', user.id).limit(1).maybeSingle();
+      assertCurrent();
+      if (oldError) throw oldError;
+      const row = { is_muted: muted, is_video_off: true, hand_raised: false, noise_suppression: getCallPreferences().noiseSuppression, left_at: null, joined_at: joinedAt };
+      const result = old ? await supabase.from('call_participants').update(row).eq('id', old.id) : await supabase.from('call_participants').insert({ ...row, call_id: callId, user_id: user.id });
+      assertCurrent();
+      if (result.error) throw result.error;
+      joinedCallId.current = callId; setActiveStream(call as LiveStream);
+      const seen = new Set<string>();
+      const queues = new Map<string, Promise<void>>();
+      const pendingIce = new Map<string, RTCIceCandidateInit[]>();
+      const send = async (remote: string, type: string, data: any) => {
+        const { error } = await supabase.from('call_signals').insert({ call_id: callId, from_user: user.id, to_user: remote, signal_type: type, signal_data: data });
+        if (error) throw error;
+      };
+      const handleSignal = (signal: any) => {
+        if (generation !== sessionGeneration.current || signal.from_user === user.id || signal.to_user !== user.id || seen.has(signal.id)) return;
+        seen.add(signal.id);
+        const remote = signal.from_user;
+        const task = (queues.get(remote) || Promise.resolve()).then(async () => {
+          if (generation !== sessionGeneration.current) return;
+          const pc = await getOrCreatePC(remote, stream, callId);
+          if (signal.signal_type === 'ice-candidate') {
+            if (!pc.remoteDescription) { pendingIce.set(remote, [...(pendingIce.get(remote) || []), signal.signal_data]); return; }
+            await pc.addIceCandidate(signal.signal_data); return;
+          }
+          if (signal.signal_type === 'offer') {
+            if (pc.signalingState !== 'stable') {
+              if (user.id < remote) return; // Deterministic polite side resolves simultaneous offers.
+              await pc.setLocalDescription({ type: 'rollback' });
+            }
+            await pc.setRemoteDescription(signal.signal_data);
+            const answer = await pc.createAnswer(); await pc.setLocalDescription(answer);
+            await send(remote, 'answer', { type: answer.type, sdp: answer.sdp });
+          } else if (signal.signal_type === 'answer' && pc.signalingState === 'have-local-offer') {
+            await pc.setRemoteDescription(signal.signal_data);
+          } else return;
+          for (const candidate of pendingIce.get(remote) || []) await pc.addIceCandidate(candidate);
+          pendingIce.delete(remote);
+        }).catch(error => { console.warn('Call signaling failed:', error); setConnectionStatus('connecting'); });
+        queues.set(remote, task);
+      };
+      const channel = supabase.channel(`livestream-signal-${callId}-${user.id}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_signals', filter: `call_id=eq.${callId}` }, payload => handleSignal(payload.new));
+      signalingChannel.current = channel;
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error('Could not connect signaling. Try joining again.')), 12000);
+        channel.subscribe((status: string) => {
+          if (status === 'SUBSCRIBED') { clearTimeout(timeout); resolve(); }
+          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { clearTimeout(timeout); reject(new Error('Call signaling unavailable.')); }
+        });
       });
+      assertCurrent();
+      // Replay any targeted signals received while the subscription was connecting.
+      const { data: replay } = await supabase.from('call_signals').select('*').eq('call_id', callId).eq('to_user', user.id).gte('created_at', joinedAt).order('created_at');
+      assertCurrent();
+      replay?.forEach(handleSignal);
+      const { data: activeParticipants, error: participantError } = await supabase.from('call_participants').select('user_id').eq('call_id', callId).is('left_at', null);
+      assertCurrent();
+      if (participantError) throw participantError;
+      for (const remote of activeParticipants?.filter(row => row.user_id !== user.id) || []) {
+        assertCurrent();
+        const pc = await getOrCreatePC(remote.user_id, stream, callId);
+        if (pc.signalingState !== 'stable' || pc.remoteDescription) continue;
+        const offer = await pc.createOffer(); await pc.setLocalDescription(offer);
+        await send(remote.user_id, 'offer', { type: offer.type, sdp: offer.sdp });
+      }
+      const { data: stillActive } = await supabase.from('calls').select('is_active').eq('id', callId).single();
+      assertCurrent();
+      if (!stillActive?.is_active) throw new Error('This session ended while you were joining.');
+      setIsInStream(true);
+      if (!activeParticipants?.some(row => row.user_id !== user.id)) setConnectionStatus('connected');
+      await fetchParticipants(callId);
+    } catch (error) {
+      if (generation === sessionGeneration.current) cleanup();
+      if (joinedCallId.current !== callId) await supabase.from('call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', callId).eq('user_id', user.id);
+      throw error;
+    } finally { if (generation === sessionGeneration.current || !joinedCallId.current) busy.current = false; }
+  };
 
-    await leaveStream();
+  const leaveStream = async () => {
+    const callId = joinedCallId.current || activeStream?.id;
+    if (!user || !callId || busy.current) return;
+    busy.current = true;
+    try {
+      if (mediaRecorder.current?.state === 'recording') void stopRecording().catch(() => toast.error('Recording could not finish saving.'));
+      if (direct) {
+        const { data, error } = await supabase.from('calls').update({ is_active: false, ended_at: new Date().toISOString() }).eq('id', callId).select('id').single();
+        if (error || !data) toast.error('Disconnected locally; ending the call could not sync.');
+      }
+      cleanup(); setHandRaised(false);
+      const { error } = await supabase.from('call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', callId).eq('user_id', user.id);
+      if (error) toast.error('Disconnected locally, but leaving could not sync. Check your connection.');
+      await fetchActiveStream();
+    } finally { busy.current = false; }
+  };
+
+  const endStream = async () => {
+    if (!activeStream || !user || !conversationId || busy.current) return;
+    busy.current = true;
+    try {
+      const { data: permission } = await supabase.from('conversation_participants').select('role').eq('conversation_id', conversationId).eq('user_id', user.id).maybeSingle();
+      if (!direct && activeStream.started_by !== user.id && !['owner', 'admin'].includes(permission?.role || '')) throw new Error('Only the host or an admin can end this session.');
+      if (mediaRecorder.current?.state === 'recording') void stopRecording().catch(() => toast.error('Recording could not finish saving.'));
+      const { data, error } = await supabase.from('calls').update({ is_active: false, is_recording: false, ended_at: new Date().toISOString() }).eq('id', activeStream.id).select('id').single();
+      if (error || !data) throw new Error('Session could not be ended. Check your connection and try again.');
+      cleanup(); setActiveStream(null); setParticipants([]);
+      await supabase.from('call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', activeStream.id).eq('user_id', user.id);
+      if (!direct) await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, content: `⚫ Live Stream Ended: "${activeStream.livestream_title || 'Live Stream'}"`, message_type: 'system' });
+    } finally { busy.current = false; }
   };
 
   // Raise hand
@@ -619,6 +560,7 @@ export function useLiveStream(conversationId: string | null) {
     if (!user || !activeStream) return;
 
     const newValue = !noiseSuppression;
+    updateCallPreference('noiseSuppression', newValue);
     setNoiseSuppression(newValue);
 
     await supabase
@@ -627,24 +569,9 @@ export function useLiveStream(conversationId: string | null) {
       .eq('call_id', activeStream.id)
       .eq('user_id', user.id);
 
-    // Re-initialize audio stream with new settings
-    if (localStream) {
-      localStream.getTracks().forEach(track => track.stop());
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: newValue,
-          autoGainControl: true,
-        },
-      });
-
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = !isMuted;
-      });
-
-      setLocalStream(stream);
-    }
+    // Apply constraints to the existing microphone; do not stop a track still sent to peers.
+    try { await localStreamRef.current?.getAudioTracks()[0]?.applyConstraints({ noiseSuppression: newValue }); }
+    catch { toast.error('This microphone cannot change noise suppression during a call.'); }
   };
 
   // Update stream title
@@ -665,17 +592,19 @@ export function useLiveStream(conversationId: string | null) {
 
     try {
       recordedChunks.current = [];
+      recordingMixer.current?.dispose();
+      recordingMixer.current = await createRecordingMixer(localStream, [...remoteStreams.values()]);
 
       // Pick a supported mimeType (prevents "start recording" failures on some browsers)
       const preferredMimeType = 'audio/webm;codecs=opus';
       let recorder: MediaRecorder;
 
       if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.(preferredMimeType)) {
-        recorder = new MediaRecorder(localStream, { mimeType: preferredMimeType });
+        recorder = new MediaRecorder(recordingMixer.current.stream, { mimeType: preferredMimeType });
       } else if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.('audio/webm')) {
-        recorder = new MediaRecorder(localStream, { mimeType: 'audio/webm' });
+        recorder = new MediaRecorder(recordingMixer.current.stream, { mimeType: 'audio/webm' });
       } else {
-        recorder = new MediaRecorder(localStream);
+        recorder = new MediaRecorder(recordingMixer.current.stream);
       }
 
       mediaRecorder.current = recorder;
@@ -687,13 +616,12 @@ export function useLiveStream(conversationId: string | null) {
       };
 
       mediaRecorder.current.onstop = async () => {
-        const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        const blob = new Blob(recordedChunks.current, { type: mediaRecorder.current?.mimeType || 'audio/webm' });
         await saveRecording(blob, title);
       };
 
-      mediaRecorder.current.start(1000);
 
-      await supabase
+      const { error: recordingError } = await supabase
         .from('calls')
         .update({
           is_recording: true,
@@ -702,9 +630,24 @@ export function useLiveStream(conversationId: string | null) {
         })
         .eq('id', activeStream.id);
 
+      if (recordingError) throw recordingError;
+      recorder.start(1000);
       setIsRecording(true);
     } catch (error) {
+      recordedChunks.current = [];
+      const failedRecorder = mediaRecorder.current;
+      if (failedRecorder) {
+        failedRecorder.onstop = null;
+        failedRecorder.ondataavailable = null;
+        if (failedRecorder.state !== 'inactive') failedRecorder.stop();
+      }
+      mediaRecorder.current = null;
+      setIsRecording(false);
+      await supabase.from('calls').update({ is_recording: false }).eq('id', activeStream.id);
+      recordingMixer.current?.dispose();
+      recordingMixer.current = null;
       console.error('Error starting recording:', error);
+      toast.error('Could not start recording. Please try again.');
     }
   };
 
@@ -733,7 +676,7 @@ export function useLiveStream(conversationId: string | null) {
             try {
               console.log('Recorder stopped, chunks:', recordedChunks.current.length);
               if (recordedChunks.current.length > 0) {
-                const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+                const blob = new Blob(recordedChunks.current, { type: mediaRecorder.current?.mimeType || 'audio/webm' });
                 console.log('Saving recording blob, size:', blob.size);
                 await saveRecording(blob, recordingTitle);
               } else {
@@ -757,7 +700,7 @@ export function useLiveStream(conversationId: string | null) {
         });
       } else if (recordedChunks.current.length > 0) {
         // If recorder missing but chunks exist, save anyway
-        const blob = new Blob(recordedChunks.current, { type: 'audio/webm' });
+        const blob = new Blob(recordedChunks.current, { type: mediaRecorder.current?.mimeType || 'audio/webm' });
         console.log('Saving orphaned chunks, size:', blob.size);
         await saveRecording(blob, recordingTitle);
       } else {
@@ -765,6 +708,8 @@ export function useLiveStream(conversationId: string | null) {
       }
     } finally {
       mediaRecorder.current = null;
+      recordingMixer.current?.dispose();
+      recordingMixer.current = null;
       recordedChunks.current = [];
 
       await supabase
@@ -775,6 +720,8 @@ export function useLiveStream(conversationId: string | null) {
       setIsRecording(false);
     }
   };
+
+  stopRecordingRef.current = stopRecording;
 
   // Save recording
   const saveRecording = async (blob: Blob, title: string) => {
@@ -787,7 +734,8 @@ export function useLiveStream(conversationId: string | null) {
     toast.loading('Saving recording...', { id: 'save-recording' });
 
     try {
-      const fileName = `recording_${Date.now()}.webm`;
+      const extension = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const fileName = `recording_${Date.now()}.${extension}`;
       const filePath = `${user.id}/${fileName}`;
 
       console.log('Uploading to storage:', filePath);
@@ -807,59 +755,19 @@ export function useLiveStream(conversationId: string | null) {
 
       console.log('Uploaded, public URL:', publicUrl);
 
-      // Find the channel owner/admin to send recording to their inbox
-      let adminConversationId: string | null = null;
+      // Channel recordings belong in the owner's Telegram-style Saved Messages.
+      const { data: savedConversation, error: savedConversationError } = await supabase.functions.invoke('create-conversation', {
+        body: { type: 'saved' }
+      });
+      const savedMessagesId = savedConversation?.id as string | undefined;
 
-      try {
-        // Get the channel/conversation details to find the owner
-        const { data: conversation } = await supabase
-          .from('conversations')
-          .select('created_by')
-          .eq('id', conversationId)
-          .single();
-
-        if (!conversation?.created_by) {
-          throw new Error('Could not find channel owner');
-        }
-
-        const adminUserId = conversation.created_by;
-
-        // If the current user IS the admin, find or create a self-conversation
-        if (adminUserId === user.id) {
-          const { data, error } = await supabase.functions.invoke('create-conversation', {
-            body: {
-              type: 'direct',
-              participant_id: user.id // Self-conversation
-            }
-          });
-
-          if (!error && data?.id) {
-            adminConversationId = data.id;
-          }
-        } else {
-          // Create or find DM with the admin
-          const { data, error } = await supabase.functions.invoke('create-conversation', {
-            body: {
-              type: 'direct',
-              participant_id: adminUserId
-            }
-          });
-
-          if (!error && data?.id) {
-            adminConversationId = data.id;
-          }
-        }
-      } catch (err) {
-        console.error('Failed to create conversation with admin:', err);
-      }
-
-      if (!adminConversationId) {
-        console.error('Could not create conversation with admin');
-        toast.error('Could not send recording to admin', { id: 'save-recording' });
+      if (savedConversationError || !savedMessagesId) {
+        console.error('Could not create Saved Messages conversation:', savedConversationError);
+        toast.error('Could not open Saved Messages', { id: 'save-recording' });
         return;
       }
 
-      console.log('Inserting recording into admin conversation:', adminConversationId);
+      console.log('Inserting channel recording into Saved Messages:', savedMessagesId);
 
       // Create message with recording (store as a normal file; UI detects .webm as audio)
       const displayTitle = (title || 'Live Stream Recording').trim() || 'Live Stream Recording';
@@ -868,28 +776,28 @@ export function useLiveStream(conversationId: string | null) {
       const { error: msgError } = await supabase
         .from('messages')
         .insert({
-          conversation_id: adminConversationId,
+          conversation_id: savedMessagesId,
           sender_id: user.id,
           content: displayTitle,
           message_type: 'file',
           file_url: publicUrl,
-          file_name: `${safeFileTitle}.webm`,
+          file_name: `${safeFileTitle}.${extension}`,
           file_size: blob.size,
         });
 
       if (msgError) {
         console.error('Error inserting recording message:', msgError);
-        toast.error('Failed to send recording to admin', { id: 'save-recording' });
+        toast.error('Failed to save recording to Saved Messages', { id: 'save-recording' });
         return;
       }
 
       await supabase
         .from('conversations')
         .update({ updated_at: new Date().toISOString() })
-        .eq('id', adminConversationId);
+        .eq('id', savedMessagesId);
 
       console.log('Recording saved successfully!');
-      toast.success('Recording sent to admin inbox', { id: 'save-recording' });
+      toast.success('Recording saved to Saved Messages', { id: 'save-recording' });
     } catch (error) {
       console.error('Error saving recording:', error);
       toast.error('Failed to save recording', { id: 'save-recording' });
@@ -912,10 +820,15 @@ export function useLiveStream(conversationId: string | null) {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'call_participants' },
-        () => {
-          if (activeStream) {
-            fetchParticipants(activeStream.id);
+        (payload: any) => {
+          const row = payload.new;
+          if (!activeStream || row?.call_id !== activeStream.id) return;
+          if (row.left_at) {
+            peerConnections.current.get(row.user_id)?.close();
+            peerConnections.current.delete(row.user_id);
+            setRemoteStreams(prev => { const next = new Map(prev); next.delete(row.user_id); return next; });
           }
+          void fetchParticipants(activeStream.id);
         }
       )
       .subscribe();
@@ -924,24 +837,6 @@ export function useLiveStream(conversationId: string | null) {
       supabase.removeChannel(channel);
     };
   }, [conversationId, fetchActiveStream, activeStream?.id]);
-
-  // Handle participant cleanup (close PeerConnections for those who left)
-  useEffect(() => {
-    const participantUserIds = new Set(participants.map(p => p.user_id));
-
-    peerConnections.current.forEach((pc, userId) => {
-      if (!participantUserIds.has(userId)) {
-        console.log(`📡 Closing PeerConnection for user who left: ${userId}`);
-        pc.close();
-        peerConnections.current.delete(userId);
-        setRemoteStreams(prev => {
-          const newMap = new Map(prev);
-          newMap.delete(userId);
-          return newMap;
-        });
-      }
-    });
-  }, [participants]);
 
   // Sync hardware mute state with database state
   useEffect(() => {
@@ -961,10 +856,13 @@ export function useLiveStream(conversationId: string | null) {
   // Thorough cleanup on unmount
   useEffect(() => {
     return () => {
-      cleanup();
-      if (mediaRecorder.current && mediaRecorder.current.state !== 'inactive') {
-        mediaRecorder.current.stop();
+      const callId = joinedCallId.current;
+      if (mediaRecorder.current?.state === 'recording') void stopRecordingRef.current?.();
+      if (callId && user) {
+        void supabase.from('call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', callId).eq('user_id', user.id).then(() => {});
+        if (direct) void supabase.from('calls').update({ is_active: false, ended_at: new Date().toISOString() }).eq('id', callId).then(() => {});
       }
+      cleanup();
     };
   }, [cleanup]);
 
@@ -996,6 +894,7 @@ export function useLiveStream(conversationId: string | null) {
     handRaised,
     noiseSuppression,
     isMuted,
+    connectionStatus,
     startStream,
     joinStream,
     leaveStream,

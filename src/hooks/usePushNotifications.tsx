@@ -194,16 +194,13 @@ export function usePushNotifications() {
     if (!user || !isSubscribed) return false;
 
     try {
-      const { error } = await supabase.functions.invoke('send-push-notification', {
+      const { data, error } = await supabase.functions.invoke('send-push-notification', {
         body: {
-          userId: user.id,
-          title: '🔔 Test Notification',
-          body: 'Push notifications are working correctly!',
-          data: { type: 'test' }
+          user_id: user.id
         }
       });
 
-      if (error) throw error;
+      if (error || !(data?.sent > 0)) throw error || new Error('No device received the notification.');
       return true;
     } catch (error) {
       console.error('Error sending test notification:', error);

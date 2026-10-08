@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Heart, MessageCircle, Sparkles, X, Wand2, Copy } from 'lucide-react';
+import { Heart, MessageCircle, Sparkles, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Profile } from '@/types/chat';
 import { cn } from '@/lib/utils';
-import { useAIChat } from '@/hooks/useAIChat';
-import { toast } from 'sonner';
 
 interface MatchCelebrationProps {
   matchedUser: Profile;
@@ -31,9 +29,6 @@ export function MatchCelebration({ matchedUser, onClose, onSendMessage, onKeepSw
   const [confetti, setConfetti] = useState<Confetti[]>([]);
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const [showContent, setShowContent] = useState(false);
-  const [icebreakers, setIcebreakers] = useState<string[]>([]);
-  const [loadingIcebreakers, setLoadingIcebreakers] = useState(false);
-  const { generateIcebreakers } = useAIChat();
 
   useEffect(() => {
     // Generate confetti
@@ -58,15 +53,6 @@ export function MatchCelebration({ matchedUser, onClose, onSendMessage, onKeepSw
     // Show content with delay
     const t = window.setTimeout(() => setShowContent(true), 300);
 
-    // Load icebreakers
-    const loadIcebreakers = async () => {
-      setLoadingIcebreakers(true);
-      const suggestions = await generateIcebreakers(matchedUser);
-      setIcebreakers(suggestions);
-      setLoadingIcebreakers(false);
-    };
-    loadIcebreakers();
-
     // Sound effect
     try {
       const audio = new AudioContext();
@@ -84,11 +70,6 @@ export function MatchCelebration({ matchedUser, onClose, onSendMessage, onKeepSw
 
     return () => window.clearTimeout(t);
   }, [matchedUser]);
-
-  const handleCopyIcebreaker = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success("Icebreaker copied! Paste it in the chat.");
-  };
 
   return (
     <div
@@ -163,40 +144,6 @@ export function MatchCelebration({ matchedUser, onClose, onSendMessage, onKeepSw
             You and {matchedUser.full_name || matchedUser.username} are synced
           </p>
           <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
-        </div>
-
-        {/* AI Icebreakers Section */}
-        <div className="w-full mb-8 space-y-4">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-pink-500/20 flex items-center justify-center border border-pink-500/30">
-                <Wand2 className="w-3 h-3 text-pink-400" />
-              </div>
-              <span className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">AI Icebreakers</span>
-            </div>
-            {icebreakers.length > 0 && <span className="text-[9px] font-bold text-pink-400/60">TAP TO COPY</span>}
-          </div>
-
-          <div className="space-y-3">
-            {loadingIcebreakers ? (
-              <div className="space-y-3">
-                <div className="h-14 w-full bg-white/5 animate-pulse rounded-2xl border border-white/10" />
-                <div className="h-14 w-full bg-white/5 animate-pulse rounded-2xl border border-white/10" />
-              </div>
-            ) : (
-              icebreakers.slice(0, 3).map((text, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleCopyIcebreaker(text)}
-                  className="w-full text-left p-4 rounded-2xl bg-gradient-to-br from-white/10 to-transparent hover:from-white/15 border border-white/10 hover:border-pink-500/50 transition-all group relative overflow-hidden active:scale-95"
-                >
-                  <div className="absolute top-0 left-0 w-1 h-full bg-pink-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <p className="text-[13px] text-white/90 pr-8 font-medium leading-snug">"{text}"</p>
-                  <Copy className="absolute right-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20 group-hover:text-pink-400 transition-colors" />
-                </button>
-              ))
-            )}
-          </div>
         </div>
 
         {/* Action buttons */}

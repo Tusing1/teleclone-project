@@ -1,3 +1,4 @@
+import { MediaViewer } from './MediaViewer';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -21,6 +22,7 @@ interface RecordingsDialogProps {
 
 export function RecordingsDialog({ open, onClose, onForwardRecording }: RecordingsDialogProps) {
   const { recordings, loading } = useRecordings();
+  const [preview, setPreview] = useState<Recording | null>(null);
   const [search, setSearch] = useState('');
   const [playingId, setPlayingId] = useState<string | null>(null);
 
@@ -55,11 +57,11 @@ export function RecordingsDialog({ open, onClose, onForwardRecording }: Recordin
 
   const handleDownload = async (rec: Recording) => {
     if (!rec.recording_url) return;
-    
+
     try {
       // Open recording URL in new tab for download
-      window.open(rec.recording_url, '_blank');
-      toast.success('Opening recording...');
+      setPreview(rec);
+
     } catch (error) {
       toast.error('Failed to download recording');
     }
@@ -72,6 +74,7 @@ export function RecordingsDialog({ open, onClose, onForwardRecording }: Recordin
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
+      {preview?.recording_url && <MediaViewer open onClose={() => setPreview(null)} url={preview.recording_url} fileName={`${preview.recording_title || 'Recording'}.webm`} />}
       <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -153,7 +156,7 @@ export function RecordingsDialog({ open, onClose, onForwardRecording }: Recordin
                       size="icon"
                       className="h-8 w-8"
                       onClick={() => handleDownload(rec)}
-                      title="Download"
+                      title="Open / save offline"
                     >
                       <Download className="h-4 w-4" />
                     </Button>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Users, Trash2, UserPlus, Crown, Shield } from 'lucide-react';
+import { Pencil, Settings, Users, Trash2, UserPlus, Crown, Shield } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,8 @@ export function GroupSettingsDialog({
   onRefresh 
 }: GroupSettingsDialogProps) {
   const { user } = useAuth();
+  const [editingInfo, setEditingInfo] = useState(false);
+  useEffect(() => { if (open) setEditingInfo(false); }, [open]);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -129,7 +131,7 @@ export function GroupSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col">
+      <DialogContent className="sm:max-w-md max-h-[92dvh] flex flex-col rounded-3xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
@@ -140,22 +142,24 @@ export function GroupSettingsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <ScrollArea className="flex-1 min-h-0 pr-4">
           <div className="space-y-4 py-4">
             {/* Group Info */}
-            <div className="flex items-center gap-3 p-3 rounded-lg bg-secondary/30">
-              <div className="w-10 h-10 rounded-full bg-emerald-500 flex items-center justify-center">
-                <Users className="w-5 h-5 text-white" />
+            <div className="flex flex-col items-center gap-3 p-5 rounded-3xl bg-secondary/30 text-center">
+              <div className="w-24 h-24 rounded-full bg-primary/15 flex items-center justify-center overflow-hidden">
+                {group.avatar_url ? <img src={group.avatar_url} alt="" className="w-full h-full object-cover" /> : <Users className="w-10 h-10 text-primary" />}
               </div>
               <div>
-                <p className="font-semibold">{group.name}</p>
+                <p className="text-2xl font-bold">{group.name}</p>
                 <p className="text-sm text-muted-foreground">
                   {members.length} member{members.length !== 1 ? 's' : ''}
                 </p>
               </div>
             </div>
 
-            {canEdit && (
+            {!editingInfo && group.description && <p className="rounded-2xl bg-secondary/40 p-4 text-sm whitespace-pre-wrap">{group.description}</p>}
+            {canEdit && <Button variant="secondary" className="w-full rounded-2xl" onClick={() => { if (editingInfo) { setName(group.name || ''); setDescription(group.description || ''); } setEditingInfo(v => !v); }}><Pencil className="h-4 w-4 mr-2" />{editingInfo ? 'Cancel info edits' : 'Edit group info'}</Button>}
+            {canEdit && editingInfo && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="group-name">Group Name</Label>
@@ -199,7 +203,7 @@ export function GroupSettingsDialog({
                   return (
                     <div 
                       key={participant.id}
-                      className="flex items-center justify-between p-2 rounded-lg border border-border"
+                      className="flex items-center justify-between gap-2 p-3 rounded-2xl bg-secondary/40"
                     >
                       <div className="flex items-center gap-2">
                         <Avatar
@@ -274,7 +278,7 @@ export function GroupSettingsDialog({
           <Button variant="outline" onClick={onClose} className="flex-1">
             {canEdit ? 'Cancel' : 'Close'}
           </Button>
-          {canEdit && (
+          {canEdit && editingInfo && (
             <Button 
               onClick={handleSave} 
               className="flex-1"

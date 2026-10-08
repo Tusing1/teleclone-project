@@ -1,39 +1,35 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
 import { useFriendRequests } from '@/hooks/useFriendRequests';
 import { useFindFriends } from '@/hooks/useFindFriends';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
-import { useStudyTokens } from '@/hooks/useStudyTokens';
 import { useReferrals } from '@/hooks/useReferrals';
 import { ConversationList } from '@/components/chat/ConversationList';
 import { ChatView } from '@/components/chat/ChatView';
 import { DiscussionView } from '@/components/chat/DiscussionView';
 import { EmptyState } from '@/components/chat/EmptyState';
-import { NewChatDialog } from '@/components/chat/NewChatDialog';
+const NewChatDialog = lazy(() => import('@/components/chat/NewChatDialog').then(module => ({ default: module.NewChatDialog })));
 import { Sidebar } from '@/components/chat/Sidebar';
-import { ContactsDialog } from '@/components/chat/ContactsDialog';
-import { InviteFriendsDialog } from '@/components/chat/InviteFriendsDialog';
-import { CreateGroupDialog } from '@/components/chat/CreateGroupDialog';
-import { CreateChannelDialog } from '@/components/chat/CreateChannelDialog';
-import { ForwardMessageDialog } from '@/components/chat/ForwardMessageDialog';
-import { FindFriendsDialog } from '@/components/chat/FindFriendsDialog';
-import { EditProfileDialog } from '@/components/chat/EditProfileDialog';
-import { CallsInboxDialog } from '@/components/chat/CallsInboxDialog';
-import { InviteJoinDialog } from '@/components/chat/InviteJoinDialog';
-import { StudyTokensDialog } from '@/components/chat/StudyTokensDialog';
-import { GlobalSearchDialog } from '@/components/chat/GlobalSearchDialog';
-import { AdminPanelDialog } from '@/components/chat/AdminPanelDialog';
-import { AskAIDialog } from '@/components/chat/AskAIDialog';
-import { FriendRequestsDialog } from '@/components/chat/FriendRequestsDialog';
-import { MessageFriendsDialog } from '@/components/chat/MessageFriendsDialog';
-import { StudyBuddiesDialog } from '@/components/chat/StudyBuddiesDialog';
-import { StudyLabsDialog } from '@/components/chat/StudyLabsDialog';
-import { SettingsDialog } from '@/components/chat/SettingsDialog';
-import { InAppBrowser } from '@/components/chat/InAppBrowser';
+const ContactsDialog = lazy(() => import('@/components/chat/ContactsDialog').then(module => ({ default: module.ContactsDialog })));
+const InviteFriendsDialog = lazy(() => import('@/components/chat/InviteFriendsDialog').then(module => ({ default: module.InviteFriendsDialog })));
+const CreateGroupDialog = lazy(() => import('@/components/chat/CreateGroupDialog').then(module => ({ default: module.CreateGroupDialog })));
+const CreateChannelDialog = lazy(() => import('@/components/chat/CreateChannelDialog').then(module => ({ default: module.CreateChannelDialog })));
+const ForwardMessageDialog = lazy(() => import('@/components/chat/ForwardMessageDialog').then(module => ({ default: module.ForwardMessageDialog })));
+const FindFriendsDialog = lazy(() => import('@/components/chat/FindFriendsDialog').then(module => ({ default: module.FindFriendsDialog })));
+const EditProfileDialog = lazy(() => import('@/components/chat/EditProfileDialog').then(module => ({ default: module.EditProfileDialog })));
+const CallsInboxDialog = lazy(() => import('@/components/chat/CallsInboxDialog').then(module => ({ default: module.CallsInboxDialog })));
+const InviteJoinDialog = lazy(() => import('@/components/chat/InviteJoinDialog').then(module => ({ default: module.InviteJoinDialog })));
+const GlobalSearchDialog = lazy(() => import('@/components/chat/GlobalSearchDialog').then(module => ({ default: module.GlobalSearchDialog })));
+const FriendRequestsDialog = lazy(() => import('@/components/chat/FriendRequestsDialog').then(module => ({ default: module.FriendRequestsDialog })));
+const MessageFriendsDialog = lazy(() => import('@/components/chat/MessageFriendsDialog').then(module => ({ default: module.MessageFriendsDialog })));
+const StudyBuddiesDialog = lazy(() => import('@/components/chat/StudyBuddiesDialog').then(module => ({ default: module.StudyBuddiesDialog })));
+const SettingsDialog = lazy(() => import('@/components/chat/SettingsDialog').then(module => ({ default: module.SettingsDialog })));
+const InAppBrowser = lazy(() => import('@/components/chat/InAppBrowser').then(module => ({ default: module.InAppBrowser })));
 import { InterestsOnboarding } from '@/components/chat/InterestsOnboarding';
-import { RecordingsView } from '@/components/chat/RecordingsView';
+const DownloadedFilesDialog = lazy(() => import('@/components/chat/DownloadedFilesDialog').then(module => ({ default: module.DownloadedFilesDialog })));
+const RecordingsView = lazy(() => import('@/components/chat/RecordingsView').then(module => ({ default: module.RecordingsView })));
 import { EncryptionInitializer } from '@/components/chat/EncryptionInitializer';
 import { PWAUpdatePrompt } from '@/components/chat/PWAUpdatePrompt';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
@@ -50,26 +46,9 @@ export default function Index() {
   // Initialize notification sound listener
   useNotificationSound();
 
-  // Study tokens hook for daily login tracking
-  const { checkDailyLogin } = useStudyTokens();
-
   // Referrals hook for processing pending referral codes
   const { processReferralCode } = useReferrals();
 
-  // Check daily login on app load
-  useEffect(() => {
-    if (user) {
-      checkDailyLogin().then((result) => {
-        if (result) {
-          if (result.milestoneBonus && result.milestoneMessage) {
-            toast.success(`${result.milestoneMessage} +${result.tokensEarned} tokens!`);
-          } else {
-            toast.success(`🔥 Day ${result.streak} streak! +${result.tokensEarned} tokens`);
-          }
-        }
-      });
-    }
-  }, [user, checkDailyLogin]);
 
   const {
     conversations,
@@ -83,13 +62,12 @@ export default function Index() {
     deleteConversation,
     getUserRole,
     getOrCreateSavedMessages,
-    forwardToSavedMessages,
     forwardToConversation,
     fetchConversations: refetchConversations
   } = useConversations();
 
   const { pendingCount: friendRequestsCount } = useFriendRequests();
-  const { likedByCount } = useFindFriends();
+  const { likedByCount } = useFindFriends(false);
   const totalLikesCount = friendRequestsCount + likedByCount;
 
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
@@ -102,15 +80,12 @@ export default function Index() {
   const [showFindFriends, setShowFindFriends] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showCallsInbox, setShowCallsInbox] = useState(false);
-  const [showStudyTokens, setShowStudyTokens] = useState(false);
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
-  const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [showAskAI, setShowAskAI] = useState(false);
   const [showFriendRequests, setShowFriendRequests] = useState(false);
   const [showMessageFriends, setShowMessageFriends] = useState(false);
   const [showStudyBuddies, setShowStudyBuddies] = useState(false);
-  const [showStudyLabs, setShowStudyLabs] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showDownloaded, setShowDownloaded] = useState(false);
   const [showRecordings, setShowRecordings] = useState(false);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
   const [isMobile, setIsMobile] = useState(false);
@@ -121,6 +96,7 @@ export default function Index() {
 
   // Discussion group navigation state
   const [discussionContext, setDiscussionContext] = useState<{
+    discussionId: string;
     parentChannel: ConversationWithDetails | null;
     replyToMessage: MessageWithSender | null;
   } | null>(null);
@@ -144,6 +120,19 @@ export default function Index() {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    const open = (data: { conversationId?: string; type?: string }) => {
+      if (data?.conversationId && /^[0-9a-f-]{36}$/i.test(data.conversationId)) {
+        setSelectedConversationId(data.conversationId);
+        setDiscussionContext(null); setShowRecordings(false);
+      } else if (data?.type === 'match') setShowFindFriends(true);
+    };
+    open({ conversationId: new URLSearchParams(location.search).get('conversation') || undefined });
+    const listener = (event: MessageEvent) => { if (event.data?.type === 'NOTIFICATION_CLICK') open(event.data.payload); };
+    navigator.serviceWorker?.addEventListener('message', listener);
+    return () => navigator.serviceWorker?.removeEventListener('message', listener);
+  }, [location.search]);
 
   // Process pending referral code after signup
   useEffect(() => {
@@ -200,20 +189,9 @@ export default function Index() {
     }
   };
 
-  // Forward message - if in Saved Messages, show destination picker; else forward to Saved Messages
-  const handleForwardMessage = async (message: MessageWithSender, fromSavedMessages: boolean = false) => {
-    if (fromSavedMessages) {
-      // From Saved Messages - show forward dialog to pick destination
-      setForwardDialogMessage(message);
-    } else {
-      // Forward to Saved Messages
-      const success = await forwardToSavedMessages(message);
-      if (success) {
-        toast.success('Message forwarded to Saved Messages');
-      } else {
-        toast.error('Failed to forward message');
-      }
-    }
+  // Forwarding opens the destination picker, like Telegram.
+  const handleForwardMessage = (message: MessageWithSender) => {
+    setForwardDialogMessage(message);
   };
 
   const handleForwardToConversation = async (message: MessageWithSender, conversationId: string): Promise<boolean> => {
@@ -281,12 +259,10 @@ export default function Index() {
   };
 
   const handleNavigateToDiscussion = async (discussionId: string, parentChannel?: ConversationWithDetails, replyToMessage?: MessageWithSender) => {
-    // Refetch conversations to ensure the discussion group appears in the list
-    await refetchConversations();
+    setDiscussionContext({ discussionId, parentChannel: parentChannel || null, replyToMessage: replyToMessage || null });
     setSelectedConversationId(discussionId);
-    if (parentChannel) {
-      setDiscussionContext({ parentChannel, replyToMessage: replyToMessage || null });
-    }
+    // Keep navigation synchronous; membership refresh runs behind the comments screen.
+    void refetchConversations();
   };
 
   const handleInviteJoined = (conversationId: string) => {
@@ -297,7 +273,9 @@ export default function Index() {
 
   const selectedConversation = [...conversations, ...archivedConversations].find(
     c => c.id === selectedConversationId
-  );
+  ) || (discussionContext?.parentChannel && discussionContext.discussionId === selectedConversationId ? {
+    ...discussionContext.parentChannel, id: discussionContext.discussionId, type: 'group' as const, participants: [],
+  } : undefined);
 
   // Check if current conversation is a discussion group (has a parent channel linking to it)
   const isDiscussionGroup = selectedConversation && conversations.some(
@@ -325,21 +303,14 @@ export default function Index() {
   const showChat = !isMobile || selectedConversationId || showRecordings;
 
   return (
-    <div className="flex h-full h-[100dvh] overflow-hidden bg-[#0a0a0f] relative safe-top safe-bottom">
+    <div className="flex h-full h-[100dvh] overflow-hidden bg-background relative safe-top safe-bottom">
       {/* E2EE Encryption Initializer */}
       <EncryptionInitializer />
       {/* PWA Update Prompt */}
       <PWAUpdatePrompt />
-      {/* Immersive Animated Background */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-600/10 rounded-full blur-[120px] animate-blob" />
-        <div className="absolute top-[20%] right-[-5%] w-[35%] h-[35%] bg-blue-600/10 rounded-full blur-[120px] animate-blob animation-delay-2000" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[45%] h-[45%] bg-pink-600/10 rounded-full blur-[120px] animate-blob animation-delay-4000" />
-        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
-      </div>
-
-      {/* Main Glassmorphic Shell */}
-      <div className="flex w-full h-full relative z-10 backdrop-blur-[2px]">
+      {/* Main app shell */}
+      <div className="flex w-full h-full relative z-10 ">
+        {showDownloaded && <Suspense fallback={null}><DownloadedFilesDialog onClose={() => setShowDownloaded(false)} /></Suspense>}
         {/* Sidebar menu */}
         <Sidebar
           open={showSidebar}
@@ -348,17 +319,10 @@ export default function Index() {
           onOpenCreateGroup={() => setShowCreateGroup(true)}
           onOpenCreateChannel={() => setShowCreateChannel(true)}
           onOpenInviteFriends={() => setShowInviteFriends(true)}
-          onOpenFindFriends={() => setShowFindFriends(true)}
-          onOpenEditProfile={() => setShowEditProfile(true)}
           onOpenCallsInbox={() => setShowCallsInbox(true)}
-          onOpenStudyTokens={() => setShowStudyTokens(true)}
-          onOpenGlobalSearch={() => setShowGlobalSearch(true)}
-          onOpenAdminPanel={() => setShowAdminPanel(true)}
-          onOpenAskAI={() => setShowAskAI(true)}
           onOpenFriendRequests={() => setShowFriendRequests(true)}
-          onOpenStudyBuddies={() => setShowStudyBuddies(true)}
-          onOpenStudyLabs={() => setShowStudyLabs(true)}
           onOpenSettings={() => setShowSettings(true)}
+          onOpenDownloaded={() => setShowDownloaded(true)}
           onOpenRecordings={() => {
             setSelectedConversationId(null);
             setShowRecordings(true);
@@ -373,9 +337,10 @@ export default function Index() {
           )}
         >
           <ConversationList
-            conversations={conversations}
+            conversations={conversations.filter(c => !conversations.some(parent => parent.type === 'channel' && parent.linked_discussion_id === c.id))}
             selectedId={selectedConversationId}
             onSelect={(id) => {
+              setDiscussionContext(null);
               setSelectedConversationId(id);
               setShowRecordings(false);
             }}
@@ -384,9 +349,11 @@ export default function Index() {
             onDeleteConversation={handleDeleteConversation}
             getUserRole={getUserRole}
             onRefresh={refetchConversations}
-            onOpenAskAI={() => setShowAskAI(true)}
             onOpenFindFriends={() => setShowFindFriends(true)}
+            onOpenSavedMessages={handleOpenSavedMessages}
             onOpenMessageFriends={() => setShowMessageFriends(true)}
+            onOpenEditProfile={() => setShowEditProfile(true)}
+            onOpenGlobalSearch={() => setShowGlobalSearch(true)}
             pendingLikesCount={totalLikesCount}
             loading={convLoading}
           />
@@ -402,6 +369,7 @@ export default function Index() {
           {selectedConversation ? (
             isDiscussionGroup ? (
               <DiscussionView
+                key={discussionContext?.replyToMessage?.id || selectedConversation.id}
                 conversation={selectedConversation}
                 parentChannel={parentChannel}
                 replyToMessage={discussionContext?.replyToMessage}
@@ -419,6 +387,7 @@ export default function Index() {
               />
             ) : (
               <ChatView
+                key={selectedConversation.id}
                 conversation={selectedConversation}
                 onBack={() => setSelectedConversationId(null)}
                 onForwardMessage={handleForwardMessage}
@@ -430,106 +399,94 @@ export default function Index() {
               />
             )
           ) : showRecordings ? (
-            <RecordingsView onBack={() => setShowRecordings(false)} />
+            <Suspense fallback={<div role="status" className="p-6 text-muted-foreground">Opening recordings…</div>}><RecordingsView onBack={() => setShowRecordings(false)} /></Suspense>
           ) : (
             <EmptyState />
           )}
         </div>
 
+        <Suspense fallback={<div role="status" className="fixed inset-0 z-[100] bg-background/80 flex items-center justify-center"><span className="text-primary animate-pulse">Opening…</span></div>}>
         {/* Dialogs */}
-        <NewChatDialog
+        {showNewChat && (<NewChatDialog
           open={showNewChat}
           onClose={() => setShowNewChat(false)}
           onSelectUser={handleSelectUser}
-        />
+        />)}
 
 
-        <ContactsDialog
+        {showContacts && (<ContactsDialog
           open={showContacts}
           onClose={() => setShowContacts(false)}
           onSelectUser={handleSelectUser}
           onOpenInvite={() => setShowInviteFriends(true)}
-        />
+        />)}
 
-        <InviteFriendsDialog
+        {showInviteFriends && (<InviteFriendsDialog
           open={showInviteFriends}
           onClose={() => setShowInviteFriends(false)}
-        />
+        />)}
 
-        <CreateGroupDialog
+        {showCreateGroup && (<CreateGroupDialog
           open={showCreateGroup}
           onClose={() => setShowCreateGroup(false)}
           onCreateGroup={handleCreateGroup}
-        />
+        />)}
 
-        <CreateChannelDialog
+        {showCreateChannel && (<CreateChannelDialog
           open={showCreateChannel}
           onClose={() => setShowCreateChannel(false)}
           onCreateChannel={handleCreateChannel}
-        />
+        />)}
 
-        <ForwardMessageDialog
+        {forwardDialogMessage && (<ForwardMessageDialog
           open={!!forwardDialogMessage}
           onClose={() => setForwardDialogMessage(null)}
           message={forwardDialogMessage}
           conversations={conversations}
           onForward={handleForwardToConversation}
-        />
+        />)}
 
-        <FindFriendsDialog
+        {showFindFriends && (<FindFriendsDialog
           open={showFindFriends}
           onClose={() => setShowFindFriends(false)}
           onOpenConversation={(conversationId) => {
             refetchConversations();
             setSelectedConversationId(conversationId);
           }}
-        />
+        />)}
 
-        <EditProfileDialog
+        {showEditProfile && (<EditProfileDialog
           open={showEditProfile}
           onClose={() => setShowEditProfile(false)}
-        />
+        />)}
 
 
-        <CallsInboxDialog
+        {showCallsInbox && (<CallsInboxDialog
           open={showCallsInbox}
           onClose={() => setShowCallsInbox(false)}
           onOpenConversation={(conversationId) => {
             setSelectedConversationId(conversationId);
           }}
-        />
+        />)}
 
         {/* Invite join dialog */}
-        <InviteJoinDialog
+        {pendingInviteCode && (<InviteJoinDialog
           open={!!pendingInviteCode}
           onClose={() => setPendingInviteCode(null)}
           inviteCode={pendingInviteCode || ''}
           onJoined={handleInviteJoined}
-        />
+        />)}
 
-        <StudyTokensDialog
-          open={showStudyTokens}
-          onClose={() => setShowStudyTokens(false)}
-          onOpenBrowser={(url) => setBrowserUrl(url)}
-        />
 
-        <GlobalSearchDialog
+        {showGlobalSearch && (<GlobalSearchDialog
           open={showGlobalSearch}
           onClose={() => setShowGlobalSearch(false)}
           onSelectUser={handleSelectUser}
-        />
+        />)}
 
-        <AdminPanelDialog
-          open={showAdminPanel}
-          onClose={() => setShowAdminPanel(false)}
-        />
 
-        <AskAIDialog
-          open={showAskAI}
-          onClose={() => setShowAskAI(false)}
-        />
 
-        <FriendRequestsDialog
+        {showFriendRequests && (<FriendRequestsDialog
           open={showFriendRequests}
           onClose={() => setShowFriendRequests(false)}
           onOpenConversation={(conversationId) => {
@@ -537,37 +494,34 @@ export default function Index() {
             setSelectedConversationId(conversationId);
             setShowFriendRequests(false);
           }}
-        />
+        />)}
 
-        <MessageFriendsDialog
+        {showMessageFriends && (<MessageFriendsDialog
           open={showMessageFriends}
           onClose={() => setShowMessageFriends(false)}
           onSelectConversation={(conversationId) => {
             setSelectedConversationId(conversationId);
           }}
-        />
+        />)}
 
-        <StudyBuddiesDialog
+        {showStudyBuddies && (<StudyBuddiesDialog
           open={showStudyBuddies}
           onClose={() => setShowStudyBuddies(false)}
           onSelectUser={handleSelectUser}
-        />
+        />)}
 
-        <StudyLabsDialog
-          open={showStudyLabs}
-          onOpenChange={setShowStudyLabs}
-        />
 
-        <SettingsDialog
+        {showSettings && (<SettingsDialog
           open={showSettings}
           onClose={() => setShowSettings(false)}
-        />
+        />)}
 
-        <InAppBrowser
+        {browserUrl && (<InAppBrowser
           open={!!browserUrl}
           url={browserUrl || ''}
           onClose={() => setBrowserUrl(null)}
-        />
+        />)}
+        </Suspense>
         {/* Interests Onboarding - Mandatory */}
         {user && (
           <InterestsOnboarding

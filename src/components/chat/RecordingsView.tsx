@@ -1,3 +1,5 @@
+import { DownloadedFilesDialog } from './DownloadedFilesDialog';
+import { MediaViewer } from './MediaViewer';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useConversations } from '@/hooks/useConversations';
@@ -35,6 +37,8 @@ interface RecordingsViewProps {
 
 export function RecordingsView({ onBack }: RecordingsViewProps) {
     const { user } = useAuth();
+    const [showDownloaded, setShowDownloaded] = useState(false);
+  const [preview, setPreview] = useState<Recording | null>(null);
     const { conversations } = useConversations();
     const [recordings, setRecordings] = useState<Recording[]>([]);
     const [loading, setLoading] = useState(true);
@@ -255,6 +259,8 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
 
     return (
         <>
+            {showDownloaded && <DownloadedFilesDialog onClose={() => setShowDownloaded(false)} />}
+            {preview && <MediaViewer open onClose={() => setPreview(null)} url={preview.url} fileName={`${preview.title}.webm`} />}
             <div className="flex flex-col h-full bg-[#0f111a]/80 backdrop-blur-xl md:rounded-2xl md:m-2 md:shadow-2xl border border-white/5 overflow-hidden">
                 {/* Header */}
                 <div className="flex items-center gap-4 p-4 border-b border-white/5 bg-white/5">
@@ -262,6 +268,7 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div className="flex-1">
+                        <Button variant="secondary" size="sm" className="rounded-full float-right" onClick={() => setShowDownloaded(true)}><Download className="h-4 w-4 mr-2" />Downloaded</Button>
                         <h2 className="text-xl font-bold text-white flex items-center gap-2">
                             <Mic className="h-5 w-5 text-primary" />
                             My Vault
@@ -339,8 +346,8 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                                                                 <DropdownMenuItem onClick={() => setForwardRecording(recording)} className="gap-2 cursor-pointer">
                                                                     <Forward className="h-4 w-4" /> Forward
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem onClick={() => window.open(recording.url, '_blank')} className="gap-2 cursor-pointer">
-                                                                    <Download className="h-4 w-4" /> Download
+                                                                <DropdownMenuItem onClick={() => setPreview(recording)} className="gap-2 cursor-pointer">
+                                                                    <Download className="h-4 w-4" /> Open / save offline
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => handleDelete(recording)} className="gap-2 text-destructive focus:text-destructive focus:bg-destructive/10 cursor-pointer">
                                                                     <Trash2 className="h-4 w-4" /> Delete
