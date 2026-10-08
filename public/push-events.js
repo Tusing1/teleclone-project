@@ -1,6 +1,6 @@
 self.addEventListener('push', function(event) {
   console.log('[Service Worker] Push Received.');
-  
+
   let data = {
     title: 'StudyGram',
     body: 'You have a new update',
@@ -47,9 +47,9 @@ self.addEventListener('push', function(event) {
 
 self.addEventListener('notificationclick', function(event) {
   console.log('[Service Worker] Notification click received.');
-  
+
   event.notification.close();
-  
+
   const data = event.notification.data || {};
   let urlToOpen = '/';
 

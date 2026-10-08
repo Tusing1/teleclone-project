@@ -2,6 +2,12 @@
 
 ## Status — 8 October 2026
 
+### Full release preparation (supersedes the earlier isolated-correction status)
+
+The user authorized pushing and publishing all accumulated changes. Local release fee70af includes the redesign, removed AI/games/token sections, media viewers/cache, message editing, channel threads, shared call engine, notifications and regression tests. Merge 88b55e8 retains remote Lovable history while using the reviewed release tree. Both deployed function sources match remote dd81306; useful timer typing and PostgREST version 14.5 are retained. Preview authentication brokerage is not included. No users, hosted files, profile pictures or databases are reset. Supabase temporary CLI files are ignored.
+
+All 21 mocked tests and app-project TypeScript checks pass. GitHub push and live publishing must be separately verified; a code commit alone is not a live release. Nurses Revision will host the real test, with the user selecting Wardking as the receiving participant. Two actual devices are required; browser access to the host does not provide access to Wardking's device. Calls must not be sent before both participants have the updated frontend and are ready.
+
 - Official Supabase CLI 2.120.0 is available through npx.
 - Target project in supabase/config.toml: plhzfgfrlxywxaccewyh.
 - Hosted read-only checks returned a valid P-256 VAPID public key and six ICE server entries including TURN. Neither check proves push delivery or successful cross-network audio.
