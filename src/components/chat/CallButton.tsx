@@ -1,5 +1,5 @@
 import React from 'react';
-import { Phone } from 'lucide-react';
+import { Phone, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface CallButtonProps {
@@ -7,13 +7,15 @@ interface CallButtonProps {
   canStartCall: boolean;
   hasActiveCall: boolean;
   onJoinCall?: () => void;
+  pending?: boolean;
 }
 
 export const CallButton: React.FC<CallButtonProps> = ({
   onStartCall,
   canStartCall,
   hasActiveCall,
-  onJoinCall
+  onJoinCall,
+  pending = false
 }) => {
   if (hasActiveCall && onJoinCall) {
     return (
@@ -23,9 +25,10 @@ export const CallButton: React.FC<CallButtonProps> = ({
         aria-label="Join live audio session"
         title="Join live audio session"
         onClick={onJoinCall}
-        className="bg-green-500 hover:bg-green-600 animate-pulse"
+        disabled={pending}
+        className="rounded-2xl bg-emerald-400/15 text-emerald-500 hover:bg-emerald-400/25"
       >
-        <Phone className="h-5 w-5" />
+        {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Phone className="h-5 w-5" />}
       </Button>
     );
   }
@@ -35,8 +38,8 @@ export const CallButton: React.FC<CallButtonProps> = ({
   }
 
   return (
-    <Button variant="ghost" size="icon" onClick={onStartCall} title="Voice Call">
-      <Phone className="h-5 w-5" />
+    <Button variant="ghost" size="icon" disabled={pending} onClick={onStartCall} title="Start voice call" aria-label="Start voice call" className="rounded-2xl">
+      {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Phone className="h-5 w-5" />}
     </Button>
   );
 };

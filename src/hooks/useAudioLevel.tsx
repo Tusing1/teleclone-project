@@ -27,7 +27,7 @@ export function useAudioLevel(stream: MediaStream | null): AudioLevelResult {
       analyserRef.current = null;
     }
     if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-      audioContextRef.current.close();
+      void audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
   }, []);
@@ -48,6 +48,7 @@ export function useAudioLevel(stream: MediaStream | null): AudioLevelResult {
     try {
       const audioContext = new AudioContext();
       audioContextRef.current = audioContext;
+      if (audioContext.state === 'suspended') void audioContext.resume().catch(() => {});
 
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 256;
@@ -62,8 +63,11 @@ export function useAudioLevel(stream: MediaStream | null): AudioLevelResult {
       const speakingThreshold = 15; // Adjust sensitivity
       let speakingTimeout: ReturnType<typeof setTimeout> | null = null;
 
-      const checkAudioLevel = () => {
+      let lastSample = 0;
+      const checkAudioLevel = (now = 0) => {
         if (!analyserRef.current) return;
+        if (now - lastSample < 100) { animationFrameRef.current = requestAnimationFrame(checkAudioLevel); return; }
+        lastSample = now;
 
         analyserRef.current.getByteFrequencyData(dataArray);
         
@@ -93,6 +97,7 @@ export function useAudioLevel(stream: MediaStream | null): AudioLevelResult {
         cleanup();
       };
     } catch (error) {
+      cleanup();
       console.error('Error setting up audio level detection:', error);
     }
   }, [stream, cleanup]);

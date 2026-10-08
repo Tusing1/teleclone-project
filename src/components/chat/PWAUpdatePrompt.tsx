@@ -1,9 +1,12 @@
 import { RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { usePWAUpdate } from '@/hooks/usePWAUpdate';
+import { useSyncExternalStore } from 'react';
+import { hasActiveCall, subscribeCallActivity } from '@/lib/callActivity';
 
 export function PWAUpdatePrompt() {
   const { showUpdatePrompt, applyUpdate, dismissUpdate } = usePWAUpdate();
+  const inCall = useSyncExternalStore(subscribeCallActivity, hasActiveCall);
 
   if (!showUpdatePrompt) return null;
 
@@ -13,7 +16,7 @@ export function PWAUpdatePrompt() {
         <RefreshCw className="w-5 h-5 shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="font-medium text-sm">Update available!</p>
-          <p className="text-xs opacity-90">Tap to get the latest features</p>
+          <p className="text-xs opacity-90">{inCall ? 'Finish your call before updating' : 'Tap to get the latest features'}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           <Button
@@ -21,6 +24,7 @@ export function PWAUpdatePrompt() {
             variant="secondary"
             className="h-8 px-3 text-xs"
             onClick={applyUpdate}
+            disabled={inCall}
           >
             Update
           </Button>

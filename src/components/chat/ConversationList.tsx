@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, BookOpen, Home, UserRound, Heart, Bookmark } from 'lucide-react';
+import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, Home, UserRound, Heart, Bookmark } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
@@ -380,9 +380,7 @@ export function ConversationList({
             >
               <Menu className="h-5 w-5" />
             </Button>
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary">
-              <BookOpen className="h-5 w-5 text-primary" />
-            </div>
+            <BrandMark className="h-10 w-10" />
             <div>
               <p className="text-lg font-bold tracking-tight text-foreground">StudyGram</p>
               <p className="text-xs text-muted-foreground">Study together</p>
@@ -501,3 +499,4 @@ export function ConversationList({
     </div>
   );
 }
+import { BrandMark } from '@/components/BrandMark';

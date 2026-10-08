@@ -19,7 +19,8 @@ test('Favicon and share preview use existing StudyGram assets', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const icon = html.match(/rel="icon"[^>]*href="([^"]+)"/)[1];
   assert.ok(existsSync(new URL(`../public${icon}`, import.meta.url)));
-  assert.match(html, /property="og:image" content="https:\/\/studdybuddyapp\.com\/pwa-512x512\.png"/);
+  assert.match(html, /property="og:image" content="https:\/\/studdybuddyapp\.com\/brand\/studygram-512\.png"/);
+  assert.match(html, /apple-touch-icon" sizes="180x180" href="\/brand\/studygram-180\.png"/);
   assert.doesNotMatch(html, /lovable-badge|~flock|lovable\.dev/);
 });
 

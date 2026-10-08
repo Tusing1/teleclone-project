@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { MessageCircle, Eye, EyeOff, Camera, Loader2, Phone } from 'lucide-react';
+import { Eye, EyeOff, Camera, Loader2, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -219,9 +219,7 @@ export default function Auth() {
       <div className="w-full max-w-md my-auto">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary mb-4">
-            <MessageCircle className="w-10 h-10 text-primary-foreground" />
-          </div>
+          <BrandMark className="mx-auto mb-4 h-20 w-20" />
           <h1 className="text-3xl font-bold text-foreground">StudyGram</h1>
           <p className="text-muted-foreground mt-2">
             {isSignUp ? 'Create your account' : 'Welcome back'}
@@ -371,3 +369,4 @@ export default function Auth() {
     </div>
   );
 }
+import { BrandMark } from '@/components/BrandMark';

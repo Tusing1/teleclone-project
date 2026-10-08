@@ -13,7 +13,7 @@ export default defineConfig(() => ({
     react(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["favicon.ico", "pwa-192x192.png", "pwa-512x512.png", "push-events.js"],
+      includeAssets: ["favicon.ico", "brand/studygram-*.png", "pwa-192x192.png", "pwa-512x512.png", "push-events.js", "manifest.webmanifest", "StudyGram-install-guide.txt", "downloads/StudyGram.mobileconfig"],
       manifest: false, // We're using our own manifest.webmanifest
       workbox: {
         importScripts: ["/push-events.js"],

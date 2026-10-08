@@ -1,11 +1,10 @@
-import { BookOpen, FileText, Mic, Radio, Users } from 'lucide-react';
+import { FileText, Mic, Radio, Users } from 'lucide-react';
+import { BrandMark } from '@/components/BrandMark';
 
 export function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-full bg-background px-6 text-center">
-      <div className="w-20 h-20 -rotate-6 rounded-3xl bg-primary/15 border border-primary/20 flex items-center justify-center mb-6">
-        <BookOpen className="w-10 h-10 text-primary" />
-      </div>
+      <BrandMark className="mb-6 h-20 w-20 -rotate-6" />
       <p className="text-xs uppercase tracking-[0.22em] text-primary font-semibold mb-2">Your study space</p>
       <h2 className="text-4xl font-bold tracking-tight text-foreground mb-3">Good company.<br /><span className="text-primary">Better studying.</span></h2>
       <p className="text-muted-foreground max-w-md mb-7">Pick a conversation, join a channel, or find a study buddy and keep every session in one place.</p>

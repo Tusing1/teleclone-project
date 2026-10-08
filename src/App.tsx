@@ -13,10 +13,11 @@ import Invite from "./pages/Invite";
 import HelpSupport from "./pages/HelpSupport";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
-import { useEffect } from "react";
+import { useEffect, lazy, Suspense } from "react";
 import { IncomingCallListener } from "@/components/chat/IncomingCallListener";
 
 const queryClient = new QueryClient();
+const CallPreview = import.meta.env.DEV ? lazy(() => import('./pages/CallPreview')) : null;
 
 
 
@@ -31,6 +32,7 @@ const App = () => (
             <BrowserRouter>
               <IncomingCallListener />
               <Routes>
+                {CallPreview && <Route path="/__call-preview" element={<Suspense fallback={null}><CallPreview /></Suspense>} />}
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/invite/:code" element={<Invite />} />

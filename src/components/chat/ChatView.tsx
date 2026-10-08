@@ -24,6 +24,7 @@ import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
 import { useCalls } from '@/hooks/useCalls';
 import { useLiveStream } from '@/hooks/useLiveStream';
+import { callErrorMessage } from '@/lib/callErrors';
 import { useReactions } from '@/hooks/useReactions';
 import { useVoiceMessage } from '@/hooks/useVoiceMessage';
 import { ConversationWithDetails, MessageWithSender } from '@/types/chat';
@@ -89,6 +90,8 @@ export function ChatView({
   const [showScheduleCall, setShowScheduleCall] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [isStartingStream, setIsStartingStream] = useState(false);
+  const [isJoiningCall, setIsJoiningCall] = useState(false);
+  const [callError, setCallError] = useState<string | null>(null);
   const [isStreamMinimized, setIsStreamMinimized] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainer = useRef<HTMLDivElement>(null);
@@ -149,6 +152,7 @@ export function ChatView({
   } = useCalls(isChannel || isGroup ? null : conversation.id); // Don't use for channels
 
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Live stream for channels
   const {
@@ -192,16 +196,20 @@ export function ChatView({
   const { typingUsers, handleTyping } = useTypingIndicator(conversation.id);
 
   const handleStartCall = async () => {
+    if (isJoiningCall) return;
+    setCallError(null);
     if (isChannel || isGroup) {
       // For rooms, show the live stream preview
       setShowLiveStreamPreview(true);
     } else {
+      setIsJoiningCall(true);
       try {
         const callId = await startCall('voice');
         if (callId) toast.success('Voice call started');
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : 'Could not start the call.');
-      }
+        setCallError(callErrorMessage(error));
+        toast.error(callErrorMessage(error));
+      } finally { setIsJoiningCall(false); }
     }
   };
 
@@ -211,7 +219,7 @@ export function ChatView({
     setIsStartingStream(true);
     let streamId: string | null = null;
     try { streamId = await startStream(title); }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Could not start the session.'); }
+    catch (error) { setCallError(callErrorMessage(error)); toast.error(callErrorMessage(error)); }
     finally { setIsStartingStream(false); }
     console.log('startStream returned:', streamId);
     if (streamId) {
@@ -220,6 +228,9 @@ export function ChatView({
   };
 
   const handleJoinCall = async () => {
+    if (isJoiningCall) return;
+    setCallError(null);
+    setIsJoiningCall(true);
     try {
       if ((isChannel || isGroup) && activeStream) {
         await joinStream(activeStream.id, !isAdminOrOwner); // Non-admins start muted
@@ -227,9 +238,10 @@ export function ChatView({
         await joinCall(activeCall.id, activeCall.call_type);
       }
     } catch (error) {
+      setCallError(callErrorMessage(error));
       console.error('Error in handleJoinCall:', error);
       toast.error(error instanceof Error ? error.message : 'Could not join the call. Check microphone permission and your connection.');
-    }
+    } finally { setIsJoiningCall(false); }
   };
 
   const currentParticipant = callParticipants.find(p => p.user_id === user?.id);
@@ -353,11 +365,11 @@ export function ChatView({
   // Show connecting screen while starting stream
   if (isStartingStream && (isChannel || isGroup)) {
     return (
-      <div className="fixed inset-0 bg-[#1a1a2e] z-50 flex flex-col items-center justify-center">
+      <div className="sg-call-shell items-center justify-center" role="status">
         <div className="animate-pulse mb-4">
           <Radio className="h-16 w-16 text-primary" />
         </div>
-        <h2 className="text-xl font-semibold text-white mb-2">Starting Live Stream...</h2>
+        <h2 className="text-xl font-semibold text-white mb-2">Opening your audio room…</h2>
         <p className="text-gray-400">Please allow microphone access when prompted</p>
       </div>
     );
@@ -380,46 +392,15 @@ export function ChatView({
     );
   }
 
-  // Show live stream view for channels (can be minimized)
-  if (isInStream && activeStream && (isChannel || isGroup) && !isStreamMinimized) {
-    return (
-      <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><LiveStreamView
-        channelName={conversation.name || 'Channel'}
-        channelAvatar={conversation.avatar_url || undefined}
-        participants={streamParticipants}
-        isAdmin={isAdminOrOwner}
-        isMuted={isStreamMuted}
-        isRecording={isStreamRecording}
-        connectionStatus={streamConnectionStatus}
-        streamTitle={activeStream.livestream_title || 'Live Stream'}
-        currentUserId={user?.id || ''}
-        onToggleMute={toggleStreamMute}
-        onLeave={leaveStream}
-        onEnd={endStream}
-        onStartRecording={startStreamRecording}
-        onStopRecording={stopStreamRecording}
-        onRaiseHand={raiseHand}
-        onLowerHand={lowerHand}
-        onUnmuteParticipant={unmuteParticipant}
-        onMuteParticipant={muteParticipant}
-        onUpdateTitle={updateStreamTitle}
-        handRaised={handRaised}
-        noiseSuppression={noiseSuppression}
-        onToggleNoiseSuppression={toggleNoiseSuppression}
-        onMinimize={() => setIsStreamMinimized(prev => !prev)}
-        isMinimized={false}
-        remoteStreams={remoteStreams}
-        localStream={useLiveStreamLocalStream}
-        isStreamStarter={activeStream.started_by === user?.id}
-      /></Suspense>
-    );
-  }
-
-  // Show call UI if in call (for groups)
+  // Direct calls use the same audio-room surface.
   if (isInCall && activeCall && !isChannel) {
     return (
       <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><CallView
         callType="voice"
+        peerName={otherProfile?.full_name || otherProfile?.username || 'Voice call'}
+        peerAvatar={otherProfile?.avatar_url || undefined}
+        recordedBy={activeCall.recorded_by}
+        startedAt={activeCall.started_at}
         participants={callParticipants}
         localStream={useCallsLocalStream}
         remoteStreams={useCallsRemoteStreams}
@@ -440,8 +421,9 @@ export function ChatView({
     <div className={cn(
       "flex flex-col h-full relative md:rounded-[2rem] md:m-2 md:shadow-2xl overflow-hidden bg-background text-foreground sg-screen-enter"
     )}>
-      {/* Minimized Live Stream Bar */}
-      {isInStream && activeStream && (isChannel || isGroup) && isStreamMinimized && (
+      {callError && <div role="alert" className="absolute top-16 left-3 right-3 z-30 rounded-2xl border border-rose-400/20 bg-card p-4 shadow-xl"><p className="text-sm font-semibold">Couldn’t connect the call</p><p className="mt-1 text-xs text-muted-foreground">{callError}</p><div className="mt-2 flex gap-2"><Button variant="secondary" size="sm" onClick={() => navigate('/install')}>Check microphone</Button><Button variant="ghost" size="sm" onClick={() => setCallError(null)}>Dismiss</Button></div></div>}
+      {/* One live-room instance stays mounted while minimizing; playback settings survive. */}
+      {isInStream && activeStream && (isChannel || isGroup) && (
         <Suspense fallback={<div role="status" className="flex h-full items-center justify-center bg-background text-muted-foreground">Opening session…</div>}><LiveStreamView
           channelName={conversation.name || 'Channel'}
           channelAvatar={conversation.avatar_url || undefined}
@@ -449,6 +431,8 @@ export function ChatView({
           isAdmin={isAdminOrOwner}
           isMuted={isStreamMuted}
           isRecording={isStreamRecording}
+          recordedBy={activeStream.recorded_by}
+          startedAt={activeStream.started_at}
           connectionStatus={streamConnectionStatus}
           streamTitle={activeStream.livestream_title || 'Live Stream'}
           currentUserId={user?.id || ''}
@@ -465,8 +449,8 @@ export function ChatView({
           handRaised={handRaised}
           noiseSuppression={noiseSuppression}
           onToggleNoiseSuppression={toggleNoiseSuppression}
-          onMinimize={() => setIsStreamMinimized(false)}
-          isMinimized={true}
+          onMinimize={() => setIsStreamMinimized(prev => !prev)}
+          isMinimized={isStreamMinimized}
           remoteStreams={remoteStreams}
           localStream={useLiveStreamLocalStream}
           isStreamStarter={activeStream.started_by === user?.id}
@@ -521,6 +505,7 @@ export function ChatView({
         {/* Call button for direct messages */}
         {!isGroup && !isChannel && (
           <CallButton
+            pending={isJoiningCall}
             onStartCall={handleStartCall}
             canStartCall={true}
             hasActiveCall={!!activeCall && !isInCall}
@@ -531,6 +516,7 @@ export function ChatView({
         {/* Call button for groups and channels */}
         {(isGroup || isChannel) && (
           <CallButton
+            pending={isJoiningCall}
             onStartCall={handleStartCall}
             canStartCall={isAdminOrOwner}
             hasActiveCall={isChannel || isGroup ? (!!activeStream && !isInStream) : (!!activeCall && !isInCall)}

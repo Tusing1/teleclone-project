@@ -1,0 +1,29 @@
+STUDYGRAM — HOME-SCREEN INSTALLATION
+
+Open https://studdybuddyapp.com/install on your phone.
+
+ANDROID
+In Chrome, tap Install StudyGram if offered. Otherwise use the browser menu:
+Install app or Add to Home Screen. Confirm and open the new StudyGram icon.
+
+IPHONE / IPAD
+Open the site in Safari. Tap Share, Add to Home Screen, enable Open as Web App
+if offered, and tap Add. Open StudyGram using its home-screen icon.
+
+OPTIONAL IPHONE SHORTCUT FILE
+https://studdybuddyapp.com/downloads/StudyGram.mobileconfig
+Download in Safari, then Settings > Profile Downloaded > review > Install.
+If needed, find it under General > VPN & Device Management.
+It is an unsigned, removable profile with one Web Clip: URL, name and icon only.
+It has no MDM, certificates, VPN, accounts or added permissions. It is not an IPA.
+Normal Safari home-screen installation above needs no profile.
+
+MICROPHONE
+Use the microphone Check button on the install page. The check stops the
+microphone immediately: it does not record, upload, or call anyone.
+If blocked, allow the microphone for this site in browser AND device settings.
+Permission is controlled by your phone/browser, not by the install file.
+
+Calls and new messages need internet. Saved offline files use a private app cache.
+This guide is not an APK/IPA installer. Native store packages require separate
+Android/iOS builds and signing.

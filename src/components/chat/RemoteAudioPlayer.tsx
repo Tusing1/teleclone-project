@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-export function RemoteAudioPlayer({ stream }: { stream: MediaStream }) {
+export function RemoteAudioPlayer({ stream, muted = false }: { stream: MediaStream; muted?: boolean }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [blocked, setBlocked] = useState(false);
   useEffect(() => {
@@ -20,5 +20,5 @@ export function RemoteAudioPlayer({ stream }: { stream: MediaStream }) {
       audio.srcObject = null;
     };
   }, [stream]);
-  return <><audio ref={audioRef} autoPlay playsInline className="hidden" />{blocked && <button className="rounded-full bg-primary px-3 py-2 text-xs text-primary-foreground" onClick={() => { void audioRef.current?.play().then(() => setBlocked(false)).catch(() => setBlocked(true)); }}>Tap to hear call</button>}</>;
+  return <><audio ref={audioRef} autoPlay playsInline muted={muted} className="hidden" />{blocked && !muted && <button className="rounded-full bg-primary px-3 py-2 text-xs text-primary-foreground" onClick={() => { void audioRef.current?.play().then(() => setBlocked(false)).catch(() => setBlocked(true)); }}>Tap to hear call</button>}</>;
 }

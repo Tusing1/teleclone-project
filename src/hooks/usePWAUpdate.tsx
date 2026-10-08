@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { hasActiveCall } from '@/lib/callActivity';
 import { useRegisterSW } from 'virtual:pwa-register/react';
 
 export function usePWAUpdate() {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const updateTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => { if (updateTimer.current) clearInterval(updateTimer.current); }, []);
   
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -13,9 +16,9 @@ export function usePWAUpdate() {
       
       // Check for updates every 60 seconds
       if (registration) {
-        setInterval(() => {
-          console.log('[PWA] Checking for updates...');
-          registration.update();
+        if (updateTimer.current) clearInterval(updateTimer.current);
+        updateTimer.current = setInterval(() => {
+          if (document.visibilityState === 'visible' && !hasActiveCall()) void registration.update().catch(() => {});
         }, 60 * 1000);
       }
     },
@@ -29,6 +32,7 @@ export function usePWAUpdate() {
   });
 
   const applyUpdate = async () => {
+    if (hasActiveCall()) return;
     console.log('[PWA] Applying update...');
     await updateServiceWorker(true);
     setShowUpdatePrompt(false);

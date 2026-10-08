@@ -1,135 +1,18 @@
-import React, { useState } from 'react';
-import { ArrowLeft, Radio, Calendar, Edit2, MoreVertical } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react';
+import { ArrowLeft, AudioWaveform, Calendar, Mic, Users } from 'lucide-react';
 import { Avatar } from './Avatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-
-interface LiveStreamPreviewProps {
-  channelName: string;
-  channelAvatar?: string;
-  subscriberCount: number;
-  onStart: (title: string) => void;
-  onSchedule: () => void;
-  onClose: () => void;
+export function LiveStreamPreview({ channelName, channelAvatar, subscriberCount, onStart, onSchedule, onClose }: {
+  channelName: string; channelAvatar?: string; subscriberCount: number; onStart: (title: string) => void; onSchedule: () => void; onClose: () => void;
+}) {
+  const [title, setTitle] = useState('Study together');
+  return <section className="sg-call-shell" aria-label="Set up audio session">
+    <header className="sg-call-header"><button className="sg-call-icon" aria-label="Back to chat" onClick={onClose}><ArrowLeft size={21} /></button><span className="text-sm text-white/60">SESSION SETUP</span><AudioWaveform size={21} className="text-violet-300" /></header>
+    <main className="sg-call-main"><div className="sg-call-hero"><div className="sg-call-portrait"><Avatar name={channelName} src={channelAvatar} size="xl" /></div><span className="sg-call-eyebrow">BRING YOUR CIRCLE TOGETHER</span><h1>Less typing.<br />More talking.</h1><p className="sg-call-subtitle">{channelName}</p></div>
+      <div className="sg-call-roster space-y-5"><label htmlFor="session-name" className="block text-sm font-medium">Give your session a name<Input id="session-name" value={title} maxLength={120} onChange={e => setTitle(e.target.value)} className="mt-3 h-12 rounded-2xl border-white/10 bg-white/5 text-white" /></label>
+        <div className="sg-call-setup-note"><Mic size={20} /><p>Your mic starts on. Members join muted and can raise a hand to speak.</p></div><div className="sg-call-setup-note"><Users size={20} /><p>{subscriberCount} members can join. Starting a session notifies your channel or group.</p></div><p className="text-xs leading-relaxed text-white/40">Audio only. Recording is off until you choose to start it with everyone’s permission.</p>
+      </div>
+    </main><footer className="sg-call-footer"><Button className="h-14 w-full max-w-md rounded-2xl bg-violet-400 text-slate-950 hover:bg-violet-300 font-semibold" disabled={!title.trim()} onClick={() => onStart(title.trim())}><AudioWaveform className="mr-2" size={20} />Start audio session</Button><button className="mt-5 flex items-center justify-center gap-2 text-sm text-white/60" onClick={onSchedule}><Calendar size={17} />Schedule for later</button></footer>
+  </section>;
 }
-
-export const LiveStreamPreview: React.FC<LiveStreamPreviewProps> = ({
-  channelName,
-  channelAvatar,
-  subscriberCount,
-  onStart,
-  onSchedule,
-  onClose
-}) => {
-  const [streamTitle, setStreamTitle] = useState('Live Stream');
-  const [showTitleDialog, setShowTitleDialog] = useState(false);
-
-  const handleStartStream = () => {
-    onStart(streamTitle);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-background z-50 flex flex-col">
-      {/* Header */}
-      <div className="p-4 flex items-center justify-between">
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setShowTitleDialog(true)}>
-            <Edit2 className="h-5 w-5" />
-          </Button>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-
-      {/* Channel Display */}
-      <div className="flex-1 flex flex-col items-center justify-center px-6">
-        <Avatar 
-          name={channelName} 
-          src={channelAvatar} 
-          size="lg" 
-          className="w-32 h-32 mb-4"
-        />
-        <h2 className="text-2xl font-bold text-center mb-1">{channelName}</h2>
-        <p className="text-muted-foreground text-sm mb-8">private channel</p>
-
-        {/* Quick Actions */}
-        <div className="flex gap-3 mb-8">
-          <div className="flex flex-col items-center gap-1 px-4 py-3 bg-muted rounded-xl">
-            <Radio className="h-6 w-6" />
-            <span className="text-xs">Live Stream</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 px-4 py-3 bg-muted rounded-xl">
-            <span className="text-lg">🔔</span>
-            <span className="text-xs">Mute</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 px-4 py-3 bg-muted rounded-xl">
-            <span className="text-lg">💬</span>
-            <span className="text-xs">Discuss</span>
-          </div>
-          <div className="flex flex-col items-center gap-1 px-4 py-3 bg-muted rounded-xl">
-            <span className="text-lg">➕</span>
-            <span className="text-xs">Add Story</span>
-          </div>
-        </div>
-
-        {/* Stream Info Card */}
-        <div className="bg-muted/50 rounded-2xl p-6 w-full max-w-sm text-center">
-          <div className="flex justify-center mb-4">
-            <div className="text-4xl">🎙️</div>
-          </div>
-          <h3 className="text-xl font-bold mb-2">{streamTitle}</h3>
-          <p className="text-sm text-muted-foreground">
-            Subscribers of this channel will be notified once you start the live stream.
-          </p>
-        </div>
-      </div>
-
-      {/* Bottom Actions */}
-      <div className="p-6 space-y-3">
-        <Button 
-          className="w-full h-12 text-base font-medium bg-primary hover:bg-primary/90" 
-          onClick={handleStartStream}
-        >
-          Start Live Stream
-        </Button>
-        <Button 
-          variant="link" 
-          className="w-full text-primary"
-          onClick={onSchedule}
-        >
-          <Calendar className="h-4 w-4 mr-2" />
-          Schedule Live Stream
-        </Button>
-      </div>
-
-      {/* Edit Title Dialog */}
-      <Dialog open={showTitleDialog} onOpenChange={setShowTitleDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Stream Title</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Title</Label>
-              <Input
-                value={streamTitle}
-                onChange={(e) => setStreamTitle(e.target.value)}
-                placeholder="Enter stream title"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowTitleDialog(false)}>Cancel</Button>
-            <Button onClick={() => setShowTitleDialog(false)}>Save</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-};

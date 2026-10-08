@@ -1,4 +1,5 @@
 import { createRecordingMixer } from '@/lib/recordingMixer';
+import { requestMicrophoneAccess } from '@/lib/microphoneCheck';
 import { getCallPreferences, updateCallPreference } from './useCallPreferences';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
@@ -82,6 +83,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
       .limit(1)
       .maybeSingle();
 
+    if (fetchId !== activeFetchId.current || requestedGeneration !== sessionGeneration.current) return;
     if (error) {
       console.error('Error fetching active stream:', error);
       return; // A transient fetch failure must not hide a working local call.
@@ -206,7 +208,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
         setIsInStream(!!currentParticipant && joinedCallId.current === callId && !!localStreamRef.current);
         if (currentParticipant) {
           setHandRaised(currentParticipant.hand_raised || false);
-          setIsMuted(currentParticipant.is_muted);
+          setIsMuted(localStreamRef.current ? !localStreamRef.current.getAudioTracks()[0]?.enabled : currentParticipant.is_muted);
           setNoiseSuppression(currentParticipant.noise_suppression ?? true);
         }
       }
@@ -243,13 +245,23 @@ export function useLiveStream(conversationId: string | null, direct = false) {
             // Note: audioTrack.enabled = true means UNMUTED
             if (audioTrack.enabled === shouldBeMuted) {
               console.log('🔄 Syncing mute state to:', shouldBeMuted);
-              audioTrack.enabled = !shouldBeMuted;
-              setIsMuted(shouldBeMuted);
-
-              if (!shouldBeMuted) {
-                toast.success('You have been unmuted by the host');
-              } else {
+              // A host can silence audio, but must never remotely switch on a microphone.
+              if (shouldBeMuted) {
+                audioTrack.enabled = false;
+                setIsMuted(true);
                 toast.info('You have been muted by the host');
+              } else {
+                // Keep the shared mic indicator honest until the member explicitly accepts.
+                void supabase.from('call_participants').update({ is_muted: true }).eq('call_id', activeStream.id).eq('user_id', user.id).then(({ error }) => {
+                  if (error) { toast.error('Microphone is still off, but its status could not sync.'); return; }
+                  toast.info('The host invited you to speak', {
+                    duration: 15000,
+                    description: 'Your microphone stays off until you accept.',
+                    action: { label: 'Unmute', onClick: () => {
+                      if (!audioTrack.enabled && audioTrack.readyState !== 'ended') void toggleMute().catch(error => toast.error(error instanceof Error ? error.message : 'Could not unmute.'));
+                    } },
+                  });
+                });
               }
             }
           }
@@ -299,7 +311,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
     }
 
     // Ask for the microphone before announcing a call to the conversation.
-    preparedStream = await navigator.mediaDevices.getUserMedia({ audio: getCallPreferences() });
+    preparedStream = await requestMicrophoneAccess(navigator.mediaDevices, getCallPreferences());
     if (startingGeneration !== sessionGeneration.current) throw new Error('Starting the call was cancelled.');
     console.log('Starting live stream...', { conversationId, title });
 
@@ -364,7 +376,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
       const { data: member, error: memberError } = await supabase.from('conversation_participants').select('role').eq('conversation_id', conversationId).eq('user_id', user.id).single();
       if (memberError || !member) throw new Error('Join this channel before joining its call.');
       const muted = !direct && (startMuted || !['owner', 'admin'].includes(member.role));
-      const stream = preparedStream || await navigator.mediaDevices.getUserMedia({ audio: getCallPreferences() });
+      const stream = preparedStream || await requestMicrophoneAccess(navigator.mediaDevices, getCallPreferences());
       if (generation !== sessionGeneration.current) { stream.getTracks().forEach(track => track.stop()); throw new Error('Joining was cancelled.'); }
       localStreamRef.current = stream; setLocalStream(stream);
       stream.getAudioTracks().forEach(track => { track.enabled = !muted; });
@@ -458,11 +470,12 @@ export function useLiveStream(conversationId: string | null, direct = false) {
     busy.current = true;
     try {
       if (mediaRecorder.current?.state === 'recording') void stopRecording().catch(() => toast.error('Recording could not finish saving.'));
+      // Release microphone and peers immediately; a slow server must not keep broadcasting.
+      cleanup(); setHandRaised(false);
       if (direct) {
         const { data, error } = await supabase.from('calls').update({ is_active: false, ended_at: new Date().toISOString() }).eq('id', callId).select('id').single();
         if (error || !data) toast.error('Disconnected locally; ending the call could not sync.');
       }
-      cleanup(); setHandRaised(false);
       const { error } = await supabase.from('call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', callId).eq('user_id', user.id);
       if (error) toast.error('Disconnected locally, but leaving could not sync. Check your connection.');
       await fetchActiveStream();
@@ -488,12 +501,13 @@ export function useLiveStream(conversationId: string | null, direct = false) {
   const raiseHand = async () => {
     if (!user || !activeStream) return;
 
-    await supabase
+    const { error } = await supabase
       .from('call_participants')
       .update({ hand_raised: true })
       .eq('call_id', activeStream.id)
       .eq('user_id', user.id);
 
+    if (error) throw new Error('Could not raise your hand. Try again.');
     setHandRaised(true);
   };
 
@@ -501,30 +515,38 @@ export function useLiveStream(conversationId: string | null, direct = false) {
   const lowerHand = async () => {
     if (!user || !activeStream) return;
 
-    await supabase
+    const { error } = await supabase
       .from('call_participants')
       .update({ hand_raised: false })
       .eq('call_id', activeStream.id)
       .eq('user_id', user.id);
 
+    if (error) throw new Error('Could not lower your hand. Try again.');
     setHandRaised(false);
   };
 
   // Toggle mute
   const toggleMute = async () => {
-    if (!user || !activeStream || !localStream) return;
+    if (!user || !activeStream || !localStream) throw new Error('Rejoin the session to reconnect your microphone.');
 
     const audioTrack = localStream.getAudioTracks()[0];
+    if (!audioTrack || audioTrack.readyState === 'ended') throw new Error('Your microphone disconnected. Leave and rejoin the session.');
     if (audioTrack) {
       audioTrack.enabled = !audioTrack.enabled;
       const newMutedState = !audioTrack.enabled;
+      setIsMuted(newMutedState);
 
-      await supabase
+      const { error } = await supabase
         .from('call_participants')
         .update({ is_muted: newMutedState })
         .eq('call_id', activeStream.id)
         .eq('user_id', user.id);
 
+      if (error) {
+        audioTrack.enabled = !newMutedState;
+        setIsMuted(newMutedState);
+        throw new Error('Microphone changed locally, but could not sync. Please try again.');
+      }
       setIsMuted(newMutedState);
     }
   };
@@ -533,12 +555,15 @@ export function useLiveStream(conversationId: string | null, direct = false) {
   const unmuteParticipant = async (userId: string) => {
     if (!activeStream) return;
 
-    await supabase
+    const { data, error } = await supabase
       .from('call_participants')
       .update({ is_muted: false, hand_raised: false })
       .eq('call_id', activeStream.id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id').single();
 
+    if (error || !data) throw new Error('Could not invite this member to speak. They may have left, or host permission is missing.');
+    toast.info('Invitation sent. The member chooses when to unmute.');
     await fetchParticipants(activeStream.id);
   };
 
@@ -546,12 +571,14 @@ export function useLiveStream(conversationId: string | null, direct = false) {
   const muteParticipant = async (userId: string) => {
     if (!activeStream) return;
 
-    await supabase
+    const { data, error } = await supabase
       .from('call_participants')
       .update({ is_muted: true })
       .eq('call_id', activeStream.id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id').single();
 
+    if (error || !data) throw new Error('Could not mute this member. They may have left, or host permission is missing.');
     await fetchParticipants(activeStream.id);
   };
 
@@ -578,11 +605,12 @@ export function useLiveStream(conversationId: string | null, direct = false) {
   const updateStreamTitle = async (title: string) => {
     if (!activeStream) return;
 
-    await supabase
+    const { error } = await supabase
       .from('calls')
       .update({ livestream_title: title })
       .eq('id', activeStream.id);
 
+    if (error) throw new Error('Could not save the session title.');
     setActiveStream(prev => (prev ? { ...prev, livestream_title: title } : null));
   };
 
@@ -648,6 +676,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
       recordingMixer.current = null;
       console.error('Error starting recording:', error);
       toast.error('Could not start recording. Please try again.');
+      throw new Error('Could not start recording. Check microphone access and recording support.');
     }
   };
 

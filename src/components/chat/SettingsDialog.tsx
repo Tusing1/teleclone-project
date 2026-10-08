@@ -1,5 +1,6 @@
 import { useCallPreferences, updateCallPreference } from '@/hooks/useCallPreferences';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useAppInstall } from '@/hooks/useAppInstall';
 import { Download, Moon, Sun, Shield, Smartphone, Wifi, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -24,8 +25,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const callPreferences = useCallPreferences();
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const { installed: isInstalled } = useAppInstall();
   const [relayCheck, setRelayCheck] = useState<'idle' | 'checking' | 'ready' | 'unavailable'>('idle');
 
   const checkCallConnection = async () => {
@@ -44,38 +44,9 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
     }
   };
 
-  useEffect(() => {
-    // Check if already installed
-    if (window.matchMedia('(display-mode: standalone)').matches) {
-      setIsInstalled(true);
-    }
-
-    // Listen for the beforeinstallprompt event
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleInstallApp = async () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setIsInstalled(true);
-      }
-      setDeferredPrompt(null);
-    } else {
-      // Navigate to install page for instructions
-      navigate('/install');
-      onClose();
-    }
+  const handleInstallApp = () => {
+    navigate('/install');
+    onClose();
   };
 
   return (

@@ -10,6 +10,7 @@ import { Avatar } from './Avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/hooks/useTheme';
 import { useFriendRequests } from '@/hooks/useFriendRequests';
+import { BrandMark } from '@/components/BrandMark';
 
 interface SidebarProps {
   open: boolean;
@@ -184,6 +185,7 @@ export function Sidebar({
 
           {/* Sign out */}
           <div className="p-4 border-t border-border">
+            <div className="mb-3 flex items-center gap-2 px-3"><BrandMark className="h-6 w-6" /><span className="text-xs font-semibold text-muted-foreground">StudyGram</span></div>
             <Button
               variant="ghost"
               className="w-full justify-start gap-4 text-destructive hover:text-destructive hover:bg-destructive/10"
