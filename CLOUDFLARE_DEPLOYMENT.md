@@ -22,8 +22,22 @@ Deploy this existing Vite app as the separate `studygram` Cloudflare Worker with
 
 Cloudflare deployment configuration and branding assets are now repository-controlled. The current build has no Lovable badge/script in its source; Lovable previously injected them during its own hosting. Existing downloaded files, users and avatars are not reset by this frontend migration.
 
-Status: prepared, not yet deployed to Cloudflare or cut over.
+Status: frontend deployed to Cloudflare on 8 October. Both studdybuddyapp.com and www.studdybuddyapp.com are attached to the production studygram Worker and verified publicly over HTTPS.
 
-Verified locally: production/PWA build and 28 regression tests pass. Cloudflare's existing GitHub installation currently exposes four unrelated repositories, not teleclone-project; the public-clone workflow would create another Git repository, so it was not used. Add only teleclone-project to the existing Cloudflare GitHub installation to retain automatic deployments from the authoritative repository.
+Deployment approved by the user, using the existing Workers Builds token without creating credentials or upgrading plans. The first build failed on obsolete binary bun.lockb; commit 93dc2d9 removed only that lockfile (recoverable from Git), retaining the matching package-lock.json. The automatic retry e47ffd27-64e2-4752-9f29-e989480dd9ae succeeded; Worker version 3d4c0d76-463a-4eb8-98d3-8c0594c38374 uploaded 49 assets. Preview branch builds were disabled in setup; version preview URLs are enabled by Wrangler defaults, distinct from branch builds.
 
-Read-only DNS check on 8 October: studdybuddyapp.com uses ns1.dns-parking.com and ns2.dns-parking.com, not Cloudflare nameservers. Production-domain routing therefore needs separate DNS ownership/configuration work after the temporary deployment is verified. No DNS records or account plans were changed.
+Independent browser and HTTP checks: /auth returns StudyGram and loads without captured startup errors, Lovable badge or flock script; favicon and both app icons return PNG; manifest, service worker and push handler return 200 with no-cache. Signed-in messaging/calling on this origin remains untested and requires the user to sign in themselves. The public preview image still points to the retained production domain until DNS cutover.
+
+Verified locally: production/PWA build and 28 regression tests pass. With action-time approval, teleclone-project was added to Cloudflare's existing GitHub installation, preserving its four other selected repositories. The authoritative repository drives automatic main-branch deployments; no duplicate repository was created.
+
+Initial read-only DNS check on 8 October found ns1.dns-parking.com and ns2.dns-parking.com. The approved migration below replaces this delegation; no paid account plan was introduced.
+
+Hostinger UI confirms three records only: apex A 185.158.133.1 (TTL 14400), www CNAME studdybuddyapp.com (TTL 300), and _lovable verification TXT (TTL 14400). No mail records were listed. A pre-cutover snapshot is retained outside the repo in ../studygram-dns-before-cloudflare.txt. Registration stays with Hostinger.
+
+With explicit user approval, studdybuddyapp.com was added on Cloudflare's Free plan. The scanner imported A and CNAME; the original _lovable TXT was restored from the backup. All three values are present, using automatic TTLs; web records remain DNS-only to preserve existing direct hosting until Worker attachment. Cloudflare zone ID: 04cc07f5e4f1beca82a49d58adca8e1c.
+
+After separate action-time approval, Hostinger accepted guss.ns.cloudflare.com and tina.ns.cloudflare.com on 8 October and displayed "Nameservers changed!". Cloudflare's initial check reported waiting for registrar propagation. No DNSSEC DS record was found in the read-only public check; no security setting was changed.
+
+The user then approved the final root and www website routing replacement. Cloudflare required removal of the old apex A and www CNAME before attachment; only those two backed-up records were deleted. Both domains now appear as Production on the studygram Worker. The _lovable TXT is preserved. No www redirect was introduced: both origins serve the frontend. wrangler.jsonc retains these exact custom-domain routes so future Git deployments do not remove the dashboard attachments. Backend hosting, users, messages, files and keys remain unchanged.
+
+Public cutover verification: Google DNS returns guss.ns.cloudflare.com and tina.ns.cloudflare.com. Both HTTPS /auth endpoints return 200, Server: cloudflare, the StudyGram title and no Lovable badge/flock injection. The root domain opens the StudyGram sign-in screen in the browser. Signed-in messaging, real calls, recording and push delivery remain separate user-assisted tests; these checks do not claim they passed. Some clients can retain old DNS caches temporarily. Do not cancel the Lovable-managed backend.

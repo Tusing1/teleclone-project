@@ -8,7 +8,10 @@ test('Cloudflare serves only the existing frontend with SPA navigation', () => {
   assert.equal(config.assets.directory, './dist');
   assert.equal(config.assets.not_found_handling, 'single-page-application');
   assert.equal(config.main, undefined);
-  assert.equal(config.routes, undefined, 'No domain cutover bundled into deployment');
+  assert.deepEqual(config.routes, [
+    { pattern: 'studdybuddyapp.com', custom_domain: true },
+    { pattern: 'www.studdybuddyapp.com', custom_domain: true },
+  ], 'Preserve only the two approved production domains on future deployments');
   assert.equal(config.vars, undefined, 'No backend private secrets in static hosting config');
 });
 
