@@ -183,7 +183,7 @@ export function CreateGroupDialog({ open, onClose, onCreateGroup }: CreateGroupD
                       <Avatar 
                         src={user.avatar_url} 
                         name={user.username} 
-                        isOnline={user.is_online}
+                        userId={user.user_id}
                       />
                       <div className="flex-1 text-left">
                         <div className="font-medium">{user.full_name || user.username}</div>

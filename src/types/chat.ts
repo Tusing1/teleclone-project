@@ -1,4 +1,6 @@
+import type { StudyDetails } from '@/lib/studyDetails';
 export interface Profile {
+  study_details?: StudyDetails | null;
   id: string;
   user_id: string;
   username: string;

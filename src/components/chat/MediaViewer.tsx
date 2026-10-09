@@ -6,11 +6,13 @@ import { AudioPlayer } from './AudioPlayer';
 import { mediaKind } from '@/lib/media';
 import { useFileCache } from '@/hooks/useFileCache';
 import { toast } from 'sonner';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 
 const PDFViewer = lazy(() => import('./PDFViewer').then(m => ({ default: m.PDFViewer })));
 
 export function MediaViewer({ open, onClose, url, fileName }: { open: boolean; onClose: () => void; url: string; fileName: string }) {
   const kind = mediaKind(fileName, url);
+  const savedOffline = useOfflineStatus(url);
   const [zoom, setZoom] = useState(1);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [text, setText] = useState<string | null>(null);
@@ -37,9 +39,10 @@ export function MediaViewer({ open, onClose, url, fileName }: { open: boolean; o
     return () => controller.abort();
   }, [open, displayUrl, kind]);
   const download = async () => {
+    if (url.startsWith('blob:')) { toast.info('This file is already opened from device storage.'); return; }
     setDownloading(true);
     try {
-      if (!url.startsWith('blob:')) await saveOffline(url, fileName);
+      await saveOffline(url, fileName);
       toast.success('Saved offline in StudyGram · Downloaded');
     } catch { toast.error('Could not save this file offline. Try again.'); }
     finally { setDownloading(false); }
@@ -53,7 +56,7 @@ export function MediaViewer({ open, onClose, url, fileName }: { open: boolean; o
         {error ? <p className="m-auto px-6">Unable to display this image. Use Save offline.</p> : <img src={displayUrl} alt={fileName} onError={() => setError(true)} className="m-auto object-contain" style={{ width: zoom > 1 ? `${zoom * 100}%` : '100%', maxWidth: zoom > 1 ? 'none' : '100%', maxHeight: zoom === 1 ? '100%' : 'none', flexShrink: 0 }} />}
       </div>
       <div className={`absolute top-0 left-0 right-14 p-4 bg-gradient-to-b from-black/70 to-transparent transition-opacity ${controlsVisible || error ? 'opacity-100' : 'opacity-0 invisible pointer-events-none'}`}>
-        <Button variant="ghost" size="icon" aria-label="Save image offline" onClick={download} disabled={downloading}>{downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}</Button>
+        {!savedOffline && !url.startsWith('blob:') && <Button variant="ghost" size="icon" aria-label="Save image offline" onClick={download} disabled={downloading}>{downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}</Button>}
       </div>
       <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-full bg-black/65 backdrop-blur-xl p-2 transition-opacity ${controlsVisible ? 'opacity-100' : 'opacity-0 invisible pointer-events-none'}`}>
         <Button variant="ghost" size="icon" aria-label="Zoom out" disabled={zoom === 1} onClick={() => setZoom(z => Math.max(1, z - .5))}><ZoomOut className="h-5 w-5" /></Button><span className="text-xs tabular-nums">{Math.round(zoom * 100)}%</span><Button variant="ghost" size="icon" aria-label="Zoom in" disabled={zoom === 3} onClick={() => setZoom(z => Math.min(3, z + .5))}><ZoomIn className="h-5 w-5" /></Button>
@@ -64,10 +67,10 @@ export function MediaViewer({ open, onClose, url, fileName }: { open: boolean; o
     <DialogContent className="w-screen max-w-none h-[100dvh] max-h-[100dvh] rounded-none p-0 gap-0 flex flex-col bg-background [&>button]:top-3">
       <header className="min-h-16 flex items-center gap-2 border-b border-border bg-card px-4 pr-20">
         <DialogTitle className="flex-1 min-w-0 truncate text-base">{fileName}</DialogTitle>
-        <Button variant="ghost" size="icon" aria-label="Save offline" onClick={download} disabled={downloading}>{downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}</Button>
+        {!savedOffline && !url.startsWith('blob:') && <Button variant="ghost" size="icon" aria-label="Save offline" onClick={download} disabled={downloading}>{downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}</Button>}
       </header>
       <div className="flex-1 min-h-0 overflow-auto scrollbar-thin flex items-center justify-center p-4">
-        {error ? <p className="text-muted-foreground">Preview unavailable. You can save this file offline.</p> : kind === 'video' ? <video src={displayUrl} controls playsInline onError={() => setError(true)} className="max-h-full max-w-full rounded-2xl" /> : kind === 'audio' ? <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6"><div className="mb-6 h-24 rounded-2xl bg-primary/15 flex items-center justify-center text-primary text-4xl">♫</div><AudioPlayer url={url} fileName={fileName} /></div> : kind === 'text' ? text === null ? <Loader2 className="animate-spin" /> : <pre className="self-start w-full whitespace-pre-wrap break-words text-sm font-mono">{text}</pre> : <div className="text-center space-y-4"><FileText className="h-16 w-16 text-primary mx-auto" /><p>This format doesn’t support an in-app preview yet.</p><Button onClick={download} disabled={downloading}>Save offline</Button></div>}
+        {error ? <p className="text-muted-foreground">Preview unavailable. You can save this file offline.</p> : kind === 'video' ? <video src={displayUrl} controls playsInline onError={() => setError(true)} className="max-h-full max-w-full rounded-2xl" /> : kind === 'audio' ? <div className="w-full max-w-md rounded-3xl border border-border bg-card p-6"><div className="mb-6 h-24 rounded-2xl bg-primary/15 flex items-center justify-center text-primary text-4xl">♫</div><AudioPlayer url={url} fileName={fileName} /></div> : kind === 'text' ? text === null ? <Loader2 className="animate-spin" /> : <pre className="self-start w-full whitespace-pre-wrap break-words text-sm font-mono">{text}</pre> : <div className="text-center space-y-4"><FileText className="h-16 w-16 text-primary mx-auto" /><p>This format doesn’t support an in-app preview yet.</p>{!savedOffline && !url.startsWith('blob:') && <Button onClick={download} disabled={downloading}>Save offline</Button>}{savedOffline && <p className="text-xs text-primary">Saved on this device</p>}</div>}
       </div>
     </DialogContent>
   </Dialog>;

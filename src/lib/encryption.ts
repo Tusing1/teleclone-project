@@ -162,6 +162,7 @@ export const hasEncryptionKeys = async (userId: string): Promise<boolean> => {
 export interface EncryptionMetadata {
   iv: string;
   senderPublicKey: string;
+  recipientPublicKey?: string;
 }
 
 // Full encryption flow: encrypt message for a recipient
@@ -180,17 +181,27 @@ export const encryptForRecipient = async (
   const { ciphertext, iv } = await encryptMessage(message, sharedKey);
   
   // Export sender's public key for the recipient to derive the same shared key
-  const senderKeyPair = await crypto.subtle.generateKey(KEY_ALGORITHM, true, ['deriveKey']);
-  const senderPublicKey = await exportPublicKey(senderKeyPair.publicKey);
+  const senderPublicKey = await publicKeyFromPrivate(senderPrivateKey);
   
   return {
     encryptedContent: ciphertext,
-    metadata: { iv, senderPublicKey },
+    metadata: { iv, senderPublicKey, recipientPublicKey: recipientPublicKeyJwk },
     senderPublicKey,
   };
 };
 
 // Full decryption flow: decrypt message from a sender
+// Derive the public half of the actual private key, never a freshly generated pair.
+export const publicKeyFromPrivate = async (privateKey: CryptoKey): Promise<string> => {
+  const { kty, crv, x, y } = await crypto.subtle.exportKey('jwk', privateKey);
+  return JSON.stringify({ kty, crv, x, y, ext: true, key_ops: [] });
+};
+export const publicKeyIdentity = (value: string): string => {
+  const { kty, crv, x, y } = JSON.parse(value);
+  if (kty !== 'EC' || crv !== 'P-256' || !x || !y) throw new Error('Invalid encryption key');
+  return JSON.stringify([kty, crv, x, y]);
+};
+
 export const decryptFromSender = async (
   encryptedContent: string,
   metadata: EncryptionMetadata,

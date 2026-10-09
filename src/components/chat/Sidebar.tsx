@@ -1,5 +1,5 @@
 import {
-  LogOut, Settings, Moon, Sun,
+  LogOut, Moon, Sun,
   Users, UserPlus, Radio, Contact, Heart, Phone, Sparkles, Mic, HardDrive
 } from 'lucide-react';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -173,13 +173,6 @@ export function Sidebar({
             </button>
 
 
-            <button
-              onClick={() => onOpenSettings && handleMenuClick(onOpenSettings)}
-              className="sg-sidebar-row"
-            >
-              <Settings className="h-5 w-5 text-muted-foreground" />
-              <span>Settings</span>
-            </button>
 
           </div>
 

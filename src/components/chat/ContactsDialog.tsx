@@ -148,7 +148,7 @@ export function ContactsDialog({ open, onClose, onSelectUser, onOpenInvite }: Co
                     <Avatar
                       src={u.avatar_url}
                       name={displayName}
-                      isOnline={u.is_online}
+                      userId={u.user_id}
                       size="sm"
                     />
                     <div className="flex-1 min-w-0">

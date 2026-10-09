@@ -131,61 +131,50 @@ Deno.serve(async (req) => {
     // For "saved" type or self-chat, create "Message Yourself" conversation
     if (type === 'saved' || (type === 'direct' && (!memberIds || memberIds.length === 0))) {
       // Check if self-chat already exists
-      const { data: allUserConversations } = await supabaseAdmin
+      const { data: allUserConversations, error: lookupError } = await supabaseAdmin
         .from('conversation_participants')
         .select('conversation_id')
         .eq('user_id', user.id)
 
+      if (lookupError) throw lookupError
+
       let existingSelfChatId: string | null = null
-      const duplicateSelfChatIds: string[] = []
 
       if (allUserConversations && allUserConversations.length > 0) {
         const conversationIds = allUserConversations.map(p => p.conversation_id)
         
         // Get all direct conversations
-        const { data: directConversations } = await supabaseAdmin
+        const { data: directConversations, error: directLookupError } = await supabaseAdmin
           .from('conversations')
           .select('id, created_at')
           .in('id', conversationIds)
           .eq('type', 'direct')
           .order('created_at', { ascending: true })
 
+        if (directLookupError) throw directLookupError
+
         if (directConversations) {
           for (const conv of directConversations) {
-            const { data: participants, count } = await supabaseAdmin
+            const { data: participants, count, error: participantLookupError } = await supabaseAdmin
               .from('conversation_participants')
               .select('*', { count: 'exact' })
               .eq('conversation_id', conv.id)
+
+            if (participantLookupError) throw participantLookupError
 
             // Self-chat = direct conversation with only the current user
             if (count === 1 && participants?.[0]?.user_id === user.id) {
               if (!existingSelfChatId) {
                 existingSelfChatId = conv.id
-              } else {
-                // This is a duplicate - mark for cleanup
-                duplicateSelfChatIds.push(conv.id)
               }
             }
           }
         }
       }
 
-      // Clean up duplicates if any exist
-      if (duplicateSelfChatIds.length > 0) {
-        console.log('Cleaning up duplicate self-chats:', duplicateSelfChatIds)
-        for (const dupId of duplicateSelfChatIds) {
-          // Move messages to the main self-chat
-          if (existingSelfChatId) {
-            await supabaseAdmin
-              .from('messages')
-              .update({ conversation_id: existingSelfChatId })
-              .eq('conversation_id', dupId)
-          }
-          // Delete participants and conversation
-          await supabaseAdmin.from('conversation_participants').delete().eq('conversation_id', dupId)
-          await supabaseAdmin.from('conversations').delete().eq('id', dupId)
-        }
-      }
+      // Opening Saved must never merge/delete existing chats. The previous cleanup
+      // deleted duplicates even when moving their messages failed. Any future
+      // consolidation must be a separately verified, transactional operation.
 
       if (existingSelfChatId) {
         console.log('Self-chat already exists:', existingSelfChatId)

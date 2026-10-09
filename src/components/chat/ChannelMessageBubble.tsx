@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import { MessageWithSender, Profile } from '@/types/chat';
+import { LinkPreview, extractUrls } from './LinkPreview';
+import { mediaKind } from '@/lib/media';
+import { splitMessageLinks } from '@/lib/messageLinks';
 import { format } from 'date-fns';
 import { Eye, MessageCircle, Share2, ChevronRight, Smile, MoreVertical, Reply, Copy, Pin, Pencil, Trash2, Play, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -35,6 +38,7 @@ interface ChannelMessageBubbleProps {
   onOpenBrowser?: (url: string) => void;
   onJoinStream?: (callId: string) => void;
   activeStreamId?: string | null;
+  sourceName?: string;
 }
 
 // Only positive emojis - removed 👎 and 😢
@@ -56,7 +60,7 @@ export function ChannelMessageBubble({
   isAdmin = false,
   onOpenBrowser,
   onJoinStream,
-  activeStreamId
+  activeStreamId, sourceName
 }: ChannelMessageBubbleProps) {
   const { user } = useAuth();
   const [mediaOpen, setMediaOpen] = useState(false);
@@ -103,7 +107,7 @@ export function ChannelMessageBubble({
     if (messageType === 'audio' || messageType === 'voice') return true;
     // webm files from recordings are audio
     if (/\.webm$/i.test(url)) return true;
-    return /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(url);
+    return mediaKind(message.file_name || '', url) === 'audio';
   };
 
   const copyMessageLink = async () => {
@@ -137,6 +141,8 @@ export function ChannelMessageBubble({
           fileName={message.file_name || undefined}
           title={message.file_name?.replace(/\.[^/.]+$/, '') || message.content || 'Audio Recording'}
           className="mb-0"
+          channelName={sourceName}
+          source={{ conversationId: message.conversation_id, messageId: message.id, label: sourceName || 'Channel' }}
         />
       );
     }
@@ -160,9 +166,6 @@ export function ChannelMessageBubble({
           </div>
           <div className="absolute bottom-2 left-2 px-2 py-0.5 bg-black/60 rounded text-white text-xs font-medium">
             Video
-          </div>
-          <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full bg-sky-500/90 flex items-center justify-center">
-            <Download className="w-4 h-4 text-white" />
           </div>
         </div>
       );
@@ -190,26 +193,25 @@ export function ChannelMessageBubble({
 
     if (message.content) {
       // Parse links in content
-      const urlRegex = /(https?:\/\/[^\s]+)/g;
-      const parts = message.content.split(urlRegex);
+      const parts = splitMessageLinks(message.content);
 
       return (
         <div className="text-foreground whitespace-pre-wrap text-[15px] leading-snug">
-          {parts.map((part, index) => {
-            if (urlRegex.test(part)) {
+          {parts.map(({ text: part, url }, index) => {
+            if (url) {
               return (
                 <a
                   key={index}
-                  href={part}
+                  href={url}
                   onClick={(e) => {
                     if (onOpenBrowser) {
                       e.preventDefault();
-                      onOpenBrowser(part);
+                      onOpenBrowser(url);
                     }
                   }}
                   target={onOpenBrowser ? undefined : "_blank"}
                   rel="noopener noreferrer"
-                  className="text-primary hover:underline break-all"
+                  className="text-sky-600 dark:text-sky-400 underline underline-offset-2 break-all"
                 >
                   {part}
                 </a>
@@ -332,6 +334,7 @@ export function ChannelMessageBubble({
           {message.content && (
             <div className="px-3 py-1.5">
               {renderContent()}
+              {!message.file_url && extractUrls(message.content || '').slice(0, 2).map(url => <LinkPreview key={url} url={url} onOpenBrowser={onOpenBrowser} className="mt-2" />)}
             </div>
           )}
 

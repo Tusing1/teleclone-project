@@ -3,15 +3,17 @@ import { useQueryClient } from '@tanstack/react-query';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { Profile } from '@/types/chat';
+import type { StudyDetails } from '@/lib/studyDetails';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string, username: string, fullName?: string) => Promise<{ error: Error | null }>;
+  signUp: (email: string, password: string, username: string, fullName?: string, studyDetails?: StudyDetails) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -64,15 +66,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!error && data) {
       setProfile(data as Profile);
-      // Update online status
+      // Last seen is historical; live presence is never inferred from a login flag.
       await supabase
         .from('profiles')
-        .update({ is_online: true, last_seen: new Date().toISOString() })
+        .update({ last_seen: new Date().toISOString() })
         .eq('user_id', userId);
     }
   };
 
-  const signUp = async (email: string, password: string, username: string, fullName?: string) => {
+  const signUp = async (email: string, password: string, username: string, fullName?: string, studyDetails?: StudyDetails) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -83,6 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         data: {
           username,
           full_name: fullName || username,
+          ...(studyDetails ? { study_details: studyDetails } : {}),
         }
       }
     });
@@ -110,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, loading, signUp, signIn, signOut, refreshProfile: async () => { if (user) await fetchProfile(user.id); } }}>
       {children}
     </AuthContext.Provider>
   );

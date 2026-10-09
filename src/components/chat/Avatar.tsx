@@ -1,11 +1,13 @@
 import { Users, Radio } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { usePresence } from '@/hooks/usePresence';
 
 interface AvatarProps {
   src?: string | null;
   name: string;
   size?: 'sm' | 'md' | 'lg' | 'xl';
   isOnline?: boolean;
+  userId?: string;
   className?: string;
   type?: 'user' | 'group' | 'channel';
 }
@@ -24,7 +26,9 @@ const iconSizes = {
   xl: 'w-12 h-12'
 };
 
-export function Avatar({ src, name, size = 'md', isOnline, className, type = 'user' }: AvatarProps) {
+export function Avatar({ src, name, size = 'md', isOnline, userId, className, type = 'user' }: AvatarProps) {
+  const online = usePresence();
+  const actuallyOnline = !!userId && online.has(userId);
   const initials = name
     .split(' ')
     .filter(Boolean)
@@ -73,11 +77,11 @@ export function Avatar({ src, name, size = 'md', isOnline, className, type = 'us
           )}
         </div>
       )}
-      {isOnline !== undefined && type === 'user' && (
+      {(userId || isOnline !== undefined) && type === 'user' && actuallyOnline && (
         <span
           className={cn(
             'absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-card',
-            isOnline ? 'bg-online' : 'bg-muted-foreground'
+            'bg-online'
           )}
         />
       )}

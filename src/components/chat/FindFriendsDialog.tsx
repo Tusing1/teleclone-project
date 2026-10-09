@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth';
 import type { Profile } from '@/types/chat';
 import { cn } from '@/lib/utils';
 import { buddyRecentlyActive, filterBuddyProfiles, sharedBuddyInterests } from '@/lib/buddyDiscovery';
+import { studySummary } from '@/lib/studyDetails';
 
 interface FindFriendsDialogProps {
   open: boolean; onClose: () => void; onOpenConversation: (id: string) => void;
@@ -23,10 +24,11 @@ function BuddyCard({ profile, interests, action, pending, disabled, onConnect, o
 }) {
   const common = sharedBuddyInterests(profile, interests);
   return <article className="rounded-3xl border border-border/60 bg-card/75 p-4">
-    <div className="flex items-center gap-3"><Avatar name={profile.full_name || profile.username} src={profile.avatar_url} size="md" /><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{profile.full_name || profile.username}</h3><p className="mt-1 truncate text-xs text-muted-foreground">@{profile.username}</p></div>{buddyRecentlyActive(profile) && <span title="Active within the last 24 hours" className="shrink-0 rounded-full bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-500">Recently active</span>}</div>
+    <div className="flex items-center gap-3"><Avatar name={profile.full_name || profile.username} src={profile.avatar_url} userId={profile.user_id} size="md" /><div className="min-w-0 flex-1"><h3 className="truncate text-sm font-semibold">{profile.full_name || profile.username}</h3><p className="mt-1 truncate text-xs text-muted-foreground">@{profile.username}</p></div>{buddyRecentlyActive(profile) && <span title="Active within the last 24 hours" className="shrink-0 rounded-full bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-500">Recently active</span>}</div>
     {profile.bio && <p className="mt-3 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">{profile.bio}</p>}
+    {profile.study_details && <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{studySummary(profile.study_details)}</p>}
     {common.length > 0 && <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-primary"><BookOpen size={13} />{common.length} shared {common.length === 1 ? 'interest' : 'interests'}</p>}
-    {!!profile.interests?.length && <div className="mt-3 flex flex-wrap gap-1.5">{profile.interests.slice(0, 5).map(interest => <span key={interest} className={cn('max-w-full truncate rounded-lg px-2 py-1 text-[11px]', common.includes(interest) ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground')}>{interest}</span>)}{profile.interests.length > 5 && <span className="px-2 py-1 text-[11px] text-muted-foreground">+{profile.interests.length - 5}</span>}</div>}
+    {!!profile.interests?.length && <div className="mt-3 flex flex-wrap gap-1.5">{profile.interests.slice(0, 5).map(interest => <span key={interest} className={cn('max-w-full truncate rounded-lg px-2 py-1 text-[11px]', 'bg-primary/10 text-primary', common.includes(interest) && 'ring-1 ring-primary/30')}>{interest}</span>)}{profile.interests.length > 5 && <span className="px-2 py-1 text-[11px] text-muted-foreground">+{profile.interests.length - 5}</span>}</div>}
     <div className="mt-4 flex items-center justify-end gap-2 border-t border-border/40 pt-3">{onPass && <Button variant="ghost" size="sm" className="rounded-xl text-muted-foreground" disabled={disabled} onClick={onPass}>Pass</Button>}<Button size="sm" className="gap-2 rounded-xl" disabled={disabled} onClick={onConnect}>{pending ? <Loader2 size={15} className="animate-spin" /> : <UserPlus size={15} />}{action}</Button></div>
   </article>;
 }

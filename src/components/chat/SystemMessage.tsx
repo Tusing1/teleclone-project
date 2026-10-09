@@ -50,7 +50,7 @@ export function SystemMessage({
         "bg-black/40 backdrop-blur-sm text-white px-4 py-1.5 rounded-full flex items-center gap-2 text-sm shadow-sm border border-white/5 mx-auto max-w-[90%]",
       )}>
         {/* Icon Logic */}
-        {isStarted ? (
+        {isStarted && hasActiveCall ? (
           <div className={cn("w-2 h-2 rounded-full shrink-0", isChannel ? "bg-red-500 animate-pulse" : "bg-green-500 animate-pulse")} />
         ) : isMissed ? (
           <Phone className="w-3.5 h-3.5 text-red-400" />
@@ -62,7 +62,7 @@ export function SystemMessage({
         <span className="truncate opacity-90">{content}</span>
 
         {/* Join Button */}
-        {hasActiveCall && onJoinCall && (
+        {isStarted && !isEnded && hasActiveCall && onJoinCall && (
           <Button
             size="sm"
             variant="secondary"

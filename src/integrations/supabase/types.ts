@@ -1,3 +1,4 @@
+import type { StudyDetails } from '@/lib/studyDetails';
 export type Json =
   | string
   | number
@@ -272,6 +273,7 @@ export type Database = {
           id: string
           is_archived: boolean | null
           linked_discussion_id: string | null
+          pinned_message_id: string | null
           name: string | null
           subscriber_count: number | null
           type: string
@@ -285,6 +287,7 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           linked_discussion_id?: string | null
+          pinned_message_id?: string | null
           name?: string | null
           subscriber_count?: number | null
           type?: string
@@ -298,6 +301,7 @@ export type Database = {
           id?: string
           is_archived?: boolean | null
           linked_discussion_id?: string | null
+          pinned_message_id?: string | null
           name?: string | null
           subscriber_count?: number | null
           type?: string
@@ -611,6 +615,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          study_details: StudyDetails | null
           avatar_url: string | null
           bio: string | null
           created_at: string
@@ -632,6 +637,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           interests?: string[] | null
+          study_details?: Json | null
           is_online?: boolean | null
           last_seen?: string | null
           phone_number?: string | null
@@ -647,6 +653,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           interests?: string[] | null
+          study_details?: Json | null
           is_online?: boolean | null
           last_seen?: string | null
           phone_number?: string | null

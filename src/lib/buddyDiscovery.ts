@@ -11,7 +11,7 @@ export function sharedBuddyInterests(profile: Pick<Profile, 'interests'>, mine: 
 export function filterBuddyProfiles(profiles: Profile[], query: string, sharedOnly: boolean, onlineOnly: boolean, mine: string[] = []) {
   const terms = normalize(query).split(/\s+/).filter(Boolean);
   return profiles.filter(profile => {
-    const text = normalize([profile.full_name, profile.username, profile.bio, ...(profile.interests || [])].filter(Boolean).join(' '));
+    const text = normalize([profile.full_name, profile.username, profile.bio, profile.study_details?.course, profile.study_details?.qualification, profile.study_details?.institution, profile.study_details?.cohort, ...(profile.interests || [])].filter(Boolean).join(' '));
     return terms.every(term => text.includes(term)) && (!onlineOnly || buddyRecentlyActive(profile)) && (!sharedOnly || sharedBuddyInterests(profile, mine).length > 0);
   }).sort((a, b) => sharedBuddyInterests(b, mine).length - sharedBuddyInterests(a, mine).length);
 }

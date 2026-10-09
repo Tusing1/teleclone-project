@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { ConversationWithDetails, Profile, Message } from '@/types/chat';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getSavedMessages } from '@/lib/savedMessages';
 
 export function useConversations() {
   const { user } = useAuth();
@@ -89,11 +90,9 @@ export function useConversations() {
   }, [conversationsData]);
 
   useEffect(() => {
-    const selfChatConv = conversationsData.find(c => c.isSelfChat || c.isSavedMessages);
-    if (selfChatConv) {
-      setSavedMessagesId(selfChatConv.id);
-    }
-  }, [conversationsData]);
+    const selfChatConv = [...conversationsData].filter(c => c.isSelfChat || c.isSavedMessages).sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))[0];
+    setSavedMessagesId(selfChatConv?.id || null);
+  }, [conversationsData, user?.id]);
 
   const fetchConversations = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['conversations', user?.id] });
@@ -246,57 +245,11 @@ export function useConversations() {
   const getOrCreateSavedMessages = async (): Promise<string | null> => {
     if (!user) return null;
 
-    // Return existing saved messages conversation
-    if (savedMessagesId) return savedMessagesId;
-
-    // Check if it exists but wasn't loaded yet
-    const { data: participantData } = await supabase
-      .from('conversation_participants')
-      .select('conversation_id')
-      .eq('user_id', user.id);
-
-    if (participantData) {
-      for (const p of participantData) {
-        // First check if this conversation is type 'direct'
-        const { data: convData } = await supabase
-          .from('conversations')
-          .select('type')
-          .eq('id', p.conversation_id)
-          .single();
-
-        if (convData?.type !== 'direct') continue;
-
-        const { data: participants } = await supabase
-          .from('conversation_participants')
-          .select('*')
-          .eq('conversation_id', p.conversation_id);
-
-        // Saved Messages = direct conversation with only the current user
-        if (participants?.length === 1 && participants[0].user_id === user.id) {
-          setSavedMessagesId(p.conversation_id);
-          return p.conversation_id;
-        }
-      }
-    }
-
-    // Create new Saved Messages conversation via edge function (to bypass RLS)
     try {
-      const { data, error } = await supabase.functions.invoke('create-conversation', {
-        body: { type: 'saved' }
-      });
-
-      if (error) {
-        console.error('Error creating Saved Messages via edge function:', error);
-        return null;
-      }
-
-      if (data?.id) {
-        setSavedMessagesId(data.id);
-        await fetchConversations();
-        return data.id;
-      }
-
-      return null;
+      const id = await getSavedMessages(user.id);
+      setSavedMessagesId(id);
+      await fetchConversations();
+      return id;
     } catch (err) {
       console.error('Failed to create Saved Messages:', err);
       return null;

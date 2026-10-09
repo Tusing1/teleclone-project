@@ -333,6 +333,8 @@ export function DiscussionView({
               return (
                 <div key={message.id} className="group relative">
                   <MessageBubble
+                    sourceConversationId={parentChannel?.id}
+                    sourceName={parentChannel?.name ? `${parentChannel.name} comments` : conversation.name || 'Comments'}
                     message={message}
                     showAvatar={showAvatar}
                     isChannelMessage={false}

@@ -1,4 +1,9 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { useFileCache } from './useFileCache';
+import { useAuth } from './useAuth';
+import { toast } from 'sonner';
+
+export interface AudioSource { conversationId: string; messageId?: string; label?: string }
 
 interface AudioState {
   url: string;
@@ -8,12 +13,13 @@ interface AudioState {
   currentTime: number;
   duration: number;
   playbackSpeed: number;
+  source?: AudioSource;
 }
 
 interface GlobalAudioContextType {
   audioState: AudioState | null;
   audioRef: React.RefObject<HTMLAudioElement>;
-  play: (url: string, title?: string, channelName?: string, startTime?: number) => void;
+  play: (url: string, title?: string, channelName?: string, startTime?: number, source?: AudioSource) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -25,12 +31,25 @@ interface GlobalAudioContextType {
 
 const GlobalAudioContext = createContext<GlobalAudioContextType | null>(null);
 
-const POSITION_STORAGE_KEY = 'audio_positions';
 
 export function GlobalAudioProvider({ children }: { children: React.ReactNode }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioState, setAudioState] = useState<AudioState | null>(null);
   const saveIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { user } = useAuth();
+  const POSITION_STORAGE_KEY = `studygram-audio-positions:${user?.id || 'signed-out'}`;
+  const { getCachedFile } = useFileCache();
+  const ownedUrl = useRef<string | null>(null);
+  const generation = useRef(0);
+  const pendingSeek = useRef<number | null>(null);
+  useEffect(() => {
+    generation.current++;
+    audioRef.current?.pause();
+    if (audioRef.current) audioRef.current.removeAttribute('src');
+    if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current);
+    ownedUrl.current = null; setAudioState(null);
+    return () => { generation.current++; audioRef.current?.pause(); if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current); ownedUrl.current = null; };
+  }, [user?.id]);
 
   // Load saved positions from localStorage
   const getSavedPositions = useCallback((): Record<string, number> => {
@@ -40,7 +59,7 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
     } catch {
       return {};
     }
-  }, []);
+  }, [POSITION_STORAGE_KEY]);
 
   // Save position to localStorage
   const savePosition = useCallback((url: string, time: number) => {
@@ -56,7 +75,7 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
     } catch (error) {
       console.error('Error saving audio position:', error);
     }
-  }, [getSavedPositions]);
+  }, [getSavedPositions, POSITION_STORAGE_KEY]);
 
   // Get saved position for a URL
   const getSavedPosition = useCallback((url: string): number => {
@@ -70,14 +89,15 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
   }, [audioState?.url]);
 
   // Play audio (new or resume)
-  const play = useCallback((url: string, title?: string, channelName?: string, startTime?: number) => {
+  const play = useCallback(async (url: string, title?: string, channelName?: string, startTime?: number, source?: AudioSource) => {
     const audio = audioRef.current;
     if (!audio) return;
 
     // If same audio, just resume
     if (audioState?.url === url) {
-      audio.play();
-      setAudioState(prev => prev ? { ...prev, isPlaying: true } : null);
+      if (source) setAudioState(previous => previous ? { ...previous, source, title: title || previous.title, channelName: channelName || previous.channelName } : null);
+      if (startTime !== undefined) audio.currentTime = startTime;
+      try { await audio.play(); } catch { toast.error('Audio could not play. Tap play to retry.'); }
       return;
     }
 
@@ -90,23 +110,30 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
     const savedPosition = startTime ?? getSavedPosition(url);
 
     // Set up new audio
-    audio.src = url;
-    audio.currentTime = savedPosition;
-    audio.play().catch(console.error);
+    const ticket = ++generation.current;
+    audio.pause();
+    const cached = await getCachedFile(url);
+    if (ticket !== generation.current) return;
+    if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current);
+    ownedUrl.current = cached ? URL.createObjectURL(cached.blob) : null;
+    audio.src = ownedUrl.current || url;
+    pendingSeek.current = savedPosition;
 
     setAudioState({
       url,
       title,
       channelName,
-      isPlaying: true,
+      isPlaying: false,
       currentTime: savedPosition,
       duration: 0,
       playbackSpeed: audioState?.playbackSpeed || 1,
+      source,
     });
 
     // Apply saved playback speed
     audio.playbackRate = audioState?.playbackSpeed || 1;
-  }, [audioState, getSavedPosition, savePosition]);
+    try { await audio.play(); } catch { if (ticket === generation.current) toast.error('Audio could not play. Tap play to retry.'); }
+  }, [audioState, getSavedPosition, savePosition, getCachedFile]);
 
   // Pause current audio
   const pause = useCallback(() => {
@@ -127,8 +154,7 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
     const audio = audioRef.current;
     if (!audio || !audioState) return;
     
-    audio.play().catch(console.error);
-    setAudioState(prev => prev ? { ...prev, isPlaying: true } : null);
+    audio.play().catch(() => toast.error('Audio could not play. Tap play to retry.'));
   }, [audioState]);
 
   // Stop and clear audio
@@ -143,6 +169,10 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
     
     audio.pause();
     audio.src = '';
+    generation.current++;
+    pendingSeek.current = null;
+    if (ownedUrl.current) URL.revokeObjectURL(ownedUrl.current);
+    ownedUrl.current = null;
     setAudioState(null);
   }, [audioState?.url, savePosition]);
 
@@ -176,6 +206,10 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
   const handleLoadedMetadata = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
+    if (pendingSeek.current !== null) {
+      audio.currentTime = Math.min(pendingSeek.current, Number.isFinite(audio.duration) ? audio.duration : pendingSeek.current);
+      pendingSeek.current = null;
+    }
     
     setAudioState(prev => prev ? { ...prev, duration: audio.duration } : null);
   }, []);
@@ -186,10 +220,10 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
       // Clear saved position when audio finishes
       const positions = getSavedPositions();
       delete positions[audioState.url];
-      localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(positions));
+      try { localStorage.setItem(POSITION_STORAGE_KEY, JSON.stringify(positions)); } catch { /* Private browsing may decline position storage. */ }
     }
     setAudioState(prev => prev ? { ...prev, isPlaying: false, currentTime: 0 } : null);
-  }, [audioState?.url, getSavedPositions]);
+  }, [audioState?.url, getSavedPositions, POSITION_STORAGE_KEY]);
 
   // Auto-save position every 5 seconds while playing
   useEffect(() => {
@@ -241,6 +275,9 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
+        onPlay={() => setAudioState(prev => prev ? { ...prev, isPlaying: true } : null)}
+        onPause={() => setAudioState(prev => prev ? { ...prev, isPlaying: false } : null)}
+        onError={() => { setAudioState(prev => prev ? { ...prev, isPlaying: false } : null); toast.error('Audio unavailable. Check your connection or saved files.'); }}
         style={{ display: 'none' }}
       />
     </GlobalAudioContext.Provider>

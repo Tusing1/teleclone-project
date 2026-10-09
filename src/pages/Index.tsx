@@ -353,6 +353,7 @@ export default function Index() {
             onOpenSavedMessages={handleOpenSavedMessages}
             onOpenMessageFriends={() => setShowMessageFriends(true)}
             onOpenEditProfile={() => setShowEditProfile(true)}
+            onOpenSettings={() => setShowSettings(true)}
             onOpenGlobalSearch={() => setShowGlobalSearch(true)}
             pendingLikesCount={totalLikesCount}
             loading={convLoading}
@@ -515,6 +516,8 @@ export default function Index() {
         {showSettings && (<SettingsDialog
           open={showSettings}
           onClose={() => setShowSettings(false)}
+          onEditProfile={() => { setShowSettings(false); setShowEditProfile(true); }}
+          onOpenDownloads={() => { setShowSettings(false); setShowDownloaded(true); }}
         />)}
 
         {browserUrl && (<InAppBrowser

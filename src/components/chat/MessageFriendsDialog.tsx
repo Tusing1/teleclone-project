@@ -70,7 +70,7 @@ export function MessageFriendsDialog({ open, onClose, onSelectConversation }: Me
                     <Avatar
                       src={profile?.avatar_url}
                       name={displayName}
-                      isOnline={profile?.is_online}
+                      userId={profile?.user_id}
                       size="md"
                     />
                     <div className="flex-1 min-w-0">

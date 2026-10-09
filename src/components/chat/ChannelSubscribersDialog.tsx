@@ -216,7 +216,7 @@ export function ChannelSubscribersDialog({
                           src={participant.profile?.avatar_url}
                           name={participant.profile?.full_name || participant.profile?.username || 'User'}
                           size="sm"
-                          isOnline={participant.profile?.is_online}
+                          userId={participant.profile?.user_id}
                         />
                         <div>
                           <div className="flex items-center gap-2">

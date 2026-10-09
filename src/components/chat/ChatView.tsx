@@ -9,6 +9,10 @@ import { EditMessageDialog } from './EditMessageDialog';
 import { MessageBubble } from './MessageBubble';
 import { ChannelMessageBubble } from './ChannelMessageBubble';
 import { SystemMessage } from './SystemMessage';
+import { NowPlayingBar } from './NowPlayingBar';
+import { useChannelPin } from '@/hooks/useChannelPin';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+import { studySummary } from '@/lib/studyDetails';
 import { CallButton } from './CallButton';
 const CallView = lazy(() => import('./CallView').then(module => ({ default: module.CallView })));
 const LiveStreamPreview = lazy(() => import('./LiveStreamPreview').then(module => ({ default: module.LiveStreamPreview })));
@@ -17,11 +21,11 @@ import { ChannelSettingsDialog } from './ChannelSettingsDialog';
 import { GroupSettingsDialog } from './GroupSettingsDialog';
 import { VoiceRecorder } from './VoiceRecorder';
 import { ScheduleCallDialog } from './ScheduleCallDialog';
-const EditProfileDialog = lazy(() => import('./EditProfileDialog').then(module => ({ default: module.EditProfileDialog })));
 import { TypingIndicator } from './TypingIndicator';
 import { useTypingIndicator } from '@/hooks/useTypingIndicator';
 import { useMessages } from '@/hooks/useMessages';
 import { useAuth } from '@/hooks/useAuth';
+import { usePresence } from '@/hooks/usePresence';
 import { useCalls } from '@/hooks/useCalls';
 import { useLiveStream } from '@/hooks/useLiveStream';
 import { callErrorMessage } from '@/lib/callErrors';
@@ -67,8 +71,9 @@ export function ChatView({
   onOpenBrowser
 }: ChatViewProps) {
   const { user } = useAuth();
+  const onlineUsers = usePresence();
   const queryClient = useQueryClient();
-  const { messages, loading, error: messagesError, sendMessage, uploadFile, updateMessage, refetch, loadOlder, hasOlder, loadingOlder } = useMessages(
+  const { messages, loading, error: messagesError, encryptionError, sendMessage, uploadFile, updateMessage, refetch, loadOlder, hasOlder, loadingOlder } = useMessages(
     conversation.id,
     conversation.linked_discussion_id,
     conversation.type === 'direct' ? conversation.participants.find(p => p.user_id !== user?.id)?.user_id : undefined,
@@ -120,6 +125,10 @@ export function ChatView({
 
   const isGroup = conversation.type === 'group';
   const isChannel = conversation.type === 'channel';
+  const isSavedMessages = !!conversation.isSavedMessages || (conversation.type === 'direct' && conversation.participants.length === 1 && conversation.participants[0].user_id === user?.id);
+  const { pinned, available: pinsAvailable, busy: pinBusy, changePin } = useChannelPin(conversation.id, isChannel);
+  const [showPinned, setShowPinned] = useState(false);
+  useEffect(() => setShowPinned(false), [conversation.id]);
   const otherParticipant = conversation.participants.find(p => p.user_id !== user?.id);
   const otherProfile = otherParticipant?.profile;
 
@@ -196,6 +205,7 @@ export function ChatView({
   const { typingUsers, handleTyping } = useTypingIndicator(conversation.id);
 
   const handleStartCall = async () => {
+    if (isSavedMessages) return;
     if (isJoiningCall) return;
     setCallError(null);
     if (isChannel || isGroup) {
@@ -275,15 +285,19 @@ export function ChatView({
     const replyPrefix = replyingTo && !isChannel
       ? `↪ ${replyingTo.sender?.full_name || replyingTo.sender?.username || 'Message'}: ${replyingTo.content || 'Attachment'}\n`
       : '';
-    await sendMessage(
+    try {
+    const sent = await sendMessage(
       `${replyPrefix}${messageText.trim()}`,
       'text',
       undefined,
       isChannel ? replyingTo?.id : undefined
     );
+    if (!sent) throw new Error('Message was not sent. Please try again.');
     setMessageText('');
     setReplyingTo(null);
-    setSending(false);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Message was not sent.');
+    } finally { setSending(false); }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -348,15 +362,15 @@ export function ChatView({
   };
 
   // Display name and status for header
-  const displayName = isGroup || isChannel
+  const displayName = isSavedMessages ? 'Saved Messages' : isGroup || isChannel
     ? conversation.name || 'Unnamed'
     : (otherProfile?.full_name || otherProfile?.username || 'Unknown');
 
-  const statusText = isGroup
+  const statusText = isSavedMessages ? 'Your private cloud notebook' : isGroup
     ? `${conversation.participants.length} members`
     : isChannel
       ? `${conversation.participants.length} subscribers`
-      : (otherProfile?.is_online
+      : (onlineUsers.has(otherProfile?.user_id || '')
         ? 'online'
         : otherProfile?.last_seen
           ? `last seen ${new Date(otherProfile.last_seen).toLocaleString()}`
@@ -478,7 +492,7 @@ export function ChatView({
           onClick={() => {
             if (isGroup && isAdminOrOwner) setShowGroupSettings(true);
             else if (isChannel) setShowChannelSettings(true);
-            else setShowEditProfile(true);
+            else if (!isGroup && !isSavedMessages) setShowEditProfile(true);
           }}
           className="cursor-pointer"
         >
@@ -486,7 +500,7 @@ export function ChatView({
             src={isGroup || isChannel ? conversation.avatar_url : otherProfile?.avatar_url}
             name={displayName}
             size="sm"
-            isOnline={isGroup || isChannel ? undefined : otherProfile?.is_online}
+            userId={isGroup || isChannel ? undefined : otherProfile?.user_id}
             type={isGroup ? 'group' : isChannel ? 'channel' : 'user'}
           />
         </button>
@@ -496,14 +510,14 @@ export function ChatView({
           <p className={cn(
             'text-xs truncate',
             isChannel ? 'text-muted-foreground' :
-              (!isGroup && otherProfile?.is_online ? 'text-emerald-400' : 'text-muted-foreground')
+              (!isGroup && onlineUsers.has(otherProfile?.user_id || '') ? 'text-emerald-400' : 'text-muted-foreground')
           )}>
             {statusText}
           </p>
         </div>
 
         {/* Call button for direct messages */}
-        {!isGroup && !isChannel && (
+        {!isGroup && !isChannel && !isSavedMessages && (
           <CallButton
             pending={isJoiningCall}
             onStartCall={handleStartCall}
@@ -537,7 +551,7 @@ export function ChatView({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             {/* Call options for direct chats */}
-            {!isGroup && !isChannel && (
+            {!isGroup && !isChannel && !isSavedMessages && (
               <>
                 <DropdownMenuItem onClick={() => handleStartCall()}>
                   <Phone className="h-4 w-4 mr-2" />
@@ -589,11 +603,33 @@ export function ChatView({
         />
       )}
 
-      {/* Edit Profile Dialog for direct chats */}
-      {!isGroup && !isChannel && showEditProfile && <Suspense fallback={null}>
-        <EditProfileDialog open onClose={() => setShowEditProfile(false)} />
-      </Suspense>}
+      {/* A contact profile is read-only; editing your own profile belongs in Settings. */}
+      {!isGroup && !isChannel && !isSavedMessages && otherProfile && <Dialog open={showEditProfile} onOpenChange={setShowEditProfile}>
+        <DialogContent aria-describedby={undefined} className="rounded-3xl">
+          <DialogTitle>{otherProfile.full_name || otherProfile.username}</DialogTitle>
+          <div className="flex items-center gap-3"><Avatar name={displayName} src={otherProfile.avatar_url} userId={otherProfile.user_id} size="lg" /><span className="text-sm text-muted-foreground">@{otherProfile.username}</span></div>
+          {otherProfile.bio && <p className="text-sm whitespace-pre-wrap">{otherProfile.bio}</p>}
+          {otherProfile.study_details && <p className="text-sm text-muted-foreground">{studySummary(otherProfile.study_details)}</p>}
+          <div className="flex flex-wrap gap-2">{otherProfile.interests?.map(interest => <span key={interest} className="rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">{interest}</span>)}</div>
+        </DialogContent>
+      </Dialog>}
 
+      <NowPlayingBar onOpenSource={source => navigate('/', { state: { conversationId: source.conversationId } })} />
+      {isChannel && pinned && <div className="flex items-center gap-2 border-b border-border bg-primary/10 px-4 py-2">
+        <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setShowPinned(true)}><span className="block text-xs font-semibold text-primary">Pinned message</span><span className="block truncate text-sm">{pinned.content || pinned.file_name || 'Attachment'}</span></button>
+        {isAdminOrOwner && <Button variant="ghost" size="sm" disabled={pinBusy} onClick={() => void changePin(null)}>Unpin</Button>}
+      </div>}
+      {pinned && <Dialog open={showPinned} onOpenChange={setShowPinned}>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-3xl" aria-describedby={undefined}>
+          <DialogTitle>Pinned channel post</DialogTitle>
+          <ChannelMessageBubble message={pinned} reactions={reactions[pinned.id] || []} onToggleReaction={emoji => void toggleReaction(pinned.id, emoji)} sourceName={displayName} onOpenBrowser={onOpenBrowser} onOpenComments={conversation.linked_discussion_id ? () => { setShowPinned(false); onNavigateToDiscussion?.(conversation.linked_discussion_id!, pinned); } : undefined} />
+          <Button variant="secondary" onClick={() => {
+            const node = document.getElementById(`message-${pinned.id}`);
+            if (node) { setShowPinned(false); node.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+            else toast.info('This post is older than the loaded history. Read it here, or load earlier messages to locate it.');
+          }}>Locate in history</Button>
+        </DialogContent>
+      </Dialog>}
       {/* Messages */}
       <div ref={scrollContainer} className="flex-1 overflow-y-auto scrollbar-thin py-5 bg-background">
         {hasOlder && <div className="text-center mb-3"><Button variant="secondary" size="sm" onClick={showOlder} disabled={loadingOlder}>{loadingOlder ? 'Loading…' : 'Earlier messages'}</Button></div>}
@@ -642,7 +678,8 @@ export function ChatView({
               // Use ChannelMessageBubble for channels
               if (isChannel) {
                 return (
-                  <ChannelMessageBubble
+                  <div key={message.id} id={`message-${message.id}`}><ChannelMessageBubble
+                    sourceName={displayName}
                     key={message.id}
                     activeStreamId={activeStream?.id}
                     onJoinStream={() => handleJoinCall()}
@@ -673,13 +710,15 @@ export function ChatView({
                     onEdit={() => openEditDialog(message)}
                     onDelete={() => openDeleteDialog(message)}
                     isAdmin={isAdminOrOwner}
+                    onPin={isAdminOrOwner && pinsAvailable ? () => void changePin(message) : undefined}
                     onOpenBrowser={onOpenBrowser}
-                  />
+                  /></div>
                 );
               }
 
               return (
                 <MessageBubble
+                  sourceName={displayName}
                   key={message.id}
                   message={message}
                   showAvatar={showAvatar}
@@ -694,6 +733,7 @@ export function ChatView({
                 />
               );
             })}
+            {conversation.type === 'direct' && !conversation.isSavedMessages && encryptionError && <div role="status" className="rounded-2xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-foreground"><p className="font-semibold">Private chats need your device key</p><p className="mt-1">{encryptionError} Don't clear the app data on your original device.</p></div>}
             <div ref={messagesEndRef} />
           </div>
         )}
@@ -765,7 +805,7 @@ export function ChatView({
                 <Paperclip className="h-5 w-5" />
               </Button>
               <Input
-                placeholder={isChannel ? "Broadcast..." : "Message"}
+                placeholder={isSavedMessages ? 'Save a note…' : isChannel ? "Broadcast..." : "Message"}
                 value={messageText}
                 onChange={(e) => {
                   setMessageText(e.target.value);

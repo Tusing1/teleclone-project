@@ -35,7 +35,8 @@ export function useMessages(
       })) };
     });
   };
-  const { isInitialized: encryptionReady, encryptForUser, decryptMessage: decryptContent } = useEncryption();
+  const { canDecrypt: encryptionReady, isLoading: encryptionLoading, error: encryptionError, encryptForUser, decryptMessage: decryptContent } = useEncryption();
+  const lockedContent = encryptionLoading ? '🔒 Unlocking encrypted message…' : encryptionError || '🔒 This encrypted message cannot be unlocked on this device.';
 
   const fetchCommentCounts = useCallback(async (messageIds: string[]) => {
     if (!linkedDiscussionId || messageIds.length === 0) return {};
@@ -78,13 +79,13 @@ export function useMessages(
     // Decrypt encrypted messages
     const decryptedMessages = await Promise.all(
       messagesData.map(async (msg) => {
-        let content = msg.is_encrypted && !encryptionReady ? '🔒 Unlocking encrypted message…' : msg.content;
+        let content = msg.is_encrypted ? lockedContent : msg.content;
         
         // Check if message is encrypted and we can decrypt it
         if (msg.is_encrypted && msg.encryption_metadata && encryptionReady) {
           try {
             const metadata = msg.encryption_metadata as unknown as EncryptionMetadata;
-            const decrypted = await decryptContent(msg.content || '', metadata);
+            const decrypted = await decryptContent(msg.content || '', metadata, msg.sender_id === user?.id, recipientUserId);
             if (decrypted) {
               content = decrypted;
             } else {
@@ -125,7 +126,7 @@ export function useMessages(
     }
     const oldest = messagesData[messagesData.length - 1];
     return { rows: decryptedMessages.reverse(), nextCursor: messagesData.length === PAGE_SIZE && oldest ? { createdAt: oldest.created_at, id: oldest.id } : null };
-  }, [conversationId, threadId, fetchCommentCounts, user?.id, encryptionReady, decryptContent, linkedDiscussionId]);
+  }, [conversationId, threadId, fetchCommentCounts, user?.id, encryptionReady, decryptContent, linkedDiscussionId, recipientUserId, lockedContent]);
 
   const { data, isLoading: loading, error, refetch, fetchNextPage: loadOlder, hasNextPage: hasOlder, isFetchingNextPage: loadingOlder } = useInfiniteQuery({
     queryKey,
@@ -139,8 +140,8 @@ export function useMessages(
   });
   const messages = useMemo(() => data?.pages.flatMap(page => page.rows).sort((a,b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)) || [], [data]);
   useEffect(() => {
-    if (encryptionReady && messages.some(message => message.content === '🔒 Unlocking encrypted message…')) void refetch();
-  }, [encryptionReady, conversationId, messages]);
+    if (conversationId && !encryptionLoading) void refetch();
+  }, [encryptionReady, encryptionLoading, encryptionError, conversationId, recipientUserId, refetch]);
 
   useEffect(() => {
     if (!linkedDiscussionId) return;
@@ -176,10 +177,10 @@ export function useMessages(
             .single();
 
           // Decrypt if encrypted
-          let content = newMessage.is_encrypted && !encryptionReady ? '🔒 Unlocking encrypted message…' : newMessage.content;
+          let content = newMessage.is_encrypted ? lockedContent : newMessage.content;
           if (newMessage.is_encrypted && newMessage.encryption_metadata && encryptionReady) {
             try {
-              const decrypted = await decryptContent(newMessage.content, newMessage.encryption_metadata as EncryptionMetadata);
+              const decrypted = await decryptContent(newMessage.content, newMessage.encryption_metadata as EncryptionMetadata, newMessage.sender_id === user?.id, recipientUserId);
               if (decrypted) {
                 content = decrypted;
               } else {
@@ -240,7 +241,7 @@ export function useMessages(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, threadId, user?.id, encryptionReady, decryptContent]);
+  }, [conversationId, threadId, user?.id, encryptionReady, decryptContent, recipientUserId, lockedContent]);
 
   const sendMessage = async (
     content: string, 
@@ -255,19 +256,13 @@ export function useMessages(
     let isEncrypted = false;
     let encryptionMetadata: EncryptionMetadata | null = null;
 
-    // Try to encrypt for direct messages
-    if (recipientUserId && encryptionReady && type === 'text' && finalContent) {
-      try {
-        const encrypted = await encryptForUser(finalContent, recipientUserId);
-        if (encrypted) {
-          finalContent = encrypted.encryptedContent;
-          encryptionMetadata = encrypted.metadata;
-          isEncrypted = true;
-          console.log('🔐 Message encrypted for E2EE');
-        }
-      } catch (err) {
-        console.warn('Failed to encrypt message, sending unencrypted:', err);
-      }
+    // Encryption failures must never silently send a private text in plaintext.
+    if (recipientUserId && type === 'text' && finalContent) {
+      if (!encryptionReady || encryptionError) throw new Error(encryptionError || 'Encryption is still starting. Please retry.');
+      const encrypted = await encryptForUser(finalContent, recipientUserId);
+      finalContent = encrypted.encryptedContent;
+      encryptionMetadata = encrypted.metadata;
+      isEncrypted = true;
     }
 
     const messageData: any = {
@@ -397,5 +392,5 @@ export function useMessages(
     void refetch();
   };
 
-  return { messages, loading, error, sendMessage, uploadFile, updateMessage, refetch, loadOlder, hasOlder, loadingOlder };
+  return { messages, loading, error, encryptionError, sendMessage, uploadFile, updateMessage, refetch, loadOlder, hasOlder, loadingOlder };
 }

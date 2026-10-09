@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, useNavigate, useParams } from "react-rout
 import { AuthProvider } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { GlobalAudioProvider } from "@/hooks/useGlobalAudio";
+import { PresenceProvider } from '@/hooks/usePresence';
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import Install from "./pages/Install";
@@ -25,7 +26,7 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
       <AuthProvider>
-        <GlobalAudioProvider>
+        <PresenceProvider><GlobalAudioProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
@@ -43,7 +44,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
-        </GlobalAudioProvider>
+        </GlobalAudioProvider></PresenceProvider>
       </AuthProvider>
     </ThemeProvider>
   </QueryClientProvider>

@@ -11,8 +11,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useFileCache } from '@/hooks/useFileCache';
-import { useGlobalAudio } from '@/hooks/useGlobalAudio';
+import { useGlobalAudio, type AudioSource } from '@/hooks/useGlobalAudio';
 import { toast } from 'sonner';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 
 interface ChannelAudioPlayerProps {
   url: string;
@@ -21,6 +22,7 @@ interface ChannelAudioPlayerProps {
   channelName?: string;
   duration?: number;
   className?: string;
+  source?: AudioSource;
 }
 
 const PLAYBACK_SPEEDS = [0.5, 1, 1.5, 2];
@@ -31,11 +33,12 @@ export function ChannelAudioPlayer({
   fileName,
   channelName,
   duration: initialDuration,
-  className 
+  className, source
 }: ChannelAudioPlayerProps) {
   const { audioState, play, pause, seek, setSpeed, getSavedPosition, isCurrentAudio } = useGlobalAudio();
   const [isLoading, setIsLoading] = useState(true);
   const [isCached, setIsCached] = useState(false);
+  const savedOffline = useOfflineStatus(url);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
@@ -62,8 +65,7 @@ export function ChannelAudioPlayer({
         if (cached) {
           const cachedFile = await getCachedFile(url);
           if (cachedFile) {
-            const objectUrl = URL.createObjectURL(cachedFile.blob);
-            setAudioUrl(objectUrl);
+            setAudioUrl(url);
             setIsLoading(false);
             return;
           }
@@ -82,24 +84,25 @@ export function ChannelAudioPlayer({
     loadAudio();
     
     return () => {
-      if (audioUrl && audioUrl.startsWith('blob:')) {
-        URL.revokeObjectURL(audioUrl);
-      }
+      // The shared provider owns cached playback URLs.
     };
   }, [url]);
 
   // Load duration from a temporary audio element if not playing
   useEffect(() => {
-    if (!isThisAudio && audioUrl && !localDuration) {
-      const tempAudio = new Audio(audioUrl);
-      tempAudio.addEventListener('loadedmetadata', () => {
-        setLocalDuration(tempAudio.duration);
-      });
-      return () => {
-        tempAudio.src = '';
-      };
-    }
-  }, [audioUrl, isThisAudio, localDuration]);
+    if (isThisAudio || !audioUrl || localDuration) return;
+    let active = true; let objectUrl: string | undefined; let tempAudio: HTMLAudioElement | undefined;
+    void getCachedFile(url).then(cached => {
+      if (!active) return;
+      // Never request metadata from the network for a downloaded file.
+      if (cached) objectUrl = URL.createObjectURL(cached.blob);
+      if (!cached && !navigator.onLine) return;
+      tempAudio = new Audio(objectUrl || url);
+      tempAudio.preload = 'metadata';
+      tempAudio.addEventListener('loadedmetadata', () => { if (active && Number.isFinite(tempAudio!.duration)) setLocalDuration(tempAudio!.duration); });
+    });
+    return () => { active = false; if (tempAudio) tempAudio.src = ''; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [audioUrl, url, isThisAudio, localDuration, getCachedFile]);
 
   const triggerHaptic = () => {
     if (navigator.vibrate) navigator.vibrate(15);
@@ -117,8 +120,7 @@ export function ChannelAudioPlayer({
         });
         if (blob) {
           setIsCached(true);
-          const objectUrl = URL.createObjectURL(blob);
-          setAudioUrl(objectUrl);
+          setAudioUrl(url);
         } else throw new Error('Storage or network unavailable');
       } else {
         const blob = await downloadWithProgress(url, fileName || `${title || 'audio'}.${url.split('?')[0].split('.').pop() || 'opus'}`, setDownloadProgress);
@@ -129,7 +131,7 @@ export function ChannelAudioPlayer({
       triggerHaptic();
       toast.success('Saved offline in StudyGram');
     } catch (error) {
-      toast.error('Unable to save offline');
+      toast.error(error instanceof Error ? error.message : 'Unable to save offline');
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
@@ -143,7 +145,7 @@ export function ChannelAudioPlayer({
     if (isPlaying) {
       pause();
     } else {
-      play(audioUrl, title, channelName);
+      play(url, title || fileName, channelName, undefined, source);
     }
   };
 
@@ -152,7 +154,7 @@ export function ChannelAudioPlayer({
     
     // If this audio isn't currently loaded, play it first at the seek position
     if (!isThisAudio) {
-      play(audioUrl, title, channelName, value[0]);
+      play(url, title || fileName, channelName, value[0], source);
     } else {
       seek(value[0]);
     }
@@ -173,7 +175,7 @@ export function ChannelAudioPlayer({
     
     // If not currently playing this audio, start it first
     if (!isThisAudio) {
-      play(audioUrl, title, channelName);
+      play(url, title || fileName, channelName, undefined, source);
     }
     setSpeed(speed);
   };
@@ -201,7 +203,7 @@ export function ChannelAudioPlayer({
   if (isLoading) {
     return (
       <div className={cn(
-        'flex items-center justify-center p-4 rounded-xl bg-slate-800/80',
+        'flex items-center justify-center p-4 rounded-xl bg-secondary/60',
         className
       )}>
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -210,16 +212,17 @@ export function ChannelAudioPlayer({
   }
 
   return (
-    <div className={cn('rounded-lg bg-slate-800/80 overflow-hidden', className)}>
+    <div className={cn('rounded-lg bg-secondary/60 overflow-hidden', className)}>
       <div className="p-2.5 flex items-start gap-2.5">
         {/* Play/Pause button with download indicator */}
         <div className="relative shrink-0">
           <Button
             size="icon"
             variant="ghost"
+            aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
             className={cn(
               "h-10 w-10 rounded-full",
-              isPlaying ? "bg-emerald-500 hover:bg-emerald-500/90" : "bg-sky-500 hover:bg-sky-500/90"
+              isPlaying ? "bg-emerald-500 hover:bg-emerald-500/90" : "bg-primary hover:bg-primary/90"
             )}
             onClick={togglePlay}
           >
@@ -230,14 +233,14 @@ export function ChannelAudioPlayer({
             )}
           </Button>
           {/* Download indicator */}
-          <button 
+          {!savedOffline && <button
             aria-label="Save audio offline"
             onClick={handleDownload}
             disabled={isDownloading}
             className={cn(
-              "absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center border border-slate-800 transition-all",
+              "absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center border border-card transition-all",
               isDownloading ? "w-5 h-5" : "w-4 h-4",
-              isCached ? "bg-emerald-500" : "bg-sky-500"
+              isCached ? "bg-emerald-500" : "bg-primary"
             )}
           >
             {isDownloading ? (
@@ -255,18 +258,18 @@ export function ChannelAudioPlayer({
             ) : (
               <ArrowDownToLine className="h-2 w-2 text-white" />
             )}
-          </button>
+          </button>}
         </div>
         
         {/* Title and info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-white truncate">
-                {title || 'Audio Recording'}
+              <h3 className="text-sm font-medium text-foreground truncate">
+                {title || fileName || 'Audio recording'}
               </h3>
               {channelName && (
-                <p className="text-xs text-slate-400 mt-0.5">{channelName}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{channelName}</p>
               )}
             </div>
             
@@ -276,30 +279,31 @@ export function ChannelAudioPlayer({
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-7 w-7 shrink-0 text-slate-400 hover:text-white"
+                  aria-label="Audio options"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
                 >
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48 bg-slate-800 border-slate-700">
-                <DropdownMenuItem onClick={handleDownload} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+              <DropdownMenuContent align="end" className="w-48 bg-card border-border">
+                {!savedOffline && <DropdownMenuItem onClick={handleDownload} className="text-foreground focus:bg-secondary focus:text-foreground">
                   <Download className="h-4 w-4 mr-2" />
                   Save offline
-                </DropdownMenuItem>
-                {isCached && (
-                  <DropdownMenuItem onClick={handleRemoveFromCache} className="text-slate-200 focus:bg-slate-700 focus:text-slate-200">
+                </DropdownMenuItem>}
+                {savedOffline && (
+                  <DropdownMenuItem onClick={handleRemoveFromCache} className="text-foreground focus:bg-secondary focus:text-foreground">
                     Remove from offline
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuSeparator className="bg-slate-700" />
-                <div className="px-2 py-1.5 text-xs text-slate-400">Playback Speed</div>
+                <DropdownMenuSeparator className="bg-secondary" />
+                <div className="px-2 py-1.5 text-xs text-muted-foreground">Playback Speed</div>
                 {PLAYBACK_SPEEDS.map((speed) => (
                   <DropdownMenuItem 
                     key={speed}
                     onClick={() => handleSetSpeed(speed)} 
                     className={cn(
-                      "text-slate-200 focus:bg-slate-700 focus:text-slate-200",
-                      playbackSpeed === speed && "bg-slate-700"
+                      "text-foreground focus:bg-secondary focus:text-foreground",
+                      playbackSpeed === speed && "bg-secondary"
                     )}
                   >
                     {speed}x {playbackSpeed === speed && '✓'}
@@ -310,17 +314,17 @@ export function ChannelAudioPlayer({
           </div>
           
           {/* Time display */}
-          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-400">
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
             <span>{formatTime(currentTime)}</span>
             <span>/</span>
             <span>{formatTime(duration)}</span>
             {playbackSpeed !== 1 && isThisAudio && (
-              <span className="ml-1 px-1 py-0.5 bg-slate-700 rounded text-[10px]">
+              <span className="ml-1 px-1 py-0.5 bg-secondary rounded text-[10px]">
                 {playbackSpeed}x
               </span>
             )}
             {currentTime > 0 && !isThisAudio && (
-              <span className="ml-1 px-1 py-0.5 bg-sky-500/20 text-sky-400 rounded text-[10px]">
+              <span className="ml-1 px-1 py-0.5 bg-primary/20 text-primary rounded text-[10px]">
                 Resume
               </span>
             )}
@@ -334,7 +338,7 @@ export function ChannelAudioPlayer({
           <Button
             size="icon"
             variant="ghost"
-            className="h-5 w-5 text-slate-400 hover:text-white shrink-0"
+            className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
             onClick={skipBackward}
             disabled={!isThisAudio}
           >
@@ -352,7 +356,7 @@ export function ChannelAudioPlayer({
           <Button
             size="icon"
             variant="ghost"
-            className="h-5 w-5 text-slate-400 hover:text-white shrink-0"
+            className="h-5 w-5 text-muted-foreground hover:text-foreground shrink-0"
             onClick={skipForward}
             disabled={!isThisAudio}
           >

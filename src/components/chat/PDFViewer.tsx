@@ -4,6 +4,8 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, RotateCw, ZoomIn, ZoomOut } from 'lucide-react';
 import { useFileCache } from '@/hooks/useFileCache';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
+import { usePinchZoom } from '@/hooks/usePinchZoom';
 import { toast } from 'sonner';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -38,6 +40,8 @@ export function PDFViewer({ open, onClose, url, fileName }: { open: boolean; onC
   const [downloading, setDownloading] = useState(false);
   const [container, setContainer] = useState<HTMLDivElement | null>(null);
   const { getCachedFile, saveOffline } = useFileCache();
+  const savedOffline = useOfflineStatus(url);
+  usePinchZoom(container, zoom, setZoom);
   useEffect(() => {
     let active = true;
     setFile(null); setPage(1); setNumPages(0); setZoom(1); setRotation(0);
@@ -53,9 +57,10 @@ export function PDFViewer({ open, onClose, url, fileName }: { open: boolean; onC
     return () => observer.disconnect();
   }, [open, container]);
   const download = async () => {
+    if (url.startsWith('blob:')) { toast.info('This PDF is already opened from device storage.'); return; }
     setDownloading(true);
     try {
-      if (!url.startsWith('blob:')) await saveOffline(url, fileName);
+      await saveOffline(url, fileName);
       toast.success('Saved offline in StudyGram · Downloaded');
     } catch (error) { toast.error(error instanceof Error ? error.message : 'Unable to save offline.'); }
     finally { setDownloading(false); }
@@ -64,17 +69,18 @@ export function PDFViewer({ open, onClose, url, fileName }: { open: boolean; onC
     <DialogContent aria-describedby={undefined} className="w-screen max-w-none h-[100dvh] max-h-[100dvh] rounded-none p-0 gap-0 flex flex-col bg-background [&>button]:top-3">
       <header className="min-h-16 flex items-center gap-2 border-b border-border bg-card px-4 pr-20">
         <DialogTitle className="flex-1 min-w-0 truncate text-base">{fileName}</DialogTitle>
-        <Button variant="ghost" size="icon" aria-label="Save PDF offline" onClick={download} disabled={downloading}>{downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}</Button>
+        {!savedOffline && !url.startsWith('blob:') && <Button variant="ghost" size="icon" aria-label="Save PDF offline" onClick={download} disabled={downloading}>{downloading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Download className="h-5 w-5" />}</Button>}
       </header>
       <div ref={setContainer} className="flex-1 min-h-0 overflow-auto scrollbar-thin p-4">
-        {file ? <Document key={retry} file={file} onLoadSuccess={({ numPages }) => setNumPages(numPages)} loading={<div role="status" className="flex justify-center p-10"><Loader2 className="animate-spin text-primary" /></div>} error={<div className="text-center p-6 space-y-3"><p>Unable to display this PDF.</p><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button><Button onClick={download}>Save PDF offline</Button></div>}>
+        {file ? <Document key={retry} file={file} onLoadSuccess={({ numPages }) => setNumPages(numPages)} loading={<div role="status" className="flex justify-center p-10"><Loader2 className="animate-spin text-primary" /></div>} error={<div className="text-center p-6 space-y-3"><p>Unable to display this PDF.</p><Button variant="secondary" onClick={() => setRetry(r => r + 1)}>Retry</Button>{!savedOffline && !url.startsWith('blob:') && <Button onClick={download}>Save PDF offline</Button>}</div>}>
           {Array.from({ length: numPages }, (_, index) => <ScrollPage key={index + 1} number={index + 1} width={width * zoom} rotation={rotation} root={container} onVisible={setPage} />)}
         </Document> : <div role="status" className="flex justify-center p-10"><Loader2 className="animate-spin text-primary" /></div>}
       </div>
       <footer className="flex flex-wrap items-center justify-center gap-2 border-t border-border bg-card p-3">
         <span className="min-w-20 text-center text-sm">{numPages ? `${page} / ${numPages}` : 'Loading…'}</span>
-        <Button variant="ghost" size="icon" aria-label="Zoom out" onClick={() => setZoom(z => Math.max(.5, z - .25))}><ZoomOut className="h-5 w-5" /></Button>
-        <Button variant="ghost" size="icon" aria-label="Zoom in" onClick={() => setZoom(z => Math.min(3, z + .25))}><ZoomIn className="h-5 w-5" /></Button>
+        <span className="text-xs text-muted-foreground sm:hidden">Pinch to zoom · {Math.round(zoom * 100)}%</span>
+        <Button className="hidden sm:inline-flex" variant="ghost" size="icon" aria-label="Zoom out" onClick={() => setZoom(z => Math.max(1, z - .25))}><ZoomOut className="h-5 w-5" /></Button>
+        <Button className="hidden sm:inline-flex" variant="ghost" size="icon" aria-label="Zoom in" onClick={() => setZoom(z => Math.min(4, z + .25))}><ZoomIn className="h-5 w-5" /></Button>
         <Button variant="ghost" size="icon" aria-label="Rotate PDF" onClick={() => setRotation(r => (r + 90) % 360)}><RotateCw className="h-5 w-5" /></Button>
       </footer>
     </DialogContent>

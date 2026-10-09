@@ -204,7 +204,7 @@ export function AddMembersDialog({
                         src={contact.avatar_url}
                         name={contact.full_name || contact.username || 'User'}
                         size="sm"
-                        isOnline={contact.is_online}
+                        userId={contact.user_id}
                       />
                       <div className="flex-1 text-left">
                         <p className="text-sm font-medium">

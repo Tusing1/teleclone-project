@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback } from 'react';
-import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, Home, UserRound, Heart, Bookmark } from 'lucide-react';
+import { Search, Edit, Menu, MoreVertical, Users, Radio, Trash2, RefreshCw, Home, Settings, Heart, Bookmark } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Avatar } from './Avatar';
+import { NowPlayingBar } from './NowPlayingBar';
+import { StudyTermReminder } from './StudyTermReminder';
 import { useAuth } from '@/hooks/useAuth';
 import { ConversationWithDetails } from '@/types/chat';
 import { cn } from '@/lib/utils';
@@ -26,6 +28,7 @@ interface ConversationListProps {
   onOpenSavedMessages?: () => void;
   onOpenMessageFriends?: () => void;
   onOpenEditProfile?: () => void;
+  onOpenSettings?: () => void;
   onOpenGlobalSearch?: () => void;
   pendingLikesCount?: number;
   loading?: boolean;
@@ -44,6 +47,7 @@ export function ConversationList({
   onOpenSavedMessages,
   onOpenMessageFriends,
   onOpenEditProfile,
+  onOpenSettings,
   onOpenGlobalSearch,
   pendingLikesCount = 0,
   loading = false
@@ -303,7 +307,7 @@ export function ConversationList({
           <Avatar
             src={otherProfile.avatar_url}
             name={displayName}
-            isOnline={otherProfile.is_online}
+            userId={otherProfile.user_id}
           />
         </div>
         <div className="flex-1 min-w-0">
@@ -413,6 +417,8 @@ export function ConversationList({
           ))}
         </div>
       </div>
+      <NowPlayingBar onOpenSource={source => onSelect(source.conversationId)} />
+      <StudyTermReminder onReview={() => onOpenEditProfile?.()} />
       {/* Conversation list with pull-to-refresh */}
       <div
         ref={containerRef}
@@ -490,9 +496,9 @@ export function ConversationList({
             <span className="text-[10px] font-medium">Saved</span>
           </button>
 
-          <button type="button" onClick={() => onOpenEditProfile?.()} className="flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground transition-colors hover:text-foreground" aria-label="Open profile">
-            <UserRound className="h-5 w-5" />
-            <span className="text-[10px] font-medium">Profile</span>
+          <button type="button" onClick={() => onOpenSettings?.()} className="flex flex-col items-center gap-1 rounded-xl px-1 py-1.5 text-muted-foreground transition-colors hover:text-foreground" aria-label="Open settings">
+            <Settings className="h-5 w-5" />
+            <span className="text-[10px] font-medium">Settings</span>
           </button>
         </div>
       </nav>

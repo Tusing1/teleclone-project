@@ -8,6 +8,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
+import { emptyStudyDetails, studyDetailsError } from '@/lib/studyDetails';
+import { StudyDetailsForm } from '@/components/chat/StudyDetailsForm';
 
 const signUpSchema = z.object({
   email: z.string().email('Please enter a valid email'),
@@ -24,6 +26,7 @@ const signInSchema = z.object({
 
 export default function Auth() {
   const [isSignUp, setIsSignUp] = useState(false);
+  const [studies, setStudies] = useState(emptyStudyDetails);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -144,12 +147,14 @@ export default function Auth() {
     try {
       if (isSignUp) {
         const validated = signUpSchema.parse(formData);
+        const studyError = studyDetailsError(studies);
+        if (studyError) { setErrors({ studyDetails: studyError }); return; }
         setLoading(true);
         const { error } = await signUp(
           validated.email, 
           validated.password, 
           validated.username, 
-          validated.fullName
+          validated.fullName, studies
         );
         
         if (error) {
@@ -310,6 +315,7 @@ export default function Auth() {
             </>
           )}
 
+          {isSignUp && <><StudyDetailsForm value={studies} onChange={setStudies} />{errors.studyDetails && <p role="alert" className="text-xs text-destructive">{errors.studyDetails}</p>}</>}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input

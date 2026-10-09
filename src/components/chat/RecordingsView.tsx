@@ -20,6 +20,7 @@ import {
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { mediaKind } from '@/lib/media';
 
 interface Recording {
     id: string;
@@ -29,6 +30,8 @@ interface Recording {
     type: 'call' | 'livestream' | 'voice_message';
     duration?: number;
     file_size?: number;
+    conversation_id: string;
+    file_name?: string;
 }
 
 interface RecordingsViewProps {
@@ -74,6 +77,7 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                     if (call.recording_url) {
                         allRecordings.push({
                             id: call.id,
+                            conversation_id: call.conversation_id,
                             title: call.recording_title || call.livestream_title || `${call.call_type === 'livestream' ? 'Livestream' : 'Call'} Recording`,
                             url: call.recording_url,
                             created_at: call.started_at,
@@ -94,17 +98,11 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                 console.error('Error fetching voice messages:', msgError);
             } else if (voiceMessages) {
                 voiceMessages.forEach(msg => {
-                    if (msg.file_url && (
-                        msg.file_url.toLowerCase().endsWith('.webm') ||
-                        msg.file_url.toLowerCase().endsWith('.mp3') ||
-                        msg.file_url.toLowerCase().endsWith('.m4a') ||
-                        msg.file_url.toLowerCase().endsWith('.ogg') ||
-                        msg.file_url.toLowerCase().endsWith('.wav') ||
-                        msg.content?.toLowerCase().includes('recording') ||
-                        msg.content?.toLowerCase().includes('voice')
-                    )) {
+                    if (msg.file_url && mediaKind(msg.file_name || '', msg.file_url) === 'audio') {
                         allRecordings.push({
                             id: msg.id,
+                            conversation_id: msg.conversation_id,
+                            file_name: msg.file_name || undefined,
                             title: msg.file_name?.replace(/\.[^/.]+$/, '') || msg.content || 'Voice Recording',
                             url: msg.file_url,
                             created_at: msg.created_at,
@@ -165,7 +163,7 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
                 message_type: 'file',
                 content: `🎙️ ${forwardRecording.title}`,
                 file_url: forwardRecording.url,
-                file_name: `${forwardRecording.title}.webm`,
+                file_name: forwardRecording.file_name || `${forwardRecording.title}.${forwardRecording.url.split('?')[0].split('.').pop() || 'webm'}`,
             });
 
             if (error) throw error;
@@ -368,7 +366,9 @@ export function RecordingsView({ onBack }: RecordingsViewProps) {
 
                                                     <ChannelAudioPlayer
                                                         url={recording.url}
-                                                        title=""
+                                                        title={recording.title}
+                                                        fileName={recording.file_name}
+                                                        source={{ conversationId: recording.conversation_id, messageId: recording.type === 'voice_message' ? recording.id : undefined, label: conversations.find(conversation => conversation.id === recording.conversation_id)?.name || 'Conversation' }}
                                                         className="bg-black/40 border-white/5 rounded-xl p-2 shadow-inner"
                                                     />
                                                 </div>

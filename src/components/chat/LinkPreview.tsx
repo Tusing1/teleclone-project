@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ExternalLink, Globe, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { extractMessageUrls, safeWebUrl } from '@/lib/messageLinks';
 
 interface LinkPreviewData {
   url: string;
@@ -23,11 +24,11 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
   const hostname = urlObj.hostname.replace('www.', '');
 
   // YouTube
-  if (hostname.includes('youtube.com') || hostname.includes('youtu.be')) {
+  if (hostname === 'youtube.com' || hostname === 'youtu.be') {
     const videoId = url.includes('youtu.be')
       ? url.split('/').pop()?.split('?')[0]
       : new URLSearchParams(urlObj.search).get('v');
-    if (videoId) {
+    if (videoId && /^[\w-]{11}$/.test(videoId)) {
       return {
         siteName: 'YouTube',
         image: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
@@ -37,7 +38,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
   }
 
   // Twitter/X
-  if (hostname.includes('twitter.com') || hostname.includes('x.com')) {
+  if (hostname === 'twitter.com' || hostname === 'x.com') {
     return {
       siteName: 'X (Twitter)',
       favicon: 'https://abs.twimg.com/favicons/twitter.ico',
@@ -45,7 +46,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
   }
 
   // GitHub
-  if (hostname.includes('github.com')) {
+  if (hostname === 'github.com') {
     return {
       siteName: 'GitHub',
       favicon: 'https://github.com/favicon.ico',
@@ -53,7 +54,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
   }
 
   // LinkedIn
-  if (hostname.includes('linkedin.com')) {
+  if (hostname === 'linkedin.com') {
     return {
       siteName: 'LinkedIn',
       favicon: 'https://www.linkedin.com/favicon.ico',
@@ -61,7 +62,7 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
   }
 
   // Instagram
-  if (hostname.includes('instagram.com')) {
+  if (hostname === 'instagram.com') {
     return {
       siteName: 'Instagram',
       favicon: 'https://www.instagram.com/favicon.ico',
@@ -70,7 +71,6 @@ function extractMetadataFromUrl(url: string): Partial<LinkPreviewData> {
 
   return {
     siteName: hostname.charAt(0).toUpperCase() + hostname.slice(1),
-    favicon: `https://www.google.com/s2/favicons?domain=${hostname}&sz=64`,
   };
 }
 
@@ -84,8 +84,10 @@ export function LinkPreview({ url, className, onOpenBrowser }: LinkPreviewProps)
     const fetchPreview = async () => {
       setLoading(true);
       setError(false);
+      setImageError(false);
 
       try {
+        if (!safeWebUrl(url)) throw new Error('Unsupported link');
         const urlObj = new URL(url);
         const metadata = extractMetadataFromUrl(url);
 
@@ -196,6 +198,5 @@ export function LinkPreview({ url, className, onOpenBrowser }: LinkPreviewProps)
 
 // Utility to detect URLs in text
 export function extractUrls(text: string): string[] {
-  const urlRegex = /(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/g;
-  return text.match(urlRegex) || [];
+  return extractMessageUrls(text);
 }

@@ -1,5 +1,8 @@
 import { useCallPreferences, updateCallPreference } from '@/hooks/useCallPreferences';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { useFileCache, FILES_CHANGED } from '@/hooks/useFileCache';
+import { storageBudget, setStorageBudget, GIB, STORAGE_CHANGED } from '@/lib/storageBudget';
 import { useAppInstall } from '@/hooks/useAppInstall';
 import { Download, Moon, Sun, Shield, Smartphone, Wifi, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,9 +22,27 @@ import { useNavigate } from 'react-router-dom';
 interface SettingsDialogProps {
   open: boolean;
   onClose: () => void;
+  onEditProfile?: () => void;
+  onOpenDownloads?: () => void;
 }
 
-export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
+export function SettingsDialog({ open, onClose, onEditProfile, onOpenDownloads }: SettingsDialogProps) {
+  const { user, profile } = useAuth();
+  const { getCacheStats } = useFileCache();
+  const [budget, setBudget] = useState(1);
+  const [usedMB, setUsedMB] = useState(0);
+  const [quotaMB, setQuotaMB] = useState<number | null>(null);
+  useEffect(() => {
+    if (!open || !user) return;
+    let active = true;
+    const refresh = () => {
+      setBudget(storageBudget(user.id) / GIB);
+      void getCacheStats().then(stats => { if (active) setUsedMB(stats.totalSizeMB); });
+      void navigator.storage?.estimate?.().then(stats => { if (active && stats.quota) setQuotaMB(stats.quota / 1024 ** 2); });
+    };
+    refresh(); window.addEventListener(FILES_CHANGED, refresh); window.addEventListener(STORAGE_CHANGED, refresh);
+    return () => { active = false; window.removeEventListener(FILES_CHANGED, refresh); window.removeEventListener(STORAGE_CHANGED, refresh); };
+  }, [open, user?.id, getCacheStats]);
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const callPreferences = useCallPreferences();
@@ -57,6 +78,21 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
         </DialogHeader>
 
         <div className="space-y-6">
+          <button type="button" onClick={onEditProfile} className="w-full rounded-2xl bg-secondary p-4 text-left hover:bg-secondary/70">
+            <span className="block font-semibold">{profile?.full_name || profile?.username || 'Your profile'}</span>
+            <span className="text-xs text-muted-foreground">Edit profile, study details and interests →</span>
+          </button>
+          <section className="space-y-3 rounded-2xl border border-border p-4">
+            <h3 className="font-semibold">Offline storage</h3>
+            <Label htmlFor="storage-budget">Storage limit on this device</Label>
+            <select id="storage-budget" className="w-full rounded-xl border border-border bg-background p-3" value={budget} onChange={event => { if (user) setStorageBudget(user.id, Number(event.target.value) as 1 | 5); }}>
+              <option value={1}>1 GB</option><option value={5}>5 GB</option>
+            </select>
+            <p className="text-xs text-muted-foreground">{usedMB.toFixed(1)} MB used. Saved downloads have no app expiry. Automatic cache lasts up to six months; only automatic copies are replaced when space is needed.</p>
+            <p className="text-xs text-muted-foreground">This is a limit, not reserved storage. Your browser or phone may clear files; clearing site data removes downloads. Lowering the limit never deletes saved files.</p>
+            {quotaMB !== null && quotaMB < budget * 1024 && <p className="text-xs text-amber-600">Your browser currently allows less than this limit ({Math.round(quotaMB)} MB total site quota).</p>}
+            <Button variant="outline" className="w-full" onClick={onOpenDownloads}>View downloaded files</Button>
+          </section>
           {/* Appearance */}
           <div className="space-y-4">
             <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Appearance</h3>

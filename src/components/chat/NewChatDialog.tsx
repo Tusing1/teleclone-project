@@ -86,7 +86,7 @@ export function NewChatDialog({ open, onClose, onSelectUser }: NewChatDialogProp
                 <Avatar
                   src={user.avatar_url}
                   name={user.full_name || user.username}
-                  isOnline={user.is_online}
+                  userId={user.user_id}
                 />
                 <div className="flex-1 min-w-0">
                   <p className="font-medium truncate">

@@ -1,4 +1,5 @@
 import { createRecordingMixer } from '@/lib/recordingMixer';
+import { getSavedMessages } from '@/lib/savedMessages';
 import { requestMicrophoneAccess } from '@/lib/microphoneCheck';
 import { getCallPreferences, updateCallPreference } from './useCallPreferences';
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -493,7 +494,10 @@ export function useLiveStream(conversationId: string | null, direct = false) {
       if (error || !data) throw new Error('Session could not be ended. Check your connection and try again.');
       cleanup(); setActiveStream(null); setParticipants([]);
       await supabase.from('call_participants').update({ left_at: new Date().toISOString() }).eq('call_id', activeStream.id).eq('user_id', user.id);
-      if (!direct) await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, content: `⚫ Live Stream Ended: "${activeStream.livestream_title || 'Live Stream'}"`, message_type: 'system' });
+      if (!direct) {
+        const { error: noticeError } = await supabase.from('messages').insert({ conversation_id: conversationId, sender_id: user.id, content: `Live stream ended: "${activeStream.livestream_title || 'Live Stream'}"`, message_type: 'system' });
+        if (noticeError) toast.error('Session ended, but its end notice could not be posted.');
+      }
     } finally { busy.current = false; }
   };
 
@@ -785,16 +789,7 @@ export function useLiveStream(conversationId: string | null, direct = false) {
       console.log('Uploaded, public URL:', publicUrl);
 
       // Channel recordings belong in the owner's Telegram-style Saved Messages.
-      const { data: savedConversation, error: savedConversationError } = await supabase.functions.invoke('create-conversation', {
-        body: { type: 'saved' }
-      });
-      const savedMessagesId = savedConversation?.id as string | undefined;
-
-      if (savedConversationError || !savedMessagesId) {
-        console.error('Could not create Saved Messages conversation:', savedConversationError);
-        toast.error('Could not open Saved Messages', { id: 'save-recording' });
-        return;
-      }
+      const savedMessagesId = await getSavedMessages(user.id);
 
       console.log('Inserting channel recording into Saved Messages:', savedMessagesId);
 

@@ -32,6 +32,7 @@ function loadHook(name, response) {
       if (path.endsWith('/useAuth') || path === './useAuth') return { useAuth: () => ({ user: { id: 'host' } }) };
       if (path === '@tanstack/react-query') return { useQuery: () => ({ data: [], isLoading: false }), useQueryClient: () => ({ invalidateQueries: async () => {} }) };
       if (path === 'sonner') return { toast: { success() {}, error() {} } };
+      if (path === '@/lib/savedMessages') return { getSavedMessages: async () => 'saved-test-chat' };
       throw new Error(path);
     },
   });

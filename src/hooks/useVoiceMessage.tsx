@@ -21,14 +21,15 @@ export function useVoiceMessage({ conversationId, replyToChannelMessageId, onSuc
     try {
       // Generate filename with timestamp
       const timestamp = Date.now();
-      const fileName = `voice_${timestamp}.webm`;
+      const extension = blob.type.includes('mp4') ? 'm4a' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+      const fileName = `voice_${timestamp}.${extension}`;
       const filePath = `${user.id}/${fileName}`;
 
       // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('chat-media')
         .upload(filePath, blob, {
-          contentType: 'audio/webm',
+          contentType: blob.type || 'audio/webm',
           cacheControl: '3600',
         });
 

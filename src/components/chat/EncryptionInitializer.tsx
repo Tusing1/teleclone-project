@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useEncryption } from '@/hooks/useEncryption';
 import { toast } from 'sonner';
-import { Shield, ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 
 /**
  * Component that automatically initializes E2EE encryption for the user.
@@ -12,6 +12,7 @@ export const EncryptionInitializer: React.FC = () => {
   const { user } = useAuth();
   const { isInitialized, isLoading, initializeEncryption, error } = useEncryption();
   const [hasAttempted, setHasAttempted] = useState(false);
+  useEffect(() => { setHasAttempted(false); }, [user?.id]);
 
   useEffect(() => {
     const initEncryption = async () => {

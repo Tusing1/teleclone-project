@@ -194,7 +194,7 @@ export function StudyBuddiesDialog({ open, onClose, onSelectUser }: StudyBuddies
                                             <Avatar
                                                 src={buddy.profile.avatar_url}
                                                 name={buddy.profile.full_name || buddy.profile.username}
-                                                isOnline={buddy.profile.is_online}
+                                                userId={buddy.profile.user_id}
                                             />
                                             <div className="flex-1 min-w-0">
                                                 <h4 className="font-medium truncate">{buddy.profile.full_name || buddy.profile.username}</h4>

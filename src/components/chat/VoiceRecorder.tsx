@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Square, Send, Trash2, Pause, Play } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (blob: Blob, duration: number) => void;
@@ -72,11 +73,9 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, className }: Voic
       updateLevel();
       
       // Determine supported MIME type
-      const mimeType = MediaRecorder.isTypeSupported(AUDIO_MIME_TYPE) 
-        ? AUDIO_MIME_TYPE 
-        : FALLBACK_MIME_TYPE;
+      const mimeType = [AUDIO_MIME_TYPE, FALLBACK_MIME_TYPE, 'audio/mp4', 'audio/ogg;codecs=opus'].find(type => MediaRecorder.isTypeSupported(type));
       
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      const mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
       
@@ -97,6 +96,12 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, className }: Voic
       
     } catch (error) {
       console.error('Error starting recording:', error);
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+      if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
+      void audioContextRef.current?.close();
+      audioContextRef.current = null;
+      toast.error('Could not start voice recording. Check microphone permissions and try again.');
     }
   };
 
@@ -148,7 +153,7 @@ export function VoiceRecorder({ onRecordingComplete, onCancel, className }: Voic
       if (!cancel) {
         const currentDuration = duration;
         mediaRecorderRef.current.onstop = () => {
-          const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
+          const blob = new Blob(chunksRef.current, { type: mediaRecorderRef.current?.mimeType || chunksRef.current[0]?.type || 'audio/webm' });
           onRecordingComplete(blob, currentDuration);
         };
       }

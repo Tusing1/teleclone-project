@@ -74,6 +74,7 @@ function harness({ signalingFails = false, microphoneFails = false, remote = fal
     './useAuth': { useAuth: () => ({ user: { id: 'me' } }) },
     './useCallPreferences': { getCallPreferences: () => ({ noiseSuppression: true }), updateCallPreference() {} },
     '@/lib/recordingMixer': { createRecordingMixer: async () => {} },
+    '@/lib/savedMessages': { getSavedMessages: async () => 'saved-test-chat' },
     '@/lib/microphoneCheck': microphoneModule.exports,
     '@/lib/webrtc': { getTurnCredentials: async () => ({ iceServers: [{ urls: 'turn:relay.test' }] }) },
     sonner: { toast: { error() {}, info(message, options) { log.notices.push({ message, options }); }, warning() {}, success() {} } },

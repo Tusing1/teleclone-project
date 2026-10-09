@@ -16,6 +16,8 @@ import { FilePreview } from './FilePreview';
 import { MediaViewer } from './MediaViewer';
 import { AudioPlayer } from './AudioPlayer';
 import { LinkPreview, extractUrls } from './LinkPreview';
+import { mediaKind } from '@/lib/media';
+import { splitMessageLinks } from '@/lib/messageLinks';
 
 interface MessageBubbleProps {
   message: MessageWithSender;
@@ -30,6 +32,8 @@ interface MessageBubbleProps {
   isAdmin?: boolean;
   discussionMode?: boolean;
   onOpenBrowser?: (url: string) => void;
+  sourceName?: string;
+  sourceConversationId?: string;
 }
 
 export function MessageBubble({
@@ -44,7 +48,7 @@ export function MessageBubble({
   onPin,
   isAdmin = false,
   discussionMode = false,
-  onOpenBrowser
+  onOpenBrowser, sourceName, sourceConversationId
 }: MessageBubbleProps) {
   const { user } = useAuth();
   const [mediaOpen, setMediaOpen] = useState(false);
@@ -88,7 +92,7 @@ export function MessageBubble({
     if (!url) return false;
     if (messageType === 'audio' || messageType === 'voice') return true;
     if (/\.webm$/i.test(url)) return true;
-    return /\.(mp3|wav|ogg|m4a|aac|flac|opus)$/i.test(url);
+    return mediaKind(message.file_name || '', url) === 'audio';
   };
 
   const copyMessageLink = async () => {
@@ -122,6 +126,7 @@ export function MessageBubble({
           fileSize={message.file_size || undefined}
           variant="compact"
           className="mb-1"
+          source={{ conversationId: sourceConversationId || message.conversation_id, messageId: message.id, label: sourceName || 'Conversation' }}
         />
       );
     }
@@ -246,19 +251,19 @@ export function MessageBubble({
 
         {message.content && (
           <div className={cn("text-sm whitespace-pre-wrap break-words leading-snug text-left", visualMedia && "px-3 py-1.5")}>
-            {message.content.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
-              if (part.match(/^https?:\/\//)) {
+            {splitMessageLinks(message.content).map(({ text: part, url }, i) => {
+              if (url) {
                 return (
                   <a
                     key={i}
-                    href={part}
+                    href={url}
                     onClick={(e) => {
                       if (onOpenBrowser) {
                         e.preventDefault();
-                        onOpenBrowser(part);
+                        onOpenBrowser(url);
                       }
                     }}
-                    className="text-sky-400 hover:underline break-all"
+                    className="text-sky-600 dark:text-sky-400 underline underline-offset-2 break-all"
                     target={onOpenBrowser ? undefined : "_blank"}
                     rel="noopener noreferrer"
                   >

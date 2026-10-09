@@ -16,6 +16,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { StudyDetailsForm } from './StudyDetailsForm';
+import { emptyStudyDetails, studyDetailsError, type StudyDetails } from '@/lib/studyDetails';
+import type { Json } from '@/integrations/supabase/types';
 
 interface InterestCategory {
   id: string;
@@ -29,7 +32,7 @@ interface EditProfileDialogProps {
 }
 
 export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [fullName, setFullName] = useState('');
@@ -38,10 +41,13 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [interests, setInterests] = useState<string[]>([]);
+  const [choosingInterests, setChoosingInterests] = useState(false);
+  const [studies, setStudies] = useState(emptyStudyDetails);
   const [availableInterests, setAvailableInterests] = useState<InterestCategory[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const shownInterests = choosingInterests ? availableInterests : interests.map(name => availableInterests.find(interest => interest.name === name) || { id: name, name, emoji: '' });
 
   useEffect(() => {
     if (profile) {
@@ -51,8 +57,9 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
       setPhoneNumber((profile as any).phone_number || '');
       setAvatarUrl(profile.avatar_url);
       setInterests(profile.interests || []);
+      setStudies(profile.study_details || user?.user_metadata?.study_details || emptyStudyDetails());
     }
-  }, [profile]);
+  }, [profile, user?.id]);
 
   useEffect(() => {
     const fetchInterests = async () => {
@@ -150,6 +157,12 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
     setSaving(true);
 
     try {
+      if (studies.course || studies.qualification) {
+        const invalid = studyDetailsError(studies);
+        if (invalid) throw new Error(invalid);
+        const { error: metadataError } = await supabase.auth.updateUser({ data: { study_details: studies } });
+        if (metadataError) throw metadataError;
+      }
       const { error } = await supabase
         .from('profiles')
         .update({
@@ -159,22 +172,24 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
           phone_number: phoneNumber.trim() || null,
           avatar_url: avatarUrl,
           interests: interests
+          ,...(Object.prototype.hasOwnProperty.call(profile || {}, 'study_details') && (studies.course || studies.qualification) ? { study_details: studies as unknown as Json } : {})
         })
         .eq('user_id', user.id);
 
       if (error) throw error;
 
       toast.success('Profile updated!');
+      if ((studies.course || studies.qualification) && !Object.prototype.hasOwnProperty.call(profile || {}, 'study_details')) toast.info('Study details saved to your account. Public buddy matching needs the study-profile database update.');
       onClose();
 
       // Reload to reflect changes
-      window.location.reload();
+      await refreshProfile();
     } catch (error: any) {
       console.error('Error updating profile:', error);
       if (error.code === '23505') {
         toast.error('Username already taken');
       } else {
-        toast.error('Failed to update profile');
+        toast.error(error instanceof Error ? error.message : 'Failed to update profile');
       }
     } finally {
       setSaving(false);
@@ -301,9 +316,11 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
           </div>
 
           {/* Interests Section */}
+          <StudyDetailsForm value={studies} onChange={setStudies} />
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label>Interests</Label>
+              <Label>Your interests</Label>
+              <Button type="button" variant="ghost" size="sm" onClick={() => setChoosingInterests(value => !value)}>{choosingInterests ? 'Done choosing' : 'Edit interests'}</Button>
               <span className={cn(
                 "text-xs",
                 interests.length < 3 ? "text-amber-500 font-medium" : "text-muted-foreground"
@@ -315,7 +332,7 @@ export function EditProfileDialog({ open, onClose }: EditProfileDialogProps) {
               Choose interests to help find better matches
             </p>
             <div className="flex flex-wrap gap-2">
-              {availableInterests.map((interest) => {
+              {shownInterests.map((interest) => {
                 const isSelected = interests.includes(interest.name);
                 return (
                   <button
