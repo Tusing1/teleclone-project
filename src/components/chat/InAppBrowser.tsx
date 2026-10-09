@@ -29,9 +29,14 @@ export function InAppBrowser({ open, onClose, url }: { open: boolean; onClose: (
         {embeddable ? <>
           {loading && <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 rounded-full bg-card shadow px-4 py-2 flex items-center gap-2 pointer-events-none"><Loader2 className="h-4 w-4 animate-spin" />Opening link…</div>}
           <iframe key={`${url}:${version}`} src={safeUrl!} title="Linked website" className="w-full h-full border-0 bg-white" onLoad={() => setLoading(false)} sandbox="allow-scripts allow-same-origin allow-forms" referrerPolicy="no-referrer" />
-        </> : <p className="p-6 text-sm text-muted-foreground">{safeUrl ? 'This link cannot be embedded here. Use the external-browser button above.' : 'Only web links without embedded credentials can be opened.'}</p>}
+        </> : <div className="p-6 flex h-full flex-col items-center justify-center gap-4 text-center">
+          <Globe className="h-10 w-10 text-sky-500" />
+          <h3 className="font-semibold">{parsed?.protocol === 'http:' ? 'This website uses an insecure connection' : 'Open this page separately'}</h3>
+          <p className="max-w-sm text-sm text-muted-foreground">{safeUrl ? parsed?.protocol === 'http:' ? 'An HTTPS app cannot display an HTTP page inside it. You can open it in your browser without closing this conversation.' : 'This page cannot safely run inside StudyGram. Your conversation will stay here while you view it in your browser.' : 'Only web links without embedded credentials can be opened.'}</p>
+          {safeUrl && <Button onClick={() => window.open(safeUrl, '_blank', 'noopener,noreferrer')}><ExternalLink className="h-4 w-4 mr-2" />Open in browser</Button>}
+        </div>}
       </div>
-      <p className="border-t border-border bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] text-xs text-muted-foreground">Some websites block embedded viewing or sign-in. If the page is blank, use ↗ above. Your conversation stays open behind this viewer.</p>
+      {embeddable && <div className="border-t border-border bg-card p-3 pb-[max(.75rem,env(safe-area-inset-bottom))] flex items-center gap-3"><p className="flex-1 text-xs text-muted-foreground">Blank page? This website may not allow embedded viewing. Your conversation stays open.</p><Button size="sm" variant="secondary" onClick={() => window.open(safeUrl!, '_blank', 'noopener,noreferrer')}>Open in browser</Button></div>}
     </DialogContent>
   </Dialog>;
 }

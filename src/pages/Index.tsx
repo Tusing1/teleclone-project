@@ -37,6 +37,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { Phone, Radio, Bell } from 'lucide-react';
+import { internalAppPath } from '@/lib/linkPolicy';
 
 export default function Index() {
   const { user, loading: authLoading } = useAuth();
@@ -88,6 +89,21 @@ export default function Index() {
   const [showDownloaded, setShowDownloaded] = useState(false);
   const [showRecordings, setShowRecordings] = useState(false);
   const [browserUrl, setBrowserUrl] = useState<string | null>(null);
+  const handleOpenLink = useCallback(async (url: string) => {
+    const internal = internalAppPath(url, window.location.origin);
+    if (internal !== null) {
+      // Home links keep the current conversation and audio intact.
+      if (internal !== '/') navigate(internal);
+      else toast.info('You’re already in StudyGram. Your conversation stays open.');
+      return;
+    }
+    try {
+      const { openNativeLink } = await import('@/lib/openNativeLink');
+      if (await openNativeLink(url)) return;
+    }
+    catch { toast.error('The native browser could not open. Try the link viewer.'); }
+    setBrowserUrl(url);
+  }, [navigate]);
   const [isMobile, setIsMobile] = useState(false);
   const [forwardDialogMessage, setForwardDialogMessage] = useState<MessageWithSender | null>(null);
   const [pendingInviteCode, setPendingInviteCode] = useState<string | null>(null);
@@ -384,7 +400,7 @@ export default function Index() {
                   setDiscussionContext(null);
                 }}
                 onRefreshConversations={refetchConversations}
-                onOpenBrowser={(url) => setBrowserUrl(url)}
+                onOpenBrowser={handleOpenLink}
               />
             ) : (
               <ChatView
@@ -396,7 +412,7 @@ export default function Index() {
                   handleNavigateToDiscussion(discussionId, selectedConversation, msg);
                 }}
                 onRefreshConversations={refetchConversations}
-                onOpenBrowser={(url) => setBrowserUrl(url)}
+                onOpenBrowser={handleOpenLink}
               />
             )
           ) : showRecordings ? (

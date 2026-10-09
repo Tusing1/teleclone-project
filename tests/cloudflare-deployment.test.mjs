@@ -2,12 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 
-test('Cloudflare serves only the existing frontend with SPA navigation', () => {
+test('Cloudflare preserves SPA navigation and routes API requests to the preview worker', () => {
   const config = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'));
   assert.equal(config.name, 'studygram');
   assert.equal(config.assets.directory, './dist');
   assert.equal(config.assets.not_found_handling, 'single-page-application');
-  assert.equal(config.main, undefined);
+  assert.equal(config.main, 'worker/index.ts');
+  assert.equal(config.assets.binding, 'ASSETS');
+  assert.deepEqual(config.assets.run_worker_first, ['/api/*']);
+  assert.equal(config.ratelimits[0].name, 'PREVIEW_RATE');
   assert.deepEqual(config.routes, [
     { pattern: 'studdybuddyapp.com', custom_domain: true },
     { pattern: 'www.studdybuddyapp.com', custom_domain: true },

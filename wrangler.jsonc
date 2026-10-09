@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "studygram",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-08",
   "routes": [
     { "pattern": "studdybuddyapp.com", "custom_domain": true },
@@ -8,6 +9,9 @@
   ],
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"],
     "not_found_handling": "single-page-application"
-  }
+  },
+  "ratelimits": [{ "name": "PREVIEW_RATE", "namespace_id": "6100901", "simple": { "limit": 60, "period": 60 } }]
 }
