@@ -70,6 +70,8 @@ test('signed-out preview calls and untrusted CORS origins cannot fetch metadata'
   assert.equal((await api.fetch(new Request('https://studdybuddyapp.com/api/link-preview', { method: 'OPTIONS', headers: { Origin: 'https://evil.org' } }), env, ctx)).status, 403);
   const options = await api.fetch(new Request('https://studdybuddyapp.com/api/link-preview', { method: 'OPTIONS', headers: { Origin: 'capacitor://localhost' } }), env, ctx);
   assert.equal(options.status, 204); assert.equal(options.headers.get('Access-Control-Allow-Origin'), 'capacitor://localhost');
+  const androidOptions = await api.fetch(new Request('https://studdybuddyapp.com/api/link-preview', { method: 'OPTIONS', headers: { Origin: 'https://localhost' } }), env, ctx);
+  assert.equal(androidOptions.status, 204);
   assert.equal(requests, 0);
   assert.equal(await (await api.fetch(new Request('https://studdybuddyapp.com/install'), env, ctx)).text(), 'asset');
 });

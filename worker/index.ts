@@ -7,7 +7,7 @@ type Env = {
 };
 const AUTH_ORIGIN = 'https://plhzfgfrlxywxaccewyh.supabase.co';
 const MAX_HTML = 512 * 1024;
-const ALLOWED_ORIGINS = new Set(['https://studdybuddyapp.com', 'https://www.studdybuddyapp.com', 'http://localhost', 'capacitor://localhost', 'http://localhost:8080', 'http://127.0.0.1:8080']);
+const ALLOWED_ORIGINS = new Set(['https://studdybuddyapp.com', 'https://www.studdybuddyapp.com', 'https://localhost', 'http://localhost', 'capacitor://localhost', 'http://localhost:8080', 'http://127.0.0.1:8080']);
 const json = (value: unknown, status = 200) => Response.json(value, { status, headers: { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } });
 
 export async function validateDestination(value: string, signal: AbortSignal, fetcher = fetch): Promise<string> {
@@ -154,6 +154,7 @@ export default {
       response.headers.set('Vary', 'Origin');
       response.headers.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
       response.headers.set('Access-Control-Allow-Headers', 'Authorization, Content-Type, apikey');
+      response.headers.set('Access-Control-Max-Age', '600');
     }
     return response;
   },
